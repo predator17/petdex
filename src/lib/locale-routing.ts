@@ -33,8 +33,8 @@ export function stripLocalePrefix(pathname: string): string {
   return normalized;
 }
 
-export function buildLocaleAlternates(pathname: string) {
-  const canonical = withLocale(pathname, defaultLocale);
+export function buildLocaleAlternates(pathname: string, currentLocale?: Locale) {
+  const canonical = withLocale(pathname, currentLocale ?? defaultLocale);
 
   return {
     canonical,

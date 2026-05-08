@@ -10,6 +10,7 @@ import {
 import { getDexNumberMap } from "@/lib/dex";
 import { buildLocaleAlternates } from "@/lib/locale-routing";
 import { searchPets } from "@/lib/pet-search";
+import { hasLocale } from "@/i18n/config";
 import {
   getApprovedPetCount,
   getFeaturedPetsWithMetrics,
@@ -35,9 +36,16 @@ import { SurprisePetCard } from "@/components/surprise-pet-card";
 // shell that the edge can cache for 60s — enough to keep new pets
 // surfacing without waking a function on every visit.
 export const revalidate = 60;
-export const metadata = {
-  alternates: buildLocaleAlternates("/"),
-};
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ locale: string }>;
+}) {
+  const { locale } = await params;
+  return {
+    alternates: buildLocaleAlternates("/", hasLocale(locale) ? locale : undefined),
+  };
+}
 const SITE_URL = "https://petdex.crafter.run";
 
 export default async function Home() {
