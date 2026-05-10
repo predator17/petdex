@@ -2,7 +2,12 @@ import { NextResponse } from "next/server";
 
 import { COLOR_FAMILIES, type ColorFamily } from "@/lib/color-families";
 import { SEARCH_LIMITS, type SortKey, searchPets } from "@/lib/pet-search";
-import { readShuffleSeed } from "@/lib/shuffle-seed";
+import {
+  createShuffleSeed,
+  normalizeShuffleSeed,
+  readShuffleSeed,
+  setShuffleSeedCookie,
+} from "@/lib/shuffle-seed";
 import { PET_KINDS, PET_VIBES, type PetKind, type PetVibe } from "@/lib/types";
 
 export const runtime = "nodejs";
@@ -48,23 +53,34 @@ export async function GET(req: Request): Promise<Response> {
 
   const cursor = parseIntSafe(params.get("cursor"), 0);
   const limit = parseIntSafe(params.get("limit"), SEARCH_LIMITS.DEFAULT_LIMIT);
+  const includeMeta = params.get("includeMeta") !== "0";
 
-  // Read-only — the SSR home page is responsible for minting the seed
-  // on first hit. Pagination requests don't need to set the cookie
-  // again, just re-use whatever was minted.
-  const shuffleSeed = sort === "curated" ? await readShuffleSeed() : null;
+  let mintedShuffleSeed: string | null = null;
+  let shuffleSeed: string | null = null;
+  if (sort === "curated") {
+    shuffleSeed =
+      normalizeShuffleSeed(params.get("shuffleSeed")) ??
+      (await readShuffleSeed());
+    if (!shuffleSeed) {
+      shuffleSeed = createShuffleSeed();
+      mintedShuffleSeed = shuffleSeed;
+    }
+  }
 
-  const result = await searchPets({
-    q,
-    kinds,
-    vibes,
-    colorFamilies: colors,
-    batches,
-    sort,
-    cursor,
-    limit,
-    shuffleSeed: shuffleSeed ?? undefined,
-  });
+  const result = await searchPets(
+    {
+      q,
+      kinds,
+      vibes,
+      colorFamilies: colors,
+      batches,
+      sort,
+      cursor,
+      limit,
+      shuffleSeed: shuffleSeed ?? undefined,
+    },
+    { includeTotal: includeMeta, includeFacets: includeMeta },
+  );
 
   // Curated results are per-visitor (shuffle seed cookie) so the edge
   // can't share them across users. Other sorts (popular, installed,
@@ -75,9 +91,16 @@ export async function GET(req: Request): Promise<Response> {
       ? "private, no-store"
       : "public, max-age=60, s-maxage=120, stale-while-revalidate=600";
 
-  return NextResponse.json(result, {
+  const payload =
+    sort === "curated" && shuffleSeed ? { ...result, shuffleSeed } : result;
+
+  const response = NextResponse.json(payload, {
     headers: { "Cache-Control": cacheHeader },
   });
+  if (mintedShuffleSeed) {
+    setShuffleSeedCookie(response, mintedShuffleSeed);
+  }
+  return response;
 }
 
 function parseList(raw: string | null): string[] {

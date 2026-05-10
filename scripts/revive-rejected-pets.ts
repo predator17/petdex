@@ -65,7 +65,7 @@ async function main() {
           to: row.owner_email,
           subject: `Update: ${row.display_name} is live on Petdex after all`,
           text: [
-            `Heads up — earlier we declined "${row.display_name}" as a duplicate. That was a bad call. Petdex is happy to host similar pets, especially when they're yours.`,
+            `Heads up: earlier we declined "${row.display_name}" as a duplicate. That was a bad call. Petdex is happy to host similar pets, especially when they're yours.`,
             "",
             `Your pet is now live:`,
             `Page:    ${url}`,
@@ -78,7 +78,7 @@ async function main() {
             "  (any change goes through a quick re-approval)",
             "- Pin it on your public profile so it shows up first:",
             `  ${PROD_URL}/my-pets`,
-            "- Share the install command — every install is tracked",
+            "- Share the install command. Every install is tracked",
             "  on your profile.",
             "",
             "Sorry for the back-and-forth, and thanks for shipping a pet,",

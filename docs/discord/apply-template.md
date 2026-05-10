@@ -10,7 +10,7 @@ discord-mcp tools to build everything.
 
 You have access to the discord-mcp tool set. Read
 `docs/discord/server-template.json` from the petdex repo and build the
-server exactly as specified. Use the discord-mcp tools — never invent
+server exactly as specified. Use the discord-mcp tools. Never invent
 permissions or deviate from the JSON.
 
 Steps, in order:
@@ -26,7 +26,7 @@ Steps, in order:
 
 3. Create roles in the order listed under `roles`. Color, hoist,
    mentionable, and permissions must match. The "Petdex Bot" role
-   exists already (Discord creates it on bot install) — if so, just
+   exists already (Discord creates it on bot install). If so, just
    ensure its permissions match.
 
 4. For each entry under `categories`:
@@ -45,8 +45,8 @@ Steps, in order:
    tree view of categories → channels.
 
 6. Tell me which `_followups` items I have to do by hand (Community
-   enablement, AutoMod, etc.) — those need the Server Settings UI.
+   enablement, AutoMod, etc.). Those need the Server Settings UI.
 
 If any step fails because a tool doesn't exist or returns an error,
-**stop and report**. Don't paper over with workarounds — I'd rather
+**stop and report**. Don't paper over with workarounds. I'd rather
 fix the JSON than ship a half-built server.

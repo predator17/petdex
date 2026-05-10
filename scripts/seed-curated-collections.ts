@@ -36,7 +36,7 @@ const COLLECTIONS: CuratedCollection[] = [
     slug: "graycraft",
     title: "GRAYCRAFT",
     description:
-      "Original mech IP by Kevin Wu — armored chibi pilots from the GRAYCRAFT series. Featured Creator Spotlight #1.",
+      "Original mech IP by Kevin Wu: armored chibi pilots from the GRAYCRAFT series. Featured Creator Spotlight #1.",
     coverPetSlug: "graycraft4",
     petSlugs: [
       "graycraft4",
@@ -51,7 +51,7 @@ const COLLECTIONS: CuratedCollection[] = [
     slug: "crafter-originals",
     title: "Crafter Originals",
     description:
-      "The Petdex foundation set — pets designed by the team behind the platform. Cozy, codex-themed, full of character.",
+      "The Petdex foundation set: pets designed by the team behind the platform. Cozy, codex-themed, full of character.",
     coverPetSlug: "cash-cuy",
     petSlugs: [
       "cash-cuy",
@@ -81,7 +81,7 @@ const COLLECTIONS: CuratedCollection[] = [
     slug: "coders-club",
     title: "Coders Club",
     description:
-      "Pets that ship code. Engineers, hackers, mascots of dev tools — your terminal companions.",
+      "Pets that ship code. Engineers, hackers, mascots of dev tools. Your terminal companions.",
     coverPetSlug: "octohack",
     petSlugs: [
       "octohack",
@@ -110,7 +110,7 @@ const COLLECTIONS: CuratedCollection[] = [
     slug: "cats-universe",
     title: "Cats Universe",
     description:
-      "Felines of every variety. Catch them all — from Boxcat to Doraemon to that one round cat.",
+      "Felines of every variety. Catch them all, from Boxcat to Doraemon to that one round cat.",
     coverPetSlug: "mochi",
     petSlugs: [
       "mochi",
@@ -140,7 +140,7 @@ const COLLECTIONS: CuratedCollection[] = [
     slug: "robots-and-mechs",
     title: "Robots & Mechs",
     description:
-      "Steel companions. From WALL-E to Gundam to GRAYCRAFT — the synthetic side of the Pokédex.",
+      "Steel companions. From WALL-E to Gundam to GRAYCRAFT: the synthetic side of the Pokédex.",
     coverPetSlug: "wall-e",
     petSlugs: [
       "wall-e",
@@ -195,7 +195,7 @@ const COLLECTIONS: CuratedCollection[] = [
     slug: "scientific-minds",
     title: "Scientific Minds",
     description:
-      "Great thinkers as tiny pets — Einstein, Ada Lovelace, Feynman, Shannon. Curated set by @daviddao.",
+      "Great thinkers as tiny pets: Einstein, Ada Lovelace, Feynman, Shannon. Curated set by @daviddao.",
     coverPetSlug: "einstein",
     petSlugs: [
       "einstein",
@@ -213,7 +213,7 @@ const COLLECTIONS: CuratedCollection[] = [
     slug: "anime-heroes",
     title: "Anime Heroes",
     description:
-      "Shonen and beyond — Luffy, Naruto, Goku, Nezuko, Gojo, Frieren. The greatest hits in chibi form.",
+      "Shonen and beyond: Luffy, Naruto, Goku, Nezuko, Gojo, Frieren. The greatest hits in chibi form.",
     coverPetSlug: "luffy",
     petSlugs: [
       "luffy",
@@ -277,6 +277,15 @@ const COLLECTIONS: CuratedCollection[] = [
       "daodun-dog",
       "mimi-love",
     ],
+  },
+  {
+    id: "col_hunter_x_hunter",
+    slug: "hunter-x-hunter",
+    title: "Hunter x Hunter",
+    description:
+      "Heavens Arena to Chimera Ant: Gon, Killua, Hisoka, Netero. Nen-powered chibi companions from Yoshihiro Togashi's universe.",
+    coverPetSlug: "killua",
+    petSlugs: ["killua", "gon", "hisoka", "netero", "killu"],
   },
 ];
 

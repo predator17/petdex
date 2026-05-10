@@ -1,13 +1,19 @@
 "use client";
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useRef, useState, useTransition } from "react";
+import { Suspense, useState, useTransition } from "react";
 
 import { useAuth } from "@clerk/nextjs";
 import { Globe } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
 import { stripLocalePrefix, withLocale } from "@/lib/locale-routing";
+
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 import { hasLocale, type Locale } from "@/i18n/config";
 
@@ -49,28 +55,6 @@ function LocaleSwitcherInner() {
   const t = useTranslations("header");
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
-  const containerRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-
-    function handlePointerDown(event: MouseEvent) {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
-    }
-
-    window.addEventListener("mousedown", handlePointerDown);
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("mousedown", handlePointerDown);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
 
   function selectLocale(nextLocale: Locale) {
     if (nextLocale === currentLocale) {
@@ -91,6 +75,8 @@ function LocaleSwitcherInner() {
         };
       }
     ).cookieStore;
+    // biome-ignore lint/suspicious/noDocumentCookie: cookieStore is not available in every supported browser yet.
+    document.cookie = `NEXT_LOCALE=${nextLocale}; Path=/; Max-Age=${COOKIE_MAX_AGE}; SameSite=Lax`;
     void cookieStore?.set({
       name: "NEXT_LOCALE",
       value: nextLocale,
@@ -119,36 +105,40 @@ function LocaleSwitcherInner() {
   }
 
   return (
-    <div ref={containerRef} className="relative">
-      <button
-        type="button"
-        aria-label={`${t("language")}: ${current.label}`}
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-        className="inline-flex h-10 items-center gap-2 rounded-full border border-border-base bg-surface/70 px-3 text-xs font-semibold tracking-[0.2em] text-muted-2 uppercase backdrop-blur transition hover:bg-white dark:hover:bg-stone-800"
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <button
+            type="button"
+            aria-label={`${t("language")}: ${current.label}`}
+            className="inline-flex h-10 items-center gap-2 rounded-full border border-border-base bg-surface/70 px-3 text-xs font-semibold tracking-[0.2em] text-muted-2 uppercase backdrop-blur transition hover:bg-white data-popup-open:bg-surface data-popup-open:text-foreground dark:hover:bg-stone-800"
+          />
+        }
       >
         <Globe className="size-4" />
         <span>{current.code}</span>
-      </button>
+      </PopoverTrigger>
 
-      {open ? (
-        <div className="absolute top-full right-0 z-[60] mt-2 min-w-40 overflow-hidden rounded-2xl border border-border-base bg-surface shadow-xl shadow-blue-950/15">
-          {OPTIONS.map((option) => (
-            <button
-              key={option.locale}
-              type="button"
-              disabled={isPending}
-              onClick={() => selectLocale(option.locale)}
-              className="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm text-foreground transition hover:bg-surface-muted disabled:cursor-wait disabled:opacity-70"
-            >
-              <span>{option.label}</span>
-              <span className="font-mono text-xs tracking-[0.2em] text-muted-2 uppercase">
-                {option.code}
-              </span>
-            </button>
-          ))}
-        </div>
-      ) : null}
-    </div>
+      <PopoverContent
+        align="end"
+        sideOffset={8}
+        className="z-[70] min-w-40 gap-0 overflow-hidden rounded-2xl border border-border-base bg-surface p-0 shadow-xl shadow-blue-950/15"
+      >
+        {OPTIONS.map((option) => (
+          <button
+            key={option.locale}
+            type="button"
+            disabled={isPending}
+            onClick={() => selectLocale(option.locale)}
+            className="flex w-full items-center justify-between px-3 py-2.5 text-left text-sm text-foreground transition hover:bg-surface-muted disabled:cursor-wait disabled:opacity-70"
+          >
+            <span>{option.label}</span>
+            <span className="font-mono text-xs tracking-[0.2em] text-muted-2 uppercase">
+              {option.code}
+            </span>
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
   );
 }

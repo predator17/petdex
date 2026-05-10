@@ -224,7 +224,7 @@ export function ProfileCard({ profile }: { profile: ProfileData }) {
                 </h2>
                 <p className="mt-1 text-xs text-muted-3">
                   Lives at petdex.crafter.run/u/{profile.handle}. Changes go
-                  live instantly — no admin review.
+                  live instantly. No admin review.
                 </p>
               </div>
               <button
@@ -329,7 +329,7 @@ export function ProfileCard({ profile }: { profile: ProfileData }) {
                           disabled={capped}
                           title={
                             capped
-                              ? `Max ${MAX_PINNED_PETS} pinned — unpin one first`
+                              ? `Max ${MAX_PINNED_PETS} pinned. Unpin one first`
                               : active
                                 ? "Click to unpin"
                                 : "Click to pin"

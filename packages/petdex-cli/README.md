@@ -1,6 +1,6 @@
 # petdex
 
-The Petdex CLI — browse, install, and submit animated pets for [OpenAI Codex](https://openai.com/codex) from your terminal.
+The Petdex CLI: browse, install, and submit animated pets for [OpenAI Codex](https://openai.com/codex) from your terminal.
 
 - **Gallery & docs:** <https://petdex.crafter.run>
 - **Repo:** <https://github.com/crafter-station/petdex>
@@ -51,14 +51,14 @@ The CLI accepts three input shapes:
 ```sh
 petdex submit ~/.codex/pets/boba       # single folder (must contain pet.json + spritesheet.{webp,png})
 petdex submit ~/Downloads/boba.zip     # single zip with the same root layout
-petdex submit ~/.codex/pets            # parent folder — every subfolder containing pet.json is submitted
+petdex submit ~/.codex/pets            # parent folder: every subfolder containing pet.json is submitted
 ```
 
 Per submission the CLI:
 
 1. Builds a clean zip in memory from `pet.json` + `spritesheet.{webp,png}`.
 2. Calls `POST /api/cli/submit` with a Clerk OAuth bearer to get presigned R2 PUT URLs (60s TTL).
-3. PUTs the three files to Cloudflare R2 directly — no body passes through Petdex servers.
+3. PUTs the three files to Cloudflare R2 directly. No body passes through Petdex servers.
 4. Calls `POST /api/cli/submit/register` to record the submission as `pending`. Identity comes from the verified token, never from the body.
 
 A spinner shows progress per pet; a summary lists failures with reasons. Slugs auto-deduplicate (`boba` → `boba-2` → `boba-3` → …) so submissions never rebote on collisions.
@@ -91,7 +91,7 @@ The flow uses the [`@clerk/cli-auth`](https://github.com/Railly/clerk-cli-auth-e
 
 ## How to make a pet (creation lives inside Codex)
 
-This CLI distributes pets — it does not generate them. To create one:
+This CLI distributes pets. It does not generate them. To create one:
 
 1. Open the **Codex desktop app** (download at <https://openai.com/codex>).
 2. Go to **Skills** in the top navbar → install **Hatch Pet**.
@@ -110,11 +110,11 @@ The full step-by-step (with tips on what makes a great pet) lives at <https://pe
 | `presign 429` | 10/24h rate limit hit | Wait 24h or open a [submit-fallback issue](https://github.com/crafter-station/petdex/issues/new?labels=submit-fallback) |
 | `register 400 invalid_spritesheet` | Sprite < 256×256 | Regenerate with bigger dims (recommend 1536×1872) |
 | `register 400 missing_field` | Folder missing `pet.json` or `spritesheet.{webp,png}` | Inspect folder contents, re-export from Codex if needed |
-| `R2 PUT 403` | Presigned URL expired (60s TTL) | Retry the failed submission — CLI auto-presigns fresh URLs |
+| `R2 PUT 403` | Presigned URL expired (60s TTL) | Retry the failed submission. CLI auto-presigns fresh URLs |
 
 ## Common install issues
 
-The CLI is a single bundled JS file with no native dependencies — the
+The CLI is a single bundled JS file with no native dependencies.
 install path is just `fetch a JSON manifest, write two files to
 ~/.codex/pets/<slug>/`. Most "stuck" reports trace to one of these:
 
@@ -127,11 +127,11 @@ install path is just `fetch a JSON manifest, write two files to
 | Windows: `'sh' is not recognized` | CLI version older than 0.1.1 piped through `curl … \| sh` | Upgrade: `npm i -g petdex@latest` or `npx petdex@latest install <slug>` |
 
 The CLI bundles `@clack/prompts`, `picocolors`, and `jszip` into the
-shipped JS — there is no separate dependency-install step on your
+shipped JS. There is no separate dependency-install step on your
 machine. If something appears to be stuck on "installing
 dependencies", it's almost always npm's own progress bar for the
 `petdex` package itself, not a sub-dependency tree.
 
 ## License
 
-MIT — same as the [Petdex repo](https://github.com/crafter-station/petdex).
+MIT, same as the [Petdex repo](https://github.com/crafter-station/petdex).

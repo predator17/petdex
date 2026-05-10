@@ -73,7 +73,7 @@ export function GithubStarModal({ onClose }: GithubStarModalProps) {
             </p>
           </div>
           <h2 className="text-xl font-semibold tracking-tight text-foreground">
-            Help Petdex grow — star us on GitHub
+            Help Petdex grow. Star us on GitHub
           </h2>
           <p className="text-sm leading-6 text-muted-2">
             Petdex is fully open source. Every star helps more pet creators find

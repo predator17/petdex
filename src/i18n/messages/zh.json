@@ -11,12 +11,12 @@
   },
   "metadata": {
     "root": {
-      "titleDefault": "Petdex — 适用于 Codex 的动画伙伴",
+      "titleDefault": "Petdex: 适用于 Codex 的动画伙伴",
       "titleTemplate": "%s | Petdex",
       "description": "Petdex 是面向 Codex 的公共动画伙伴图库。浏览开源伙伴，预览它们的动画，并用一条命令安装。",
       "description__fixme": true,
-      "ogTitle": "Petdex — 适用于 Codex 的动画伙伴",
-      "twitterTitle": "Petdex — 适用于 Codex 的动画伙伴",
+      "ogTitle": "Petdex: 适用于 Codex 的动画伙伴",
+      "twitterTitle": "Petdex: 适用于 Codex 的动画伙伴",
       "keywords": {
         "codexPet": "Codex 宠物",
         "codexCliPet": "Codex 宠物",
@@ -69,26 +69,31 @@
     "githubRepoAriaWithStars": "GitHub 上的 Petdex，{stars} 颗星",
     "browse": "浏览",
     "browseDesc": "发现宠物、创作者和精选合集",
-    "collectionsDesc": "精选角色集 — South Park、Pokémon 等",
+    "collectionsDesc": "精选角色集：South Park、Pokémon 等",
     "creatorsDesc": "贡献最多宠物的创作者排行榜",
     "requestsDesc": "为社区想要的宠物投票",
     "kindsDesc": "动物、角色、生物、物品",
     "vibesDesc": "Cozy、edgy、神秘、英雄等",
     "build": "创作",
     "buildDesc": "制作并发布你的像素宠物",
-    "createDesc": "用 Codex skill 孵化宠物 — 5 分钟从灵感到 sprite",
+    "createDesc": "用 Codex skill 孵化宠物，5 分钟从灵感到 sprite",
     "submitDesc": "上传文件夹，Petdex 为所有人托管",
     "docsDesc": "安装 Petdex CLI 通过 npm 发布宠物",
     "earn": "推广",
     "earnDesc": "管理广告活动、展示和点击数据",
     "advertiseDesc": "通过赞助卡片触达安装 AI 工具的开发者",
+    "builtWith": "用 Petdex 构建",
+    "builtWithDesc": "社区基于 Petdex 格式发布的应用",
     "communityDesc": "Discord 服务器：shipping 频道和语音房间",
     "takedown": "下架",
     "takedownDesc": "举报使用你作品的宠物",
     "openMore": "更多链接",
     "discover": "发现",
     "make": "创作",
-    "promote": "推广"
+    "promote": "推广",
+    "download": "下载",
+    "downloadDesc": "macOS 桌面应用 - 让宠物在每个 AI 助手旁边",
+    "downloadDesc__fixme": true
   },
   "theme": {
     "toggle": "切换主题",
@@ -120,6 +125,7 @@
     "tagline": "<brand /> 的公共动画伙伴图库。浏览 {totalPets}+ 个开源伙伴，预览它们的状态，并用一条命令安装。",
     "tagline__fixme": true,
     "heroCommand": "npx petdex install boba",
+    "downloadCta": "下载 Petdex Desktop",
     "submitCta": "提交",
     "submitCta__fixme": true,
     "browseGallery": "浏览图库",
@@ -277,7 +283,7 @@
     },
     "dashboard": {
       "metadata": {
-        "title": "广告仪表盘 — Petdex",
+        "title": "广告仪表盘 | Petdex",
         "description": "查看你的 Petdex 广告系列、花费、状态和预付曝光交付情况。"
       },
       "eyebrow": "广告主仪表盘",
@@ -336,7 +342,7 @@
         "delivery": "交付进度",
         "deliveryBody": "已交付 {served} / {total} 次曝光。",
         "metadata": {
-          "title": "编辑广告系列 — Petdex",
+          "title": "编辑广告系列 | Petdex",
           "description": "更新你的 Petdex 赞助卡片素材、目标地址和跟踪字段。"
         },
         "notEditable": {
@@ -402,7 +408,7 @@
   },
   "admin": {
     "metadata": {
-      "title": "Petdex — 管理后台"
+      "title": "Petdex 管理后台"
     },
     "tabs": {
       "ariaLabel": "管理分区",
@@ -411,8 +417,12 @@
       "requests": "请求",
       "collections": "合集",
       "feedback": "反馈",
+      "campaigns": "广告活动",
+      "mailing": "邮件",
       "manifest": "Manifest",
-      "insights": "数据"
+      "insights": "数据",
+      "telemetry": "Telemetry",
+      "telemetry__fixme": true
     },
     "status": {
       "pending": "待处理",
@@ -514,7 +524,7 @@
       },
       "mailto": {
         "bodyIntro": "感谢你在 Petdex 提交 {kind}",
-        "subject": "Re: 你的 Petdex 反馈 — {excerpt}"
+        "subject": "Re: 你的 Petdex 反馈：{excerpt}"
       }
     },
     "feedbackActions": {
@@ -522,6 +532,53 @@
       "archive": "归档",
       "reopen": "重新打开为待处理",
       "failed": "失败：{error}"
+    },
+    "campaigns": {
+      "eyebrow": "广告运营",
+      "title": "广告活动",
+      "description": "查看所有用户的广告活动，包括所有者信息、投放指标和活动图表。",
+      "overview": {
+        "totalCampaigns": "活动总数",
+        "totalSpend": "已预订花费 {value}",
+        "active": "投放中",
+        "statusDetail": "{paused} 个暂停，{exhausted} 个耗尽",
+        "pendingPayment": "待付款",
+        "deletedDetail": "{count} 个已删除",
+        "inventory": "已购买曝光",
+        "servedDetail": "已投放 {value}",
+        "impressions": "原始曝光",
+        "rawImpressionsDetail": "ad_impressions 表记录数",
+        "clicks": "点击",
+        "ctr": "点击率 {value}",
+        "hovers": "悬停",
+        "dismissals": "{value} 次隐藏",
+        "avgTime": "平均可见时间",
+        "avgTimeDetail": "基于 time-in-view 事件"
+      },
+      "filters": {
+        "status": "状态",
+        "search": "搜索",
+        "searchPlaceholder": "标题、公司、邮箱、用户 ID、URL",
+        "limit": "数量限制",
+        "apply": "应用筛选",
+        "clear": "清除"
+      },
+      "statuses": {
+        "all": "所有状态",
+        "pending_payment": "待付款",
+        "active": "投放中",
+        "exhausted": "已耗尽",
+        "paused": "已暂停",
+        "deleted": "已删除"
+      },
+      "owner": {
+        "title": "所有者",
+        "userId": "用户 ID",
+        "contactEmail": "联系邮箱",
+        "company": "公司"
+      },
+      "showing": "显示 {total} 个匹配活动中的 {shown} 个",
+      "empty": "没有广告活动匹配这些筛选条件。"
     },
     "requests": {
       "eyebrow": "社区愿望单",
@@ -568,11 +625,39 @@
     },
     "threadPage": {
       "back": "← 收件箱"
+    },
+    "telemetry": {
+      "__fixme": true,
+      "eyebrow": "Telemetry",
+      "title": "CLI usage telemetry",
+      "description": "Anonymous install volume, OS distribution, and agent adoption from petdex CLI users.",
+      "stats": {
+        "totalInstalls": "Total installs",
+        "weeklyActive": "Weekly active installs",
+        "totalEvents": "Total events"
+      },
+      "sections": {
+        "adoptionCurve": "Adoption over 30 days",
+        "osDistribution": "OS distribution",
+        "archDistribution": "Arch distribution",
+        "versionAdoption": "Version adoption",
+        "topAgents": "Top agents",
+        "funnel": "Conversion funnel",
+        "geoTop10": "Top 10 countries"
+      },
+      "funnel": {
+        "install": "Install desktop",
+        "hooks": "Hooks install",
+        "start": "Desktop start",
+        "firstEvent": "First state"
+      },
+      "empty": "No telemetry events yet.",
+      "noData": "No data"
     }
   },
   "submit": {
     "metadata": {
-      "title": "提交宠物 — Petdex",
+      "title": "提交宠物 | Petdex",
       "description": "为 Petdex 上传并验证一个 Codex 宠物包。",
       "description__fixme": true
     },
@@ -786,7 +871,7 @@
   },
   "create": {
     "metadata": {
-      "title": "创建一只宠物 — Petdex",
+      "title": "创建一只宠物 | Petdex",
       "title__fixme": true,
       "description": "5 分钟孵化你自己的 Codex 宠物，然后把它分享到 Petdex。",
       "description__fixme": true
@@ -892,9 +977,67 @@
       "body__fixme": true
     }
   },
+  "builtWith": {
+    "metadata": {
+      "titleTemplate": "用 Petdex 构建：{total} 个社区项目",
+      "description": "{total} 个基于 Petdex 构建的开源项目：桌面伙伴、专注工具、可穿戴设备、SDK 和 pet 创作者。"
+    },
+    "eyebrow": "用 Petdex 构建",
+    "title": "社区正在 Petdex 上发布的应用",
+    "subtitle": "{total} 个开源项目使用 Petdex 的图库、API 或 pet 格式。专注工具、可穿戴设备、SDK 和创作者。精选、有证据、不靠感觉。",
+    "stats": {
+      "stars": "总计 {total} stars",
+      "projects": "{total} 个项目",
+      "categories": "{total} 个分类"
+    },
+    "cta": {
+      "submit": "提交你的项目",
+      "starPetdex": "为 Petdex 加星"
+    },
+    "categoryCount": "{count}",
+    "categories": {
+      "desktopCompanion": {
+        "label": "桌面伙伴",
+        "description": "把 Petdex pet 放到桌面上的应用。"
+      },
+      "wellness": {
+        "label": "专注与休息",
+        "description": "用 Petdex pet 作为屏幕角色的番茄钟、休息和专注工具。"
+      },
+      "wearable": {
+        "label": "可穿戴",
+        "description": "在 Apple Watch、Garmin 等可穿戴设备上运行的 Petdex pet。"
+      },
+      "sdk": {
+        "label": "SDK 与运行时",
+        "description": "为其他平台封装 Petdex API 或 pet 格式的库和运行时。"
+      },
+      "bundled": {
+        "label": "嵌入更大的应用",
+        "description": "作为更大产品功能的一部分发布的 Petdex pet。"
+      },
+      "petCreator": {
+        "label": "Pet 创作者",
+        "description": "以 Petdex 包格式分发原创 pet 的独立创作者。"
+      }
+    },
+    "submit": {
+      "eyebrow": "如何上榜",
+      "title": "用 Petdex 做点东西，然后提交",
+      "step1": "构建一个使用 Petdex 图库、API 或 pet 格式并明确署名的项目。",
+      "step2": "用 \"Add my project to /built-with\" 模板开一个 GitHub issue。",
+      "step3": "提供证据引文（README 链接或代码路径，证明集成）。",
+      "step4": "我们审核、截取 1280x720 截图并合并。",
+      "openIssue": "打开提交 issue"
+    },
+    "card": {
+      "screenshotAlt": "{name} 截图",
+      "site": "网站"
+    }
+  },
   "about": {
     "metadata": {
-      "title": "关于 Petdex — 适用于 Codex 的动画伙伴",
+      "title": "关于 Petdex: 适用于 Codex 的动画伙伴",
       "title__fixme": true,
       "description": "Petdex 是一个面向 Codex 的开源动画伙伴图库。浏览目录、用一条命令安装，或提交你自己的作品。",
       "description__fixme": true,
@@ -1285,5 +1428,125 @@
   },
   "collectionDetail": {
     "backToCollections": "← 返回全部合集"
+  },
+  "download": {
+    "eyebrow": "桌面应用",
+    "eyebrow__fixme": true,
+    "title": "Petdex Desktop",
+    "subtitle": "你的宠物，漂浮在每个编程助手身旁。",
+    "subtitle__fixme": true,
+    "hero": {
+      "downloadCta": "下载 macOS 版本",
+      "downloadCta__fixme": true,
+      "cliSubtext": "然后运行这个命令连接你的 AI 助手",
+      "cliSubtext__fixme": true,
+      "comingSoon": "即将支持 {os}",
+      "comingSoon__fixme": true,
+      "desktopOnly": "仅桌面版，请用 Mac 访问",
+      "desktopOnly__fixme": true
+    },
+    "features": {
+      "eyebrow": "功能介绍",
+      "eyebrow__fixme": true,
+      "title": "真正融入你工作流的宠物",
+      "title__fixme": true,
+      "crossAgent": {
+        "title": "跨助手响应",
+        "title__fixme": true,
+        "description": "在 Claude Code、Codex CLI、Gemini CLI 和 OpenCode 中安装钩子。宠物会响应每次工具调用。",
+        "description__fixme": true
+      },
+      "alwaysWithYou": {
+        "title": "始终陪伴",
+        "title__fixme": true,
+        "description": "无边框、置顶、可拖动，像 Codex Desktop 一样带有惯性效果。",
+        "description__fixme": true
+      },
+      "pickYourFighter": {
+        "title": "挑选你的伙伴",
+        "title__fixme": true,
+        "description": "右键切换 9 种动画状态。来自合集的 200+ 只宠物。",
+        "description__fixme": true
+      }
+    },
+    "setup": {
+      "eyebrow": "开始使用",
+      "eyebrow__fixme": true,
+      "title": "30 秒完成设置",
+      "title__fixme": true,
+      "step1": {
+        "title": "一键接入",
+        "title__fixme": true,
+        "hint": "自动检测你的 AI 助手（Claude Code、Codex、Gemini、OpenCode），写入 hooks，并唤醒宠物",
+        "hint__fixme": true
+      },
+      "installPet": {
+        "title": "安装 {slug}",
+        "title__fixme": true,
+        "hint": "将这只宠物添加到你的本地集合",
+        "hint__fixme": true
+      },
+      "stayUpdated": {
+        "title": "保持更新",
+        "title__fixme": true,
+        "hint": "拉取最新的桌面版本，并在运行时重启宠物。可随时执行。",
+        "hint__fixme": true
+      }
+    },
+    "platforms": {
+      "eyebrow": "平台支持",
+      "eyebrow__fixme": true,
+      "title": "运行环境",
+      "title__fixme": true,
+      "available": "可用",
+      "available__fixme": true,
+      "comingSoon": "即将推出",
+      "comingSoon__fixme": true,
+      "macos": {
+        "name": "macOS",
+        "detail": "Apple Silicon 和 Intel",
+        "detail__fixme": true
+      },
+      "linux": {
+        "name": "Linux",
+        "detail": "即将推出",
+        "detail__fixme": true
+      },
+      "windows": {
+        "name": "Windows",
+        "detail": "即将推出",
+        "detail__fixme": true
+      },
+      "footer": "希望更快上线 Linux 或 Windows 版本？请给仓库点星或提交 issue。",
+      "footer__fixme": true
+    },
+    "docsLink": "查看文档",
+    "docsLink__fixme": true,
+    "pendingPet": {
+      "eyebrow": "马上就好。",
+      "eyebrow__fixme": true,
+      "messageBefore": "安装 Petdex Desktop 即可一键测试",
+      "messageBefore__fixme": true,
+      "messageAfter": "。",
+      "messageAfter__fixme": true,
+      "hint": "目前仅支持 macOS",
+      "hint__fixme": true
+    }
+  },
+  "openInPetdex": {
+    "eyebrow": "macOS 桌面应用",
+    "eyebrow__fixme": true,
+    "label": "在 Petdex Desktop 中打开",
+    "label__fixme": true,
+    "subtitle": "让这只宠物漂浮在你的编程助手旁",
+    "subtitle__fixme": true,
+    "opening": "正在打开 Petdex...",
+    "opening__fixme": true,
+    "ariaLabel": "在 Petdex Desktop 中打开 {slug}",
+    "ariaLabel__fixme": true
+  },
+  "installCompact": {
+    "seeGuide": "查看完整安装指南",
+    "seeGuide__fixme": true
   }
 }

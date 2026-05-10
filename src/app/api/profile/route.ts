@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { auth } from "@clerk/nextjs/server";
+import { auth, clerkClient } from "@clerk/nextjs/server";
 import { and, eq, inArray, ne } from "drizzle-orm";
 
 import { db, schema } from "@/lib/db/client";
@@ -222,6 +222,24 @@ export async function PATCH(req: Request): Promise<Response> {
         updatedAt: new Date(),
       },
     });
+
+  // Sync Clerk username with the DB handle so the AuthBadge dropdown,
+  // which reads from useUser() in the browser, also lands on the right
+  // /u/<handle>. Clerk username has stricter rules (uniqueness across
+  // the whole instance, format constraints) — if the call fails, log
+  // and move on. The DB stays source-of-truth and AuthBadge already
+  // reads /api/profile/me as its primary source.
+  if (patch.handle !== undefined && patch.handle) {
+    try {
+      const cc = await clerkClient();
+      await cc.users.updateUser(userId, { username: patch.handle });
+    } catch (err) {
+      console.warn(
+        "[profile] failed to sync Clerk username:",
+        (err as Error).message,
+      );
+    }
+  }
 
   return NextResponse.json({
     ok: true,

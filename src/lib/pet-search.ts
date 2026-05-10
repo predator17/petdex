@@ -20,6 +20,7 @@ import { COLOR_FAMILIES, type ColorFamily } from "@/lib/color-families";
 import { db, schema } from "@/lib/db/client";
 import { getAvailableBatches } from "@/lib/dex-batch.server";
 import { PETDEX_EMBEDDING_MODEL } from "@/lib/embeddings";
+import { withNextDataCache } from "@/lib/next-data-cache";
 import type { PetWithMetrics } from "@/lib/pets";
 import { rowToPet } from "@/lib/pets";
 import { embedQuery, looksLikeVibeQuery } from "@/lib/query-embed";
@@ -48,6 +49,13 @@ export type SearchInput = {
   shuffleSeed?: string;
 };
 
+export type SearchFacets = {
+  kinds: Record<string, number>;
+  vibes: Record<string, number>;
+  colors: Record<ColorFamily, number>;
+  batches: Array<{ key: string; label: string; count: number }>;
+};
+
 export type SearchOutput = {
   pets: PetWithMetrics[];
   total: number;
@@ -55,22 +63,37 @@ export type SearchOutput = {
   /** Which path produced the results. 'vibe' = embedding cosine match,
    *  'keyword' = ILIKE filter, 'all' = no q. Lets the UI render hints. */
   searchMode: "vibe" | "keyword" | "all";
-  facets: {
-    kinds: Record<string, number>;
-    vibes: Record<string, number>;
-    colors: Record<ColorFamily, number>;
-    batches: Array<{ key: string; label: string; count: number }>;
-  };
+  facets: SearchFacets;
+};
+
+export type SearchPageOutput = Omit<SearchOutput, "total" | "facets"> & {
+  total?: number;
+  facets?: SearchFacets;
+};
+
+export type SearchOptions = {
+  includeTotal?: boolean;
+  includeFacets?: boolean;
 };
 
 const DEFAULT_LIMIT = 24;
 const MAX_LIMIT = 60;
 
-export async function searchPets(input: SearchInput): Promise<SearchOutput> {
+export async function searchPets(input: SearchInput): Promise<SearchOutput>;
+export async function searchPets(
+  input: SearchInput,
+  options: SearchOptions,
+): Promise<SearchPageOutput>;
+export async function searchPets(
+  input: SearchInput,
+  options: SearchOptions = {},
+): Promise<SearchOutput | SearchPageOutput> {
   const sortKey = input.sort ?? "curated";
   const limit = clamp(input.limit ?? DEFAULT_LIMIT, 1, MAX_LIMIT);
   const cursor = Math.max(0, input.cursor ?? 0);
   const q = input.q?.trim() ?? "";
+  const includeTotal = options.includeTotal ?? true;
+  const includeFacets = options.includeFacets ?? true;
 
   // Vibe path: natural-language query, no other filters / non-default sort.
   // Embedding-only ranking has its own tradeoffs (kinds/vibes filters
@@ -85,7 +108,13 @@ export async function searchPets(input: SearchInput): Promise<SearchOutput> {
     !(input.batches && input.batches.length > 0);
 
   if (isVibe) {
-    const out = await vibeSearch({ q, limit, cursor });
+    const out = await vibeSearch({
+      q,
+      limit,
+      cursor,
+      includeTotal,
+      includeFacets,
+    });
     if (out) return out;
     // fall through to keyword if embedding failed
   }
@@ -173,24 +202,25 @@ export async function searchPets(input: SearchInput): Promise<SearchOutput> {
     },
   }));
 
-  // total — same filters, count only.
-  const totalRow = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(schema.submittedPets)
-    .where(where);
-  const total = totalRow[0]?.n ?? 0;
-
-  // facets — always over the unfiltered universe of approved pets so users
-  // see all options as they narrow. Two cheap aggregate queries.
-  const facets = await loadFacets();
-
-  return {
+  const out: SearchPageOutput = {
     pets,
-    total,
     nextCursor: hasNext ? cursor + limit : null,
     searchMode: q ? "keyword" : "all",
-    facets,
   };
+  if (includeTotal) {
+    // total — same filters, count only.
+    const totalRow = await db
+      .select({ n: sql<number>`count(*)::int` })
+      .from(schema.submittedPets)
+      .where(where);
+    out.total = totalRow[0]?.n ?? 0;
+  }
+  if (includeFacets) {
+    // facets — always over the unfiltered universe of approved pets so users
+    // see all options as they narrow.
+    out.facets = await loadFacets();
+  }
+  return out;
 }
 
 // Vector search via pgvector. We rank everything by cosine similarity to
@@ -212,7 +242,9 @@ async function vibeSearch(args: {
   q: string;
   limit: number;
   cursor: number;
-}): Promise<SearchOutput | null> {
+  includeTotal: boolean;
+  includeFacets: boolean;
+}): Promise<SearchPageOutput | null> {
   const vec = await embedQuery(args.q);
   if (!vec) return null;
   const literal = `[${vec.join(",")}]`;
@@ -254,13 +286,14 @@ async function vibeSearch(args: {
     },
   }));
 
-  return {
+  const out: SearchPageOutput = {
     pets,
-    total: ranked.length,
     nextCursor: hasNext ? args.cursor + args.limit : null,
     searchMode: "vibe",
-    facets: await loadFacets(),
   };
+  if (args.includeTotal) out.total = ranked.length;
+  if (args.includeFacets) out.facets = await loadFacets();
+  return out;
 }
 
 // Map a snake_case row out of the raw query into the camelCase shape
@@ -305,6 +338,7 @@ function rowToSchema(
       : null,
     pendingRejectionReason:
       (row.pending_rejection_reason as string | null) ?? null,
+    galleryPosition: (row.gallery_position as number | null) ?? 0,
   };
 }
 
@@ -350,59 +384,63 @@ function orderForSort(
   }
 }
 
-async function loadFacets(): Promise<SearchOutput["facets"]> {
-  const [kindRows, vibeRows, batches] = await Promise.all([
-    db
-      .select({
-        kind: schema.submittedPets.kind,
-        n: sql<number>`count(*)::int`,
-      })
-      .from(schema.submittedPets)
-      .where(eq(schema.submittedPets.status, "approved"))
-      .groupBy(schema.submittedPets.kind),
-    db.execute<{
-      vibe: string;
-      n: number;
-    }>(sql`
+const loadFacets = withNextDataCache(
+  async (): Promise<SearchFacets> => {
+    const [kindRows, vibeRows, batches] = await Promise.all([
+      db
+        .select({
+          kind: schema.submittedPets.kind,
+          n: sql<number>`count(*)::int`,
+        })
+        .from(schema.submittedPets)
+        .where(eq(schema.submittedPets.status, "approved"))
+        .groupBy(schema.submittedPets.kind),
+      db.execute<{
+        vibe: string;
+        n: number;
+      }>(sql`
       SELECT v::text AS vibe, count(*)::int AS n
       FROM submitted_pets,
            jsonb_array_elements_text(vibes) AS v
       WHERE status = 'approved'
       GROUP BY v
     `),
-    getAvailableBatches(),
-  ]);
+      getAvailableBatches(),
+    ]);
 
-  const kinds: Record<string, number> = {};
-  for (const k of PET_KINDS) kinds[k] = 0;
-  for (const row of kindRows) kinds[row.kind] = row.n;
+    const kinds: Record<string, number> = {};
+    for (const k of PET_KINDS) kinds[k] = 0;
+    for (const row of kindRows) kinds[row.kind] = row.n;
 
-  const vibes: Record<string, number> = {};
-  for (const v of PET_VIBES) vibes[v] = 0;
-  for (const row of vibeRows.rows ?? []) {
-    vibes[row.vibe] = row.n;
-  }
-
-  const colorRows = await db
-    .select({
-      colorFamily: schema.submittedPets.colorFamily,
-      n: sql<number>`count(*)::int`,
-    })
-    .from(schema.submittedPets)
-    .where(eq(schema.submittedPets.status, "approved"))
-    .groupBy(schema.submittedPets.colorFamily);
-
-  const colors = Object.fromEntries(
-    COLOR_FAMILIES.map((family) => [family, 0]),
-  ) as Record<ColorFamily, number>;
-  for (const row of colorRows) {
-    if (row.colorFamily && row.colorFamily in colors) {
-      colors[row.colorFamily as ColorFamily] = row.n;
+    const vibes: Record<string, number> = {};
+    for (const v of PET_VIBES) vibes[v] = 0;
+    for (const row of vibeRows.rows ?? []) {
+      vibes[row.vibe] = row.n;
     }
-  }
 
-  return { kinds, vibes, colors, batches };
-}
+    const colorRows = await db
+      .select({
+        colorFamily: schema.submittedPets.colorFamily,
+        n: sql<number>`count(*)::int`,
+      })
+      .from(schema.submittedPets)
+      .where(eq(schema.submittedPets.status, "approved"))
+      .groupBy(schema.submittedPets.colorFamily);
+
+    const colors = Object.fromEntries(
+      COLOR_FAMILIES.map((family) => [family, 0]),
+    ) as Record<ColorFamily, number>;
+    for (const row of colorRows) {
+      if (row.colorFamily && row.colorFamily in colors) {
+        colors[row.colorFamily as ColorFamily] = row.n;
+      }
+    }
+
+    return { kinds, vibes, colors, batches };
+  },
+  ["petdex-facets"],
+  { tags: ["petdex:facets"], revalidate: 300 },
+);
 
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));

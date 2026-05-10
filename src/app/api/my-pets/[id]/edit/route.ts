@@ -4,6 +4,10 @@ import { auth } from "@clerk/nextjs/server";
 import { and, eq } from "drizzle-orm";
 
 import { db, schema } from "@/lib/db/client";
+import {
+  BLOCKED_KEYWORD_REASON,
+  containsBlockedKeyword,
+} from "@/lib/keyword-blocklist";
 import { editRatelimit } from "@/lib/ratelimit";
 import { requireSameOrigin } from "@/lib/same-origin";
 
@@ -127,6 +131,7 @@ export async function PATCH(
     }
     if (v !== row.description) patch.pendingDescription = v;
   }
+
   if (body.tags !== undefined) {
     const tags = normalizeTags(body.tags);
     if (tags === null) {
@@ -134,6 +139,19 @@ export async function PATCH(
     }
     const currentTags = (row.tags as string[]) ?? [];
     if (!sameArray(tags, currentTags)) patch.pendingTags = tags;
+  }
+
+  if (
+    containsBlockedKeyword(
+      patch.pendingDisplayName,
+      patch.pendingDescription,
+      ...(patch.pendingTags ?? []),
+    )
+  ) {
+    return NextResponse.json(
+      { error: "blocked_content", message: BLOCKED_KEYWORD_REASON },
+      { status: 422 },
+    );
   }
 
   const noOp =

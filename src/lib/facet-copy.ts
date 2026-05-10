@@ -21,7 +21,7 @@ export const VIBE_COPY: Record<PetVibe, FacetCopy> = {
   calm: {
     title: "Calm Codex pets",
     intro:
-      "Steady, low-key companions for focused sessions. Their idle animations breathe instead of bounce — easy on the eyes during long debugging stretches.",
+      "Steady, low-key companions for focused sessions. Their idle animations breathe instead of bounce. Easy on the eyes during long debugging stretches.",
     metaDescription:
       "Calm pixel pets for Codex. Low-motion animated companions for deep work.",
   },
@@ -42,7 +42,7 @@ export const VIBE_COPY: Record<PetVibe, FacetCopy> = {
   focused: {
     title: "Focused Codex pets",
     intro:
-      "Companions in deep work mode. Headphones, monitors, and concentrated stares — they want to ship the feature with you.",
+      "Companions in deep work mode. Headphones, monitors, and concentrated stares. They want to ship the feature with you.",
     metaDescription:
       "Focused Codex pets. Concentrated, deep-work companions for Codex.",
   },
@@ -101,14 +101,14 @@ export const KIND_COPY: Record<PetKind, FacetCopy> = {
   creature: {
     title: "Codex creature pets",
     intro:
-      "Animals, critters, and made-up beasts. The biggest collection in the index — most contributors start here. Otters, capybaras, foxes, things with too many legs.",
+      "Animals, critters, and made-up beasts. The biggest collection in the index. Most contributors start here: otters, capybaras, foxes, things with too many legs.",
     metaDescription:
       "Animated creature pets for Codex. Otters, capybaras, foxes and more, installable with one command.",
   },
   object: {
     title: "Codex object pets",
     intro:
-      "Pets that aren't alive but absolutely have personality. Paperclips, mugs, ice cream scoops — the inanimate companions that earned a soul.",
+      "Pets that aren't alive but absolutely have personality. Paperclips, mugs, ice cream scoops: the inanimate companions that earned a soul.",
     metaDescription:
       "Codex object pets. Animated pixel companions made from everyday objects.",
   },

@@ -2,13 +2,14 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { auth, clerkClient } from "@clerk/nextjs/server";
-import { desc, eq } from "drizzle-orm";
+import { asc, desc, eq, sql as dsql } from "drizzle-orm";
 import { Heart, TerminalSquare, Trophy } from "lucide-react";
 
 import { isAdmin } from "@/lib/admin";
 import { getCatchProgress, getLikedPetsForUser } from "@/lib/catch-status";
 import { canManageCreatorCollections } from "@/lib/collection-access";
-import { getOwnerCollection } from "@/lib/collections";
+import { getOwnerCollections } from "@/lib/collections";
+import { MAX_OWNER_COLLECTIONS } from "@/lib/collection-access";
 import { db, schema } from "@/lib/db/client";
 import { getMetricsBySlugs } from "@/lib/db/metrics";
 import { userIdForHandle } from "@/lib/handles";
@@ -142,11 +143,18 @@ export default async function UserProfilePage({ params }: PageProps) {
 
   // Pets owned by this user. Visitors only see approved rows; the owner
   // sees everything so the profile doubles as their dashboard.
+  // Owner-defined gallery_position takes priority (1-based, lower = first).
+  // Position 0 means "owner has not reordered this one" — those fall back
+  // to approvedAt DESC so freshly approved pets show up first by default.
   const allOwnerRows = await db
     .select()
     .from(schema.submittedPets)
     .where(eq(schema.submittedPets.ownerId, ownerId))
-    .orderBy(desc(schema.submittedPets.approvedAt));
+    .orderBy(
+      dsql`CASE WHEN ${schema.submittedPets.galleryPosition} = 0 THEN 1 ELSE 0 END`,
+      asc(schema.submittedPets.galleryPosition),
+      desc(schema.submittedPets.approvedAt),
+    );
 
   const approvedRows = allOwnerRows.filter((r) => r.status === "approved");
 
@@ -202,8 +210,26 @@ export default async function UserProfilePage({ params }: PageProps) {
           metrics: { installCount: 0, zipDownloadCount: 0, likeCount: 0 },
         }))
     : [];
-  const collection = await getOwnerCollection(ownerId);
-  const likedPets = await getLikedPetsForUser(ownerId);
+  const [ownerCollectionsList, likedPets] = await Promise.all([
+    getOwnerCollections(ownerId),
+    getLikedPetsForUser(ownerId),
+  ]);
+  // Pick the first one for the legacy "collection" prop (kept around
+  // until callers fully migrate to ownerCollections). Order from
+  // getOwnerCollections is "featured first, then most recently
+  // updated", so the legacy field gets the most relevant single item.
+  const collection = ownerCollectionsList[0] ?? null;
+  const ownerCollectionsForTabs = ownerCollectionsList.map((c) => ({
+    id: c.id,
+    slug: c.slug,
+    title: c.title,
+    description: c.description ?? "",
+    externalUrl: c.externalUrl,
+    coverPetSlug: c.coverPetSlug,
+    petSlugs: c.pets.map((p) => p.slug),
+    petCount: c.petCount,
+    featured: c.featured,
+  }));
 
   // Resolve pinned slugs to full pet objects, preserving owner-chosen
   // order. Drop any that are no longer approved (would otherwise break
@@ -305,7 +331,7 @@ export default async function UserProfilePage({ params }: PageProps) {
                   <Link
                     href="/leaderboard"
                     className="inline-flex items-center gap-1 rounded-full bg-chip-warning-bg px-2 py-0.5 font-mono text-[10px] tracking-[0.15em] text-chip-warning-fg uppercase transition hover:opacity-80"
-                    title={`Ranked #${rank.rank} of ${rank.total} by approved pets — see the full leaderboard`}
+                    title={`Ranked #${rank.rank} of ${rank.total} by approved pets. See the full leaderboard`}
                   >
                     <Trophy className="size-3" />#{rank.rank} most pets
                   </Link>
@@ -412,8 +438,9 @@ export default async function UserProfilePage({ params }: PageProps) {
               </div>
               {featuredPets.length === 1 ? (
                 <div className="relative">
+                  <FeaturedPin pet={featuredPets[0]} />
                   {isOwner ? (
-                    <div className="absolute top-4 right-4">
+                    <div className="absolute top-4 right-4 z-40">
                       <ProfilePinButton
                         slug={featuredPets[0].slug}
                         isPinned
@@ -422,7 +449,6 @@ export default async function UserProfilePage({ params }: PageProps) {
                       />
                     </div>
                   ) : null}
-                  <FeaturedPin pet={featuredPets[0]} />
                 </div>
               ) : (
                 <div className="grid grid-cols-2 gap-3 md:grid-cols-3 md:gap-4 lg:grid-cols-6">
@@ -470,6 +496,8 @@ export default async function UserProfilePage({ params }: PageProps) {
               ? { pinnedSlugs: featuredSlugs, maxPins: MAX_PINNED_PETS }
               : null
           }
+          ownerCollections={ownerCollectionsForTabs}
+          maxOwnerCollections={MAX_OWNER_COLLECTIONS}
         />
       </section>
 

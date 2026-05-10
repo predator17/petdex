@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 
 import { SignInButton, useAuth, useClerk, useUser } from "@clerk/nextjs";
 import {
@@ -95,13 +96,41 @@ function UserDropdown({ compact = false }: { compact?: boolean }) {
   const currentLocale: Locale = hasLocale(locale) ? locale : "en";
   const href = (pathname: string) => withLocale(pathname, currentLocale);
 
+  // Source of truth for the public profile handle is our DB
+  // (user_profiles.handle), not Clerk's username field. Clerk username
+  // is allowed to drift — Thib's was null while his DB handle was
+  // "thibgl", so the avatar dropdown was deep-linking to /u/<id-slice>
+  // and 404ing. Fetch the real handle once on mount, fall back to the
+  // old slice-of-id while the request is in flight so the dropdown is
+  // never empty.
+  const [dbHandle, setDbHandle] = useState<string | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/profile/me");
+        if (!res.ok) return;
+        const j = (await res.json()) as { handle?: string | null };
+        if (!cancelled && j.handle) setDbHandle(j.handle);
+      } catch {
+        /* swallow — fallback handle still works */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   if (!isLoaded || !user) {
     return <AvatarSkeleton compact={compact} />;
   }
 
-  const handle = user.username
-    ? user.username.toLowerCase()
-    : user.id.slice(-8).toLowerCase();
+  const handle =
+    dbHandle ??
+    (user.username
+      ? user.username.toLowerCase()
+      : user.id.slice(-8).toLowerCase());
   const avatarUrl = user.imageUrl;
   const displayName =
     user.fullName || user.username || user.primaryEmailAddress?.emailAddress;

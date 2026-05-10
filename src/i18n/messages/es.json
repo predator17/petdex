@@ -9,11 +9,11 @@
   },
   "metadata": {
     "root": {
-      "titleDefault": "Petdex — Compañeros animados para Codex",
+      "titleDefault": "Petdex: Compañeros animados para Codex",
       "titleTemplate": "%s | Petdex",
       "description": "Petdex es la galería pública de compañeros animados para Codex. Explora compañeros open source, previsualiza sus animaciones e instala uno con un solo comando.",
-      "ogTitle": "Petdex — Compañeros animados para Codex",
-      "twitterTitle": "Petdex — Compañeros animados para Codex",
+      "ogTitle": "Petdex: Compañeros animados para Codex",
+      "twitterTitle": "Petdex: Compañeros animados para Codex",
       "keywords": {
         "codexPet": "mascota de Codex",
         "codexCliPet": "mascota de Codex",
@@ -50,26 +50,30 @@
     "githubRepoAriaWithStars": "Petdex en GitHub, {stars} estrellas",
     "browse": "Explorar",
     "browseDesc": "Descubre pets, creadores y colecciones",
-    "collectionsDesc": "Sets curados — South Park, Pokémon y más",
+    "collectionsDesc": "Sets curados: South Park, Pokémon y más",
     "creatorsDesc": "Ranking de quién está publicando más pets",
     "requestsDesc": "Vota los pets que la comunidad quiere curados",
     "kindsDesc": "Animales, personajes, criaturas, objetos",
     "vibesDesc": "Cozy, edgy, místico, heroico y más",
     "build": "Crear",
     "buildDesc": "Hacé y publicá tu pixel pet",
-    "createDesc": "Crea un pet con la skill de Codex — 5 min de idea a sprite",
+    "createDesc": "Crea un pet con la skill de Codex, 5 min de idea a sprite",
     "submitDesc": "Subí tu carpeta y Petdex lo hostea para todos",
     "docsDesc": "Instala el Petdex CLI y publicá pets por npm",
     "earn": "Crecer",
     "earnDesc": "Gestioná campañas, impresiones y clicks",
     "advertiseDesc": "Llegá a devs que instalan tools vía sponsored cards",
+    "builtWith": "Hecho con Petdex",
+    "builtWithDesc": "Apps que la comunidad está shippeando sobre el formato Petdex",
     "communityDesc": "Discord con canales de shipping y voice rooms",
     "takedown": "Takedown",
     "takedownDesc": "Reportar un pet que usa tu obra",
     "openMore": "Más enlaces",
     "discover": "Descubrir",
     "make": "Crear",
-    "promote": "Promover"
+    "promote": "Promover",
+    "download": "Descargar",
+    "downloadDesc": "App de escritorio para macOS - tu mascota junto a cada agente"
   },
   "theme": {
     "toggle": "Cambiar tema",
@@ -94,6 +98,7 @@
     "title": "Petdex",
     "tagline": "La galería pública de compañeros animados para <brand />. Explora más de {totalPets} compañeros open source, previsualiza sus estados e instala uno con un solo comando.",
     "heroCommand": "npx petdex install boba",
+    "downloadCta": "Descargar Petdex Desktop",
     "submitCta": "Enviar",
     "browseGallery": "Ver galería",
     "joinDiscord": "Unirse al Discord",
@@ -239,7 +244,7 @@
     },
     "dashboard": {
       "metadata": {
-        "title": "Panel de anuncios — Petdex",
+        "title": "Panel de anuncios | Petdex",
         "description": "Revisa tus campañas de Petdex, gasto, estado y entrega de impresiones prepagadas."
       },
       "eyebrow": "Panel de anunciantes",
@@ -298,7 +303,7 @@
         "delivery": "Entrega",
         "deliveryBody": "{served} de {total} impresiones servidas.",
         "metadata": {
-          "title": "Editar campaña de anuncios — Petdex",
+          "title": "Editar campaña de anuncios | Petdex",
           "description": "Actualiza la creatividad, el destino y los campos de tracking de tu tarjeta patrocinada en Petdex."
         },
         "notEditable": {
@@ -364,7 +369,7 @@
   },
   "admin": {
     "metadata": {
-      "title": "Petdex — Admin"
+      "title": "Petdex Admin"
     },
     "tabs": {
       "ariaLabel": "Secciones de admin",
@@ -373,8 +378,11 @@
       "requests": "Pedidos",
       "collections": "Colecciones",
       "feedback": "Feedback",
+      "campaigns": "Campañas",
+      "mailing": "Mailing",
       "manifest": "Manifest",
-      "insights": "Métricas"
+      "insights": "Métricas",
+      "telemetry": "Telemetria"
     },
     "status": {
       "pending": "Pendiente",
@@ -476,7 +484,7 @@
       },
       "mailto": {
         "bodyIntro": "Gracias por el {kind} en Petdex",
-        "subject": "Re: tu feedback de Petdex — {excerpt}"
+        "subject": "Re: tu feedback de Petdex: {excerpt}"
       }
     },
     "feedbackActions": {
@@ -484,6 +492,53 @@
       "archive": "Archivar",
       "reopen": "Reabrir como pendiente",
       "failed": "Falló: {error}"
+    },
+    "campaigns": {
+      "eyebrow": "Operaciones de ads",
+      "title": "Campañas de ads",
+      "description": "Revisa todas las campañas de anunciantes, con datos del dueño, métricas de entrega y actividad en gráficos.",
+      "overview": {
+        "totalCampaigns": "Campañas totales",
+        "totalSpend": "{value} de gasto reservado",
+        "active": "Activas",
+        "statusDetail": "{paused} pausadas, {exhausted} agotadas",
+        "pendingPayment": "Pago pendiente",
+        "deletedDetail": "{count} eliminadas",
+        "inventory": "Impresiones compradas",
+        "servedDetail": "{value} servidas",
+        "impressions": "Impresiones raw",
+        "rawImpressionsDetail": "Filas en ad_impressions",
+        "clicks": "Clics",
+        "ctr": "{value} CTR",
+        "hovers": "Hovers",
+        "dismissals": "{value} descartes",
+        "avgTime": "Tiempo medio visible",
+        "avgTimeDetail": "En eventos time-in-view"
+      },
+      "filters": {
+        "status": "Estado",
+        "search": "Buscar",
+        "searchPlaceholder": "Título, empresa, email, user ID, URL",
+        "limit": "Límite",
+        "apply": "Aplicar filtros",
+        "clear": "Limpiar"
+      },
+      "statuses": {
+        "all": "Todos los estados",
+        "pending_payment": "Pago pendiente",
+        "active": "Activa",
+        "exhausted": "Agotada",
+        "paused": "Pausada",
+        "deleted": "Eliminada"
+      },
+      "owner": {
+        "title": "Dueño",
+        "userId": "User ID",
+        "contactEmail": "Email de contacto",
+        "company": "Empresa"
+      },
+      "showing": "Mostrando {shown} de {total} campañas coincidentes",
+      "empty": "Ninguna campaña coincide con estos filtros."
     },
     "requests": {
       "eyebrow": "Wishlist de la comunidad",
@@ -528,11 +583,38 @@
     },
     "threadPage": {
       "back": "← Inbox"
+    },
+    "telemetry": {
+      "eyebrow": "Telemetria",
+      "title": "Telemetria de uso del CLI",
+      "description": "Volumen de instalaciones, distribucion de SO y adopcion de agentes de forma anonima.",
+      "stats": {
+        "totalInstalls": "Total instalaciones",
+        "weeklyActive": "Instalaciones activas (semana)",
+        "totalEvents": "Total eventos"
+      },
+      "sections": {
+        "adoptionCurve": "Adopcion en 30 dias",
+        "osDistribution": "Distribucion de SO",
+        "archDistribution": "Distribucion de arquitectura",
+        "versionAdoption": "Adopcion de versiones",
+        "topAgents": "Agentes mas usados",
+        "funnel": "Embudo de conversion",
+        "geoTop10": "Top 10 paises"
+      },
+      "funnel": {
+        "install": "Instalar desktop",
+        "hooks": "Instalar hooks",
+        "start": "Iniciar desktop",
+        "firstEvent": "Primer estado"
+      },
+      "empty": "Sin eventos de telemetria aun.",
+      "noData": "Sin datos"
     }
   },
   "submit": {
     "metadata": {
-      "title": "Enviar una mascota — Petdex",
+      "title": "Enviar una mascota | Petdex",
       "description": "Sube y valida un paquete de mascota de Codex para Petdex."
     },
     "eyebrow": "Enviar",
@@ -709,7 +791,7 @@
   },
   "create": {
     "metadata": {
-      "title": "Crea una mascota — Petdex",
+      "title": "Crea una mascota | Petdex",
       "description": "Incuba tu propia mascota de Codex en 5 minutos y luego compártela en Petdex."
     },
     "eyebrow": "Haz la tuya",
@@ -783,9 +865,67 @@
       "body": "Un estudio nativo del navegador para que bocetes, animes y previsualices tu mascota sin salir de Petdex, sin necesidad de tokens de Codex. Inicia sesión para enterarte cuando llegue."
     }
   },
+  "builtWith": {
+    "metadata": {
+      "titleTemplate": "Hecho con Petdex: {total} proyectos de la comunidad",
+      "description": "{total} proyectos open source construidos sobre Petdex: companions de escritorio, apps de wellness, wearables, SDKs y creadores de pets."
+    },
+    "eyebrow": "Hecho con Petdex",
+    "title": "Apps que la comunidad está shippeando sobre Petdex",
+    "subtitle": "{total} proyectos open source consumen la galería, la API o el formato de Petdex. Apps de wellness, wearables, SDKs y creadores. Curado, con evidencia, sin vibes.",
+    "stats": {
+      "stars": "{total} stars combinadas",
+      "projects": "{total} proyectos",
+      "categories": "{total} categorías"
+    },
+    "cta": {
+      "submit": "Enviá tu proyecto",
+      "starPetdex": "Dale star a Petdex"
+    },
+    "categoryCount": "{count}",
+    "categories": {
+      "desktopCompanion": {
+        "label": "Companions de escritorio",
+        "description": "Apps que ponen un pet de Petdex en tu desktop."
+      },
+      "wellness": {
+        "label": "Wellness & focus",
+        "description": "Pomodoros, descansos y herramientas de focus que usan pets de Petdex como personaje en pantalla."
+      },
+      "wearable": {
+        "label": "Wearable",
+        "description": "Pets de Petdex corriendo en Apple Watch, Garmin y otros wearables."
+      },
+      "sdk": {
+        "label": "SDKs y runtimes",
+        "description": "Librerías y runtimes que envuelven la API o el formato de Petdex para otras plataformas."
+      },
+      "bundled": {
+        "label": "Bundleados en apps más grandes",
+        "description": "Pets de Petdex shippeados como feature de productos más grandes."
+      },
+      "petCreator": {
+        "label": "Creadores de pets",
+        "description": "Creadores solos distribuyendo pets originales en formato Petdex."
+      }
+    },
+    "submit": {
+      "eyebrow": "Cómo entrar a la lista",
+      "title": "Shippeá algo con Petdex, después postulá",
+      "step1": "Construí algo que consuma la galería, la API o el formato de Petdex con atribución explícita.",
+      "step2": "Abrí un issue de GitHub usando el template \"Add my project to /built-with\".",
+      "step3": "Mandanos una cita como evidencia (link al README o ruta del código que prueba la integración).",
+      "step4": "Revisamos, tomamos un screenshot 1280x720 y mergeamos.",
+      "openIssue": "Abrir issue de submission"
+    },
+    "card": {
+      "screenshotAlt": "Screenshot de {name}",
+      "site": "Sitio"
+    }
+  },
   "about": {
     "metadata": {
-      "title": "Acerca de Petdex — Compañeros animados para Codex",
+      "title": "Acerca de Petdex: Compañeros animados para Codex",
       "description": "Petdex es una galería open source de compañeros animados para Codex. Recorre el catálogo, instala con un comando o envía el tuyo.",
       "ogTitle": "Acerca de Petdex",
       "ogDescription": "Una galería open source de compañeros animados para Codex."
@@ -810,7 +950,7 @@
       "pack": {
         "title": "Cómo funciona un paquete de mascota",
         "beforePetJson": "Cada mascota son dos archivos.",
-        "betweenFiles": "define la metadata — nombre, los 9 estados de animación, duraciones de frames — y",
+        "betweenFiles": "define la metadata (nombre, los 9 estados de animación, duraciones de frames) y",
         "afterSpritesheet": "guarda el pixel art en una tira horizontal. Codex los carga al iniciar y cambia de estado según lo que esté pasando en tu sesión."
       }
     },
@@ -1117,5 +1257,84 @@
   },
   "collectionDetail": {
     "backToCollections": "← Ver todas las colecciones"
+  },
+  "download": {
+    "eyebrow": "App de escritorio",
+    "title": "Petdex Desktop",
+    "subtitle": "Tu mascota, flotando junto a cada agente de programacion.",
+    "hero": {
+      "downloadCta": "Descargar para macOS",
+      "cliSubtext": "Despues corre esto para conectar tus agentes",
+      "comingSoon": "Pronto en {os}",
+      "desktopOnly": "Solo escritorio. Visita desde una Mac"
+    },
+    "features": {
+      "eyebrow": "Que hace",
+      "title": "Una mascota que vive en tu flujo de trabajo",
+      "crossAgent": {
+        "title": "Reacciones entre agentes",
+        "description": "Los hooks se instalan en Claude Code, Codex CLI, Gemini CLI y OpenCode. Tu mascota reacciona a cada tool call."
+      },
+      "alwaysWithYou": {
+        "title": "Siempre contigo",
+        "description": "Flotante, sin marco, siempre encima. Arrastra con momentum, como Codex Desktop."
+      },
+      "pickYourFighter": {
+        "title": "Elige tu luchador",
+        "description": "Click derecho alterna 9 estados del sprite. Mas de 200 mascotas de la coleccion."
+      }
+    },
+    "setup": {
+      "eyebrow": "Empezar",
+      "title": "Listo en 30 segundos",
+      "step1": {
+        "title": "Conecta todo",
+        "hint": "Detecta tus agentes (Claude Code, Codex, Gemini, OpenCode), instala los hooks y despierta la mascota"
+      },
+      "installPet": {
+        "title": "Instala {slug}",
+        "hint": "Anade esta mascota a tu coleccion local"
+      },
+      "stayUpdated": {
+        "title": "Mantente actualizado",
+        "hint": "Descarga la ultima version del escritorio y reinicia la mascota si estaba corriendo. Corre cuando quieras."
+      }
+    },
+    "platforms": {
+      "eyebrow": "Soporte de plataformas",
+      "title": "Donde funciona",
+      "available": "Disponible",
+      "comingSoon": "Proximamente",
+      "macos": {
+        "name": "macOS",
+        "detail": "Apple Silicon e Intel"
+      },
+      "linux": {
+        "name": "Linux",
+        "detail": "Proximamente"
+      },
+      "windows": {
+        "name": "Windows",
+        "detail": "Proximamente"
+      },
+      "footer": "¿Quieres un lanzamiento mas rapido en Linux o Windows? Dale una estrella al repo o abre un issue."
+    },
+    "docsLink": "Leer la documentacion",
+    "pendingPet": {
+      "eyebrow": "Casi listo.",
+      "messageBefore": "Instala Petdex Desktop para probar",
+      "messageAfter": "en 1 clic.",
+      "hint": "Solo macOS por ahora"
+    }
+  },
+  "openInPetdex": {
+    "eyebrow": "App de escritorio macOS",
+    "label": "Abrir en Petdex Desktop",
+    "subtitle": "Que esta mascota flote junto a tu agente",
+    "opening": "Abriendo Petdex...",
+    "ariaLabel": "Abrir {slug} en Petdex Desktop"
+  },
+  "installCompact": {
+    "seeGuide": "Ver guia de instalacion completa"
   }
 }

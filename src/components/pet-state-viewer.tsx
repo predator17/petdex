@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { defaultPetState, type PetStateId, petStates } from "@/lib/pet-states";
 
 import { PetSprite } from "@/components/pet-sprite";
+import { StaticPetSprite } from "@/components/static-pet-sprite";
 
 type PetStateViewerProps = {
   src: string;
@@ -79,7 +80,7 @@ export function PetStateViewer({ src, petName }: PetStateViewerProps) {
                 </p>
               </div>
               <div className="rounded-md border border-border-base bg-surface-muted p-2">
-                <PetSprite src={src} state={state.id} scale={0.32} />
+                <StaticPetSprite src={src} state={state.id} scale={0.32} />
               </div>
             </div>
           </button>

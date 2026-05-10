@@ -3,14 +3,17 @@
 // owner mini-grids) would tank scroll perf if every sprite ran a CSS
 // step animation + paint.
 //
-// Renders the first idle frame (col 0, row 0) of the sheet by clamping
+// Renders the first frame of a selected state row by clamping
 // background-position. No setInterval, no infinite keyframe — just a
 // static crop that the browser paints once and is done with.
 
 import type { CSSProperties } from "react";
 
+import { defaultPetState, type PetStateId, petStates } from "@/lib/pet-states";
+
 type StaticPetSpriteProps = {
   src: string;
+  state?: PetStateId;
   scale?: number;
   label?: string;
   className?: string;
@@ -18,10 +21,14 @@ type StaticPetSpriteProps = {
 
 export function StaticPetSprite({
   src,
+  state = defaultPetState.id,
   scale = 1,
   label,
   className = "",
 }: StaticPetSpriteProps) {
+  const spriteState =
+    petStates.find((item) => item.id === state) ?? defaultPetState;
+
   return (
     <div
       className={`pet-sprite-frame ${className}`}
@@ -31,7 +38,12 @@ export function StaticPetSprite({
     >
       <div
         className="pet-sprite-static"
-        style={{ "--sprite-url": `url(${src})` } as CSSProperties}
+        style={
+          {
+            "--sprite-url": `url(${src})`,
+            "--sprite-row": spriteState.row,
+          } as CSSProperties
+        }
       />
     </div>
   );

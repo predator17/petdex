@@ -1,4 +1,13 @@
-import { and, asc, desc, eq, getTableColumns, inArray } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  sql as dsql,
+  eq,
+  getTableColumns,
+  gte,
+  inArray,
+} from "drizzle-orm";
 
 import { db, schema } from "@/lib/db/client";
 import { getMetricsBySlugs, type Metrics } from "@/lib/db/metrics";
@@ -35,6 +44,32 @@ export async function getFeaturedCollections(
   return hydrateCollections(rows, 6);
 }
 
+// Fetch a specific set of collections by slug. Order of the returned
+// array matches the order of the input slugs. Missing slugs are
+// silently skipped. Used by the home page to show a curated strip
+// without paying for a full alphabetical scan + JS filter.
+export async function getCollectionsBySlugs(
+  slugs: string[],
+  petsPerCollection = 6,
+): Promise<PetCollectionWithPets[]> {
+  if (slugs.length === 0) return [];
+  let rows: PetCollection[];
+  try {
+    rows = await db
+      .select()
+      .from(schema.petCollections)
+      .where(inArray(schema.petCollections.slug, slugs));
+  } catch (error) {
+    if (isMissingCollectionTableError(error)) return [];
+    throw error;
+  }
+  const order = new Map(slugs.map((s, i) => [s, i]));
+  rows = rows
+    .filter((r) => order.has(r.slug))
+    .sort((a, b) => (order.get(a.slug) ?? 0) - (order.get(b.slug) ?? 0));
+  return hydrateCollections(rows, petsPerCollection);
+}
+
 export async function getAllCollections(): Promise<PetCollectionWithPets[]> {
   let rows: PetCollection[];
   try {
@@ -48,6 +83,55 @@ export async function getAllCollections(): Promise<PetCollectionWithPets[]> {
   }
 
   return hydrateCollections(rows);
+}
+
+// Returns featured collections that have at least `minPets` approved
+// pets, with a small sample for the cover preview. Used by the public
+// /collections listing — keeps the page fast even with hundreds of
+// collections by filtering at the SQL level.
+export async function getCollectionsForListing(
+  minPets = 4,
+  petsPerPreview = 6,
+): Promise<(PetCollectionWithPets & { petCount: number })[]> {
+  let rows: (PetCollection & { petCount: number })[];
+  try {
+    const result = await db
+      .select({
+        ...getTableColumns(schema.petCollections),
+        petCount: dsql<number>`count(${schema.petCollectionItems.petSlug})`.as(
+          "pet_count",
+        ),
+      })
+      .from(schema.petCollections)
+      .leftJoin(
+        schema.petCollectionItems,
+        eq(schema.petCollectionItems.collectionId, schema.petCollections.id),
+      )
+      .where(eq(schema.petCollections.featured, true))
+      .groupBy(schema.petCollections.id)
+      .having(
+        gte(dsql<number>`count(${schema.petCollectionItems.petSlug})`, minPets),
+      )
+      .orderBy(
+        desc(dsql`count(${schema.petCollectionItems.petSlug})`),
+        asc(schema.petCollections.title),
+      );
+    rows = result.map((r) => ({
+      ...r,
+      petCount: Number(r.petCount),
+    }));
+  } catch (error) {
+    if (isMissingCollectionTableError(error)) return [];
+    throw error;
+  }
+
+  const hydrated = await hydrateCollections(rows, petsPerPreview);
+  // Re-attach the pet count we computed (hydrate doesn't carry it).
+  const countBySlug = new Map(rows.map((r) => [r.slug, r.petCount]));
+  return hydrated.map((c) => ({
+    ...c,
+    petCount: countBySlug.get(c.slug) ?? c.pets.length,
+  }));
 }
 
 export async function getCollection(
@@ -88,6 +172,53 @@ export async function getOwnerCollection(
 
   const [collection] = await hydrateCollections(rows);
   return collection ?? null;
+}
+
+// Personal collections owned by a creator. NOT filtered by featured —
+// these are intentionally private (only surfaced on /u/<owner-handle>).
+// Featured = true on an owner collection means an admin has promoted it
+// to /collections; that's a separate concern handled by the curation
+// workflow, not the owner editor.
+export async function getOwnerCollections(
+  ownerId: string,
+  petsPerPreview = 6,
+): Promise<(PetCollectionWithPets & { petCount: number })[]> {
+  let rows: (PetCollection & { petCount: number })[];
+  try {
+    const result = await db
+      .select({
+        ...getTableColumns(schema.petCollections),
+        petCount:
+          dsql<number>`count(${schema.petCollectionItems.petSlug})`.as(
+            "pet_count",
+          ),
+      })
+      .from(schema.petCollections)
+      .leftJoin(
+        schema.petCollectionItems,
+        eq(schema.petCollectionItems.collectionId, schema.petCollections.id),
+      )
+      .where(eq(schema.petCollections.ownerId, ownerId))
+      .groupBy(schema.petCollections.id)
+      .orderBy(
+        // Curated/promoted first (admin-curated takes priority on
+        // the visitor view), then most recently edited.
+        desc(schema.petCollections.featured),
+        desc(schema.petCollections.updatedAt),
+        asc(schema.petCollections.title),
+      );
+    rows = result.map((r) => ({ ...r, petCount: Number(r.petCount) }));
+  } catch (error) {
+    if (isMissingCollectionTableError(error)) return [];
+    throw error;
+  }
+
+  const hydrated = await hydrateCollections(rows, petsPerPreview);
+  const countBySlug = new Map(rows.map((r) => [r.slug, r.petCount]));
+  return hydrated.map((c) => ({
+    ...c,
+    petCount: countBySlug.get(c.slug) ?? c.pets.length,
+  }));
 }
 
 async function hydrateCollections(

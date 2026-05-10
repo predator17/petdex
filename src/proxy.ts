@@ -1,5 +1,3 @@
-import { randomBytes } from "node:crypto";
-
 import { NextResponse } from "next/server";
 
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
@@ -9,32 +7,6 @@ import { defaultLocale, locales } from "@/i18n/config";
 
 const IS_MOCK_AUTH =
   process.env.PETDEX_MOCK === "1" || process.env.PETDEX_MOCK_AUTH === "1";
-
-// Per-visitor stable shuffle seed used by the curated gallery sort
-// (see lib/shuffle-seed.ts). Minted here rather than from the page
-// because Next 16 forbids cookies().set() from Server Components.
-const SHUFFLE_COOKIE = "petdex_shuffle_seed";
-const SHUFFLE_PATTERN = /^[a-f0-9]{16}$/;
-const ONE_MONTH_SECONDS = 60 * 60 * 24 * 30;
-
-function ensureShuffleSeed(req: Request, res: NextResponse): void {
-  const existing = req.headers
-    .get("cookie")
-    ?.split(";")
-    .map((c) => c.trim())
-    .find((c) => c.startsWith(`${SHUFFLE_COOKIE}=`))
-    ?.split("=")[1];
-
-  if (existing && SHUFFLE_PATTERN.test(existing)) return;
-
-  const seed = randomBytes(8).toString("hex");
-  res.cookies.set(SHUFFLE_COOKIE, seed, {
-    maxAge: ONE_MONTH_SECONDS,
-    httpOnly: false,
-    sameSite: "lax",
-    path: "/",
-  });
-}
 
 const isProtected = createRouteMatcher([
   "/submit",
@@ -67,13 +39,9 @@ const handleI18nRouting = createMiddleware({
 // Everything else — next-intl routing, the shuffle cookie — keeps working.
 const baseMiddleware = (req: Request) => {
   if (new URL(req.url).pathname.startsWith("/api")) {
-    const res = NextResponse.next();
-    ensureShuffleSeed(req, res);
-    return res;
+    return NextResponse.next();
   }
-  const res = handleI18nRouting(req as Parameters<typeof handleI18nRouting>[0]);
-  ensureShuffleSeed(req, res);
-  return res;
+  return handleI18nRouting(req as Parameters<typeof handleI18nRouting>[0]);
 };
 
 export default IS_MOCK_AUTH
@@ -84,14 +52,10 @@ export default IS_MOCK_AUTH
       }
 
       if (req.nextUrl.pathname.startsWith("/api")) {
-        const res = NextResponse.next();
-        ensureShuffleSeed(req, res);
-        return res;
+        return NextResponse.next();
       }
 
-      const res = handleI18nRouting(req);
-      ensureShuffleSeed(req, res);
-      return res;
+      return handleI18nRouting(req);
     });
 
 export const config = {

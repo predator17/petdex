@@ -1,10 +1,12 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 
+import { useUser } from "@clerk/nextjs";
 import { useTranslations } from "next-intl";
 
-import type { OwnerCredit } from "@/lib/owner-credit";
+import type { OwnerCredit, OwnerExternal } from "@/lib/owner-credit";
 import { isAllowedAvatarUrl } from "@/lib/url-allowlist";
 
 type SubmittedByProps = {
@@ -44,26 +46,36 @@ function XIcon({ className }: { className?: string }) {
 
 export function SubmittedBy({ credit }: SubmittedByProps) {
   const t = useTranslations("submittedBy");
-  const showAvatar = credit.imageUrl && isAllowedAvatarUrl(credit.imageUrl);
-  const profileHref = `/u/${credit.handle}`;
+  const { user } = useUser();
+  const displayCredit = mergeCurrentUserCredit(credit, user);
+  const showAvatar =
+    displayCredit.imageUrl && isAllowedAvatarUrl(displayCredit.imageUrl);
+  const avatarUrl = showAvatar ? displayCredit.imageUrl : null;
+  const profileHref = `/u/${displayCredit.handle}`;
 
+  // The card itself is a non-anchor div so we can host real
+  // <a> elements (the profile link + each external link) inside
+  // without HTML-spec-illegal interactive nesting. The outer div
+  // gets the visual hover treatment but no click handler — every
+  // interactive surface is its own focusable child element.
   return (
-    <Link
-      href={profileHref}
-      aria-label={t("viewProfile", { name: credit.name })}
-      className="group block rounded-2xl border border-border-base bg-surface/76 p-4 backdrop-blur transition hover:border-border-strong hover:bg-surface focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
-    >
-      <div className="flex items-center gap-3">
-        {showAvatar ? (
-          // biome-ignore lint/performance/noImgElement: external avatar URL
-          <img
-            src={credit.imageUrl ?? undefined}
+    <div className="group rounded-2xl border border-border-base bg-surface/76 p-4 backdrop-blur transition hover:border-border-strong hover:bg-surface">
+      <Link
+        href={profileHref}
+        aria-label={t("viewProfile", { name: displayCredit.name })}
+        className="flex items-center gap-3 rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
+      >
+        {avatarUrl ? (
+          <Image
+            src={avatarUrl}
             alt=""
+            width={40}
+            height={40}
             className="size-10 shrink-0 rounded-full ring-1 ring-border-base"
           />
         ) : (
           <div className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-muted font-mono text-sm text-muted-2 ring-1 ring-border-base">
-            {credit.name.slice(0, 1).toUpperCase()}
+            {displayCredit.name.slice(0, 1).toUpperCase()}
           </div>
         )}
         <div className="min-w-0 flex-1">
@@ -72,44 +84,105 @@ export function SubmittedBy({ credit }: SubmittedByProps) {
           </p>
           <div className="flex flex-wrap items-baseline gap-x-2">
             <p className="truncate text-sm font-medium text-foreground">
-              {credit.name}
+              {displayCredit.name}
             </p>
-            {credit.username ? (
+            {displayCredit.username ? (
               <p className="font-mono text-[11px] text-muted-4">
-                @{credit.username}
+                @{displayCredit.username}
               </p>
             ) : null}
           </div>
         </div>
-      </div>
+      </Link>
 
-      {credit.externals.length > 0 ? (
+      {displayCredit.externals.length > 0 ? (
         <div className="mt-3 flex flex-wrap items-center gap-1.5 border-t border-border-base pt-3">
-          {credit.externals.map((ext) => (
-            // Rendered as a button (not nested <a>, which would be
-            // invalid HTML inside the wrapping profile <Link>). The
-            // button calls window.open and stops propagation so the
-            // outer card click doesn't also fire.
-            <button
+          {displayCredit.externals.map((ext) => (
+            // Plain anchor now that we're not nested inside another
+            // <a>. target=_blank + rel=noopener mirrors the previous
+            // window.open call. The outer card no longer receives
+            // clicks so we don't need stopPropagation either.
+            <a
               key={ext.url}
-              type="button"
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                window.open(ext.url, "_blank", "noopener,noreferrer");
-              }}
-              className="inline-flex h-7 items-center gap-1.5 rounded-full border border-border-base bg-surface px-2.5 font-mono text-[11px] tracking-[0.04em] text-muted-2 transition hover:border-border-strong hover:bg-surface-muted"
+              href={ext.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex h-7 max-w-full items-center gap-1.5 rounded-full border border-border-base bg-surface px-2.5 font-mono text-[11px] tracking-[0.04em] text-muted-2 transition hover:border-border-strong hover:bg-surface-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-brand/40"
             >
               {ext.provider === "github" ? (
-                <GithubIcon className="size-3.5" />
+                <GithubIcon className="size-3.5 shrink-0" />
               ) : (
-                <XIcon className="size-3" />
+                <XIcon className="size-3 shrink-0" />
               )}
-              {ext.username}
-            </button>
+              <span className="truncate whitespace-nowrap">{ext.username}</span>
+            </a>
           ))}
         </div>
       ) : null}
-    </Link>
+    </div>
   );
+}
+
+function mergeCurrentUserCredit(
+  credit: OwnerCredit,
+  user:
+    | {
+        id: string;
+        imageUrl?: string;
+        username?: string | null;
+        fullName?: string | null;
+        primaryEmailAddress?: { emailAddress?: string | null } | null;
+        externalAccounts?: Array<{ provider?: string; username?: string }>;
+      }
+    | null
+    | undefined,
+): OwnerCredit {
+  if (!user || user.id !== credit.userId) return credit;
+
+  const externals = externalsFor(user.externalAccounts ?? []);
+
+  return {
+    ...credit,
+    name:
+      credit.name === "anonymous"
+        ? user.fullName ||
+          user.username ||
+          user.primaryEmailAddress?.emailAddress ||
+          credit.name
+        : credit.name,
+    username: user.username ?? credit.username,
+    externals: externals.length > 0 ? externals : credit.externals,
+    imageUrl: user.imageUrl ?? credit.imageUrl,
+  };
+}
+
+function externalsFor(
+  externalAccounts: Array<{ provider?: string; username?: string }>,
+): OwnerExternal[] {
+  let github: OwnerExternal | null = null;
+  let x: OwnerExternal | null = null;
+
+  for (const account of externalAccounts) {
+    if (!account.username) continue;
+    if (account.provider === "oauth_github" && !github) {
+      github = {
+        provider: "github",
+        username: account.username,
+        url: `https://github.com/${account.username}`,
+      };
+    }
+    if (
+      (account.provider === "oauth_x" ||
+        account.provider === "oauth_twitter") &&
+      !x
+    ) {
+      x = {
+        provider: "x",
+        username: account.username,
+        url: `https://x.com/${account.username}`,
+      };
+    }
+  }
+
+  return [github, x].filter((item): item is OwnerExternal => Boolean(item));
 }

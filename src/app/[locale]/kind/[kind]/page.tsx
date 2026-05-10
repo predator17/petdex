@@ -97,7 +97,7 @@ export default async function KindPage({ params }: Props) {
     <>
       <JsonLd data={jsonLd} />
       <FacetPage
-        eyebrow={`Kind — ${kind}`}
+        eyebrow={`Kind: ${kind}`}
         title={copy.title}
         intro={copy.intro}
         count={filtered.length}

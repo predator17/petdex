@@ -4,7 +4,9 @@ import { usePathname } from "next/navigation";
 import type { ComponentType } from "react";
 import { useEffect, useMemo, useState } from "react";
 
-import { CollectionsAnnouncementModal } from "@/components/collections-announcement-modal";
+import { safeGetItem, safeSetItem } from "@/lib/utils";
+
+import { DesktopAnnouncementModal } from "@/components/desktop-announcement-modal";
 import { GithubStarModal } from "@/components/github-star-modal";
 
 type QueuedAnnouncement = {
@@ -16,22 +18,22 @@ type QueuedAnnouncement = {
 
 const HOME_PATH_RE = /^\/(?:en|es|zh)?\/?$/;
 
-// Order matters — github-star runs first (permanent CTA), then the
-// collections launch announcement (one-shot per browser, dismissed via
-// localStorage). Onboarding tour and the original vibe-search
-// announcement were retired now that those features are mature.
+// Order matters: desktop-launch first (the headline news), then
+// github-star as a recurring CTA. Each is one-shot per browser via
+// localStorage. Re-bump the id (`_v2`, `_v3`) to force a re-show
+// after a major refresh of the modal content.
 const QUEUE: QueuedAnnouncement[] = [
   {
-    id: "petdex_announce_github_star_v1",
+    id: "petdex_announce_desktop_v1",
     delayMs: 1200,
     gateMs: 600,
-    Component: GithubStarModal,
+    Component: DesktopAnnouncementModal,
   },
   {
-    id: "petdex_announce_collections_v1",
-    delayMs: 0,
-    gateMs: 0,
-    Component: CollectionsAnnouncementModal,
+    id: "petdex_announce_github_star_v1",
+    delayMs: 600,
+    gateMs: 600,
+    Component: GithubStarModal,
   },
 ];
 
@@ -58,7 +60,7 @@ export function AnnouncementQueue() {
 
     for (let nextIndex = 0; nextIndex < QUEUE.length; nextIndex += 1) {
       if (!isEligible(nextIndex, pathname)) continue;
-      if (window.localStorage.getItem(QUEUE[nextIndex].id) === "1") continue;
+      if (safeGetItem(QUEUE[nextIndex].id) === "1") continue;
       setIndex(nextIndex);
       setPhase("idle");
       return;
@@ -86,7 +88,7 @@ export function AnnouncementQueue() {
   const handleClose = () => {
     if (typeof window === "undefined" || activeItem === null) return;
 
-    window.localStorage.setItem(activeItem.id, "1");
+    safeSetItem(activeItem.id, "1");
 
     const nextIndex = (() => {
       for (
@@ -95,7 +97,7 @@ export function AnnouncementQueue() {
         candidate += 1
       ) {
         if (!isEligible(candidate, pathname)) continue;
-        if (window.localStorage.getItem(QUEUE[candidate].id) === "1") continue;
+        if (safeGetItem(QUEUE[candidate].id) === "1") continue;
         return candidate;
       }
       return null;

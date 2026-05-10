@@ -9,6 +9,10 @@ import {
   embeddingVectorLiteral,
   PETDEX_EMBEDDING_MODEL,
 } from "@/lib/embeddings";
+import {
+  BLOCKED_KEYWORD_REASON,
+  containsBlockedKeyword,
+} from "@/lib/keyword-blocklist";
 import { embedQuery } from "@/lib/query-embed";
 import { R2_PUBLIC_BASE } from "@/lib/r2";
 import { petRequestRatelimit } from "@/lib/ratelimit";
@@ -208,6 +212,13 @@ export async function POST(req: Request): Promise<Response> {
     return NextResponse.json(
       { error: "query_length", message: "Use 4-200 characters." },
       { status: 400 },
+    );
+  }
+
+  if (containsBlockedKeyword(query)) {
+    return NextResponse.json(
+      { error: "blocked_content", message: BLOCKED_KEYWORD_REASON },
+      { status: 422 },
     );
   }
 

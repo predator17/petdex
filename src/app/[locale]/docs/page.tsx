@@ -32,13 +32,14 @@ export default function DocsPage() {
       <SiteHeader />
       <section className="mx-auto grid w-full max-w-6xl gap-12 px-5 pt-8 pb-12 md:grid-cols-[220px_1fr] md:px-8 md:pb-16">
         <aside className="hidden md:block">
-          <nav className="sticky top-6 flex flex-col gap-1.5 text-sm">
+          <nav className="sticky top-24 flex flex-col gap-1.5 text-sm">
             <NavHeader>Get started</NavHeader>
             <NavLink href="#quick-start">Quick start</NavLink>
             <NavLink href="#install">Install</NavLink>
             <NavLink href="#authenticate">Authenticate</NavLink>
             <NavHeader>CLI</NavHeader>
             <NavLink href="#commands">Commands</NavLink>
+            <NavLink href="#desktop">Desktop app</NavLink>
             <NavLink href="#distribute">Distribute pets</NavLink>
             <NavLink href="#validation">Validation</NavLink>
             <NavLink href="#failure">Failure modes</NavLink>
@@ -183,8 +184,9 @@ export default function DocsPage() {
 
           <Section id="commands" title="Commands">
             <p>
-              Six commands cover the full lifecycle, from discovery to
-              publishing. All commands accept <code>--help</code>.
+              The CLI covers the full lifecycle: discover, install, hatch,
+              publish, plus the desktop app and agent hooks. All commands accept{" "}
+              <code>--help</code>.
             </p>
 
             <h3 className="mt-6 font-semibold">
@@ -247,6 +249,216 @@ export default function DocsPage() {
               <code>petdex login / logout / whoami</code>
             </h3>
             <p>See the Authenticate section above.</p>
+          </Section>
+
+          <Section id="desktop" title="Desktop app">
+            <p>
+              Petdex Desktop is a floating mascot that lives on top of your
+              workspace and reacts to your coding agent's tool calls. macOS
+              today, Linux and Windows soon. See{" "}
+              <Link
+                href="/download"
+                className="font-medium underline underline-offset-4"
+              >
+                /download
+              </Link>{" "}
+              for the visual tour.
+            </p>
+
+            <h3 className="mt-6 font-semibold">
+              <code>petdex install desktop</code>
+            </h3>
+            <p>
+              Fetches the latest binary from GitHub Releases for your platform
+              and drops it at <code>~/.petdex/bin/petdex-desktop</code>. The CLI
+              strips the macOS quarantine attribute so the app opens without a
+              Gatekeeper prompt.
+            </p>
+            <CommandLine
+              command="npx petdex install desktop"
+              source="docs-desktop-install"
+              className="w-full max-w-xl"
+            />
+
+            <h3 className="mt-6 font-semibold">
+              <code>petdex hooks install</code>
+            </h3>
+            <p>
+              Wires the desktop app into your coding agents so the pet animates
+              as you work. Picks the agents present on your machine and writes
+              hooks for each:
+            </p>
+            <ul className="ml-6 list-disc space-y-1 text-muted-2">
+              <li>
+                <strong>Claude Code</strong>:{" "}
+                <code>~/.claude/settings.json</code>
+              </li>
+              <li>
+                <strong>Codex CLI</strong>: <code>~/.codex/hooks.json</code>
+              </li>
+              <li>
+                <strong>Gemini CLI</strong>:{" "}
+                <code>~/.gemini/settings.json</code>
+              </li>
+              <li>
+                <strong>OpenCode</strong>:{" "}
+                <code>~/.config/opencode/plugins/petdex.js</code>
+              </li>
+            </ul>
+            <p>
+              Tool events map to pet states: <code>tool.before</code> →{" "}
+              <code>running</code>, <code>tool.after</code> → <code>idle</code>,
+              <code>session.end</code> → <code>waving</code>,{" "}
+              <code>session.error</code> → <code>failed</code>. Each hook POSTs
+              to the local sidecar at <code>http://127.0.0.1:7777/state</code>.
+            </p>
+            <CommandLine
+              command="npx petdex hooks install"
+              source="docs-desktop-hooks"
+              className="w-full max-w-xl"
+            />
+
+            <h3 className="mt-6 font-semibold">
+              <code>petdex desktop &lt;start | stop | status&gt;</code>
+            </h3>
+            <p>
+              Manage the running pet. <code>start</code> spawns it detached (PID
+              at <code>~/.petdex/desktop.pid</code>, log at{" "}
+              <code>~/.petdex/desktop.log</code>). <code>stop</code> sends
+              SIGTERM. <code>status</code> reports running, stopped, or stale.
+            </p>
+            <CommandLine
+              command="npx petdex desktop start"
+              source="docs-desktop-start"
+              className="w-full max-w-xl"
+            />
+
+            <h3 className="mt-6 font-semibold">
+              <code>petdex up / down / toggle</code>
+            </h3>
+            <p>
+              One-shot wake/sleep for the mascot. <code>up</code> enables
+              hooks AND launches the desktop. <code>down</code> disables hooks
+              AND stops the desktop. <code>toggle</code> flips between them
+              based on current state. That's what the <code>/petdex</code>{" "}
+              slash command runs from inside your agent.
+            </p>
+            <CommandLine
+              command="npx petdex toggle"
+              source="docs-desktop-toggle"
+              className="w-full max-w-xl"
+            />
+
+            <h3 className="mt-6 font-semibold">
+              <code>/petdex</code> (slash command)
+            </h3>
+            <p>
+              Once <code>petdex hooks install</code> has run, every supported
+              agent (Claude Code, Codex, Gemini, OpenCode) gets a{" "}
+              <code>/petdex</code> command in its picker. Type it inside the
+              agent and the mascot wakes or sleeps without leaving the chat:
+            </p>
+            <ul className="ml-6 list-disc space-y-1 text-muted-2">
+              <li>
+                <code>/petdex</code>: toggle (wake if asleep, sleep if awake)
+              </li>
+              <li>
+                <code>/petdex up</code>: force-wake
+              </li>
+              <li>
+                <code>/petdex down</code>: force-sleep
+              </li>
+              <li>
+                <code>/petdex status</code>: show whether hooks are enabled
+              </li>
+              <li>
+                <code>/petdex doctor</code>: diagnose install + agent wiring
+              </li>
+            </ul>
+
+            <h3 className="mt-6 font-semibold">
+              <code>petdex hooks</code> (kill-switch)
+            </h3>
+            <p>
+              Even with hooks installed, you can pause them without touching
+              your agent's settings. <code>petdex hooks off</code> drops a
+              flag file at <code>~/.petdex/runtime/hooks-disabled</code>;
+              every installed hook checks for it first and exits 0
+              immediately. <code>petdex hooks on</code> removes the file.
+              Useful when a sidecar has gone weird and you don't want stray
+              curls in your agent log.
+            </p>
+            <CommandLine
+              command="npx petdex hooks toggle"
+              source="docs-hooks-toggle"
+              className="w-full max-w-xl"
+            />
+
+            <h3 className="mt-6 font-semibold">
+              <code>petdex hooks uninstall</code>
+            </h3>
+            <p>
+              Reverses <code>hooks install</code>: removes the petdex entries
+              from each agent's config (preserving your own hooks), deletes
+              the <code>/petdex</code> slash command files, and removes the
+              OpenCode plugin. Pass <code>--remove-token</code> to also drop
+              the auth token at{" "}
+              <code>~/.petdex/runtime/update-token</code>.
+            </p>
+            <CommandLine
+              command="npx petdex hooks uninstall"
+              source="docs-hooks-uninstall"
+              className="w-full max-w-xl"
+            />
+
+            <h3 className="mt-6 font-semibold">
+              <code>petdex doctor</code>
+            </h3>
+            <p>
+              Diagnostic. Verifies binary, sidecar bundle, sidecar
+              reachability, pid file format, token mode, kill-switch state,
+              hooks installed in each agent, Codex's <code>codex_hooks</code>{" "}
+              feature flag, and usable pet count. Each failed check ships an
+              actionable hint.
+            </p>
+            <CommandLine
+              command="npx petdex doctor"
+              source="docs-doctor"
+              className="w-full max-w-xl"
+            />
+
+            <h3 className="mt-6 font-semibold">
+              <code>petdex update</code>
+            </h3>
+            <p>
+              Compares your installed version against the latest GitHub Release
+              tag and downloads it if newer. If the desktop app was running, it
+              stops it, swaps the binary, and restarts. Pass{" "}
+              <code>--force</code> to re-download the same version.
+            </p>
+            <CommandLine
+              command="npx petdex update"
+              source="docs-desktop-update"
+              className="w-full max-w-xl"
+            />
+
+            <Callout>
+              The sidecar is a local HTTP server on port <code>7777</code>.
+              Anything that can <code>curl</code> + read the per-session token
+              at <code>~/.petdex/runtime/update-token</code> can drive the pet.
+              The token rotates every sidecar boot and lives at mode{" "}
+              <code>0600</code>, so only your user can read it. Browsers and
+              remote sites can't:
+              <pre className="mt-3 overflow-x-auto rounded-lg bg-surface-muted p-3 font-mono text-xs leading-relaxed">
+                {[
+                  `T="$(cat "$HOME/.petdex/runtime/update-token")"`,
+                  `curl -X POST http://127.0.0.1:7777/state \\`,
+                  `  -H "Content-Type: application/json" \\`,
+                  `  -H "X-Petdex-Update-Token: $T" \\`,
+                  `  --data-raw '{"state":"waving"}'`,
+                ].join("\n")}
+              </pre>
+            </Callout>
           </Section>
 
           <Section id="distribute" title="Distribute your pets">

@@ -17,7 +17,7 @@ import { AdminVelocityChart } from "@/components/admin-velocity-chart";
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Insights — Petdex admin",
+  title: "Insights | Petdex admin",
   robots: { index: false, follow: false },
 };
 
@@ -48,7 +48,7 @@ export default async function AdminInsightsPage() {
           Operational dashboard
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-2">
-          Numbers Vercel and Clerk don't surface — submission throughput, queue
+          Numbers Vercel and Clerk don't surface: submission throughput, queue
           health, hidden hits in the catalog, and active creators.
         </p>
       </header>

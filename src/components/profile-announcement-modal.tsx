@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { useUser } from "@clerk/nextjs";
 import { ArrowRight, Sparkles, X } from "lucide-react";
 
+import { safeGetItem, safeSetItem } from "@/lib/utils";
+
 const STORAGE_KEY = "petdex_announce_profile_v1";
 
 // One-time modal announcing /u/[handle] public profiles.
@@ -22,10 +24,9 @@ export function ProfileAnnouncementModal() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!isLoaded || !isSignedIn || !user) return;
-    if (window.localStorage.getItem(STORAGE_KEY) === "1") return;
-    if (window.localStorage.getItem("petdex_tour_seen_v1") !== "1") return;
-    if (window.localStorage.getItem("petdex_announce_vibe_search_v1") !== "1")
-      return;
+    if (safeGetItem(STORAGE_KEY) === "1") return;
+    if (safeGetItem("petdex_tour_seen_v1") !== "1") return;
+    if (safeGetItem("petdex_announce_vibe_search_v1") !== "1") return;
 
     const t = window.setTimeout(() => {
       setOpen(true);
@@ -41,7 +42,7 @@ export function ProfileAnnouncementModal() {
     setClosing(true);
     window.setTimeout(() => {
       setOpen(false);
-      window.localStorage.setItem(STORAGE_KEY, "1");
+      safeSetItem(STORAGE_KEY, "1");
     }, 220);
   }
 

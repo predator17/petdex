@@ -3,7 +3,7 @@ import { desc, sql as dsql } from "drizzle-orm";
 import { db, schema } from "@/lib/db/client";
 
 export const metadata = {
-  title: "Petdex — Admin · Manifest",
+  title: "Petdex Admin · Manifest",
   robots: { index: false, follow: false },
 };
 

@@ -8,6 +8,7 @@ import {
   pgTable,
   primaryKey,
   real,
+  serial,
   text,
   timestamp,
   uniqueIndex,
@@ -100,6 +101,11 @@ export const submittedPets = pgTable(
       withTimezone: true,
     }),
     pendingRejectionReason: text("pending_rejection_reason"),
+    // Owner-controlled order on /u/<handle>. Lower comes first. Ties
+    // (typical: every row is 0 by default) fall back to dex/created_at
+    // order from the query side. Owners reorder via dnd-kit; non-owners
+    // see whatever order the owner saved.
+    galleryPosition: integer("gallery_position").notNull().default(0),
   },
   (table) => ({
     statusIdx: index("submitted_pets_status_idx").on(table.status),
@@ -674,3 +680,133 @@ export type AdImpression = typeof adImpressions.$inferSelect;
 export type AdEvent = typeof adEvents.$inferSelect;
 export type Feedback = typeof feedback.$inferSelect;
 export type PetRequest = typeof petRequests.$inferSelect;
+
+export const emailCampaign = pgEnum("email_campaign", [
+  "collections_drop",
+  "desktop_launch",
+]);
+
+export const emailSendStatus = pgEnum("email_send_status", [
+  "queued",
+  "sent",
+  "delivered",
+  "opened",
+  "bounced",
+  "complained",
+  "failed",
+]);
+
+// One row per Clerk user. Drives broadcast send eligibility and the
+// /unsubscribe page. Email is denormalized so we don't hit Clerk for
+// every send. Token is opaque, used in unsubscribe links so users can
+// opt out without logging in.
+export const emailPreferences = pgTable(
+  "email_preferences",
+  {
+    userId: text("user_id").primaryKey(),
+    email: text("email").notNull(),
+    locale: text("locale").$type<"en" | "es" | "zh">().notNull().default("en"),
+    // Default false = everyone is opted in until they explicitly opt out
+    // (the row is created on signup or via backfill, both with this default).
+    unsubscribedMarketing: boolean("unsubscribed_marketing")
+      .notNull()
+      .default(false),
+    unsubscribedAt: timestamp("unsubscribed_at", { withTimezone: true }),
+    unsubscribeToken: text("unsubscribe_token").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    emailIdx: index("email_preferences_email_idx").on(table.email),
+    tokenUnique: uniqueIndex("email_preferences_token_unique").on(
+      table.unsubscribeToken,
+    ),
+    optedInIdx: index("email_preferences_opted_in_idx").on(
+      table.unsubscribedMarketing,
+    ),
+  }),
+);
+
+// One row per attempted broadcast send. Resend webhook updates status
+// + opened/bounced columns over time. Keeps a per-user audit so admin
+// can answer "did user X get the May 9 collections drop?" instantly.
+export const emailSends = pgTable(
+  "email_sends",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    email: text("email").notNull(),
+    campaign: emailCampaign("campaign").notNull(),
+    // Free-form key set by the sender to group multiple sends under one
+    // batch — e.g. "collections-drop-2026-05-09". Distinct from `campaign`
+    // (which is the template family) so we can run multiple drops of the
+    // same template without losing the audit trail.
+    batchKey: text("batch_key").notNull(),
+    resendId: text("resend_id"),
+    status: emailSendStatus("status").notNull().default("queued"),
+    error: text("error"),
+    sentAt: timestamp("sent_at", { withTimezone: true }),
+    deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+    openedAt: timestamp("opened_at", { withTimezone: true }),
+    bouncedAt: timestamp("bounced_at", { withTimezone: true }),
+    complainedAt: timestamp("complained_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    userIdx: index("email_sends_user_idx").on(table.userId),
+    batchIdx: index("email_sends_batch_idx").on(table.batchKey),
+    campaignIdx: index("email_sends_campaign_idx").on(
+      table.campaign,
+      table.createdAt.desc(),
+    ),
+    statusIdx: index("email_sends_status_idx").on(table.status),
+    resendUnique: uniqueIndex("email_sends_resend_unique").on(table.resendId),
+    // Prevents the same user from getting duplicate emails inside one batch
+    // (re-runs of the send job after a partial failure are safe).
+    userBatchUnique: uniqueIndex("email_sends_user_batch_unique").on(
+      table.userId,
+      table.batchKey,
+    ),
+  }),
+);
+
+export type EmailPreference = typeof emailPreferences.$inferSelect;
+export type NewEmailPreference = typeof emailPreferences.$inferInsert;
+export type EmailSend = typeof emailSends.$inferSelect;
+export type NewEmailSend = typeof emailSends.$inferInsert;
+
+// Anonymous CLI usage telemetry. No PII — install_id is a random UUID
+// generated locally on first run. Users can opt out with `petdex telemetry off`.
+export const telemetryEvents = pgTable(
+  "telemetry_events",
+  {
+    id: serial("id").primaryKey(),
+    installId: text("install_id").notNull(),
+    event: text("event").notNull(),
+    cliVersion: text("cli_version"),
+    binaryVersion: text("binary_version"),
+    os: text("os"),
+    arch: text("arch"),
+    agents: jsonb("agents"),
+    state: text("state"),
+    agentSource: text("agent_source"),
+    country: text("country"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    installIdIdx: index("telemetry_install_id_idx").on(table.installId),
+    eventIdx: index("telemetry_event_idx").on(table.event),
+    createdAtIdx: index("telemetry_created_at_idx").on(table.createdAt),
+  }),
+);
+
+export type TelemetryEvent = typeof telemetryEvents.$inferSelect;
+export type NewTelemetryEvent = typeof telemetryEvents.$inferInsert;

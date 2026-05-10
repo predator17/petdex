@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { useUser } from "@clerk/nextjs";
 import {
   BookOpenIcon,
   CrownIcon,
+  DownloadSimpleIcon,
   HandHeartIcon,
   MegaphoneIcon,
   PaintBrushIcon,
+  PuzzlePieceIcon,
   StackIcon,
   UploadSimpleIcon,
   UsersThreeIcon,
@@ -16,6 +19,7 @@ import {
 import { ExternalLink, Menu, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
+import { isAdminClientSafe } from "@/lib/admin";
 import { withLocale } from "@/lib/locale-routing";
 import { cn } from "@/lib/utils";
 
@@ -60,6 +64,12 @@ export function SiteHeader({ hideSubmitCta = false }: SiteHeaderProps) {
   const t = useTranslations("header");
   const common = useTranslations("common");
 
+  // /download is public now (post pre-launch).
+  const { user } = useUser();
+  void user;
+  const showDownload = true;
+  void isAdminClientSafe;
+
   function href(pathname: string) {
     return withLocale(pathname, currentLocale);
   }
@@ -86,6 +96,17 @@ export function SiteHeader({ hideSubmitCta = false }: SiteHeaderProps) {
   ];
 
   const buildItems: NavItem[] = [
+    ...(showDownload
+      ? [
+          {
+            href: href("/download"),
+            title: t("download"),
+            description: t("downloadDesc"),
+            icon: DownloadSimpleIcon,
+            badge: "new",
+          } as NavItem,
+        ]
+      : []),
     {
       href: href("/submit"),
       title: t("submitCta"),
@@ -113,6 +134,13 @@ export function SiteHeader({ hideSubmitCta = false }: SiteHeaderProps) {
       description: t("advertiseDesc"),
       icon: MegaphoneIcon,
     },
+    {
+      href: href("/built-with"),
+      title: t("builtWith"),
+      description: t("builtWithDesc"),
+      icon: PuzzlePieceIcon,
+      badge: "new",
+    },
     ...(process.env.NEXT_PUBLIC_DISCORD_INVITE_URL
       ? [
           {
@@ -120,7 +148,6 @@ export function SiteHeader({ hideSubmitCta = false }: SiteHeaderProps) {
             title: t("community"),
             description: t("communityDesc"),
             icon: UsersThreeIcon,
-            badge: "new",
           },
         ]
       : []),
@@ -188,11 +215,14 @@ export function SiteHeader({ hideSubmitCta = false }: SiteHeaderProps) {
                 <NavigationMenuItem>
                   <NavigationMenuTrigger
                     className={cn(
-                      "rounded-full bg-transparent text-muted-2 transition-[font-size,height] duration-200 hover:bg-surface-muted hover:text-foreground data-popup-open:bg-surface-muted data-popup-open:text-foreground",
+                      "relative rounded-full bg-transparent text-muted-2 transition-[font-size,height] duration-200 hover:bg-surface-muted hover:text-foreground data-popup-open:bg-surface-muted data-popup-open:text-foreground",
                       scrolled ? "h-7 text-xs" : "h-9 text-sm",
                     )}
                   >
                     {t("make")}
+                    {buildItems.some((i) => i.badge === "new") ? (
+                      <NewDot />
+                    ) : null}
                   </NavigationMenuTrigger>
                   <NavigationMenuContent>
                     <NavGrid items={buildItems} />
@@ -202,11 +232,14 @@ export function SiteHeader({ hideSubmitCta = false }: SiteHeaderProps) {
                 <NavigationMenuItem>
                   <NavigationMenuTrigger
                     className={cn(
-                      "rounded-full bg-transparent text-muted-2 transition-[font-size,height] duration-200 hover:bg-surface-muted hover:text-foreground data-popup-open:bg-surface-muted data-popup-open:text-foreground",
+                      "relative rounded-full bg-transparent text-muted-2 transition-[font-size,height] duration-200 hover:bg-surface-muted hover:text-foreground data-popup-open:bg-surface-muted data-popup-open:text-foreground",
                       scrolled ? "h-7 text-xs" : "h-9 text-sm",
                     )}
                   >
                     {t("promote")}
+                    {earnItems.some((i) => i.badge === "new") ? (
+                      <NewDot />
+                    ) : null}
                   </NavigationMenuTrigger>
                   <NavigationMenuContent>
                     <NavGrid items={earnItems} />
@@ -281,6 +314,19 @@ export function SiteHeader({ hideSubmitCta = false }: SiteHeaderProps) {
             <MobileLink href={href("/docs")} onClick={() => setOpen(false)}>
               {t("docs")}
             </MobileLink>
+            {showDownload ? (
+              <MobileLink
+                href={href("/download")}
+                onClick={() => setOpen(false)}
+              >
+                <span className="inline-flex items-center gap-2">
+                  {t("download")}
+                  <span className="rounded-full bg-brand-tint px-1.5 py-0.5 font-mono text-[9px] font-semibold tracking-[0.12em] text-brand uppercase ring-1 ring-brand/30 dark:bg-brand-tint-dark">
+                    new
+                  </span>
+                </span>
+              </MobileLink>
+            ) : null}
             <MobileLink
               href={href("/collections")}
               onClick={() => setOpen(false)}
@@ -302,17 +348,23 @@ export function SiteHeader({ hideSubmitCta = false }: SiteHeaderProps) {
             >
               {t("advertise")}
             </MobileLink>
+            <MobileLink
+              href={href("/built-with")}
+              onClick={() => setOpen(false)}
+            >
+              <span className="inline-flex items-center gap-2">
+                {t("builtWith")}
+                <span className="rounded-full bg-brand-tint px-1.5 py-0.5 font-mono text-[9px] font-semibold tracking-[0.12em] text-brand uppercase ring-1 ring-brand/30 dark:bg-brand-tint-dark">
+                  new
+                </span>
+              </span>
+            </MobileLink>
             {process.env.NEXT_PUBLIC_DISCORD_INVITE_URL ? (
               <MobileLink
                 href={href("/community")}
                 onClick={() => setOpen(false)}
               >
-                <span className="inline-flex items-center gap-2">
-                  {t("community")}
-                  <span className="rounded-full bg-brand-tint px-1.5 py-0.5 font-mono text-[9px] font-semibold tracking-[0.12em] text-brand uppercase ring-1 ring-brand/30 dark:bg-brand-tint-dark">
-                    new
-                  </span>
-                </span>
+                {t("community")}
               </MobileLink>
             ) : null}
             <MobileLink href={href("/about")} onClick={() => setOpen(false)}>
@@ -365,6 +417,18 @@ export function SiteHeader({ hideSubmitCta = false }: SiteHeaderProps) {
   );
 }
 
+function NewDot() {
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute top-1 right-1 grid size-1.5 place-items-center"
+    >
+      <span className="absolute inline-flex size-full animate-ping rounded-full bg-brand opacity-70" />
+      <span className="relative inline-flex size-full rounded-full bg-brand" />
+    </span>
+  );
+}
+
 function NavGrid({ items }: { items: NavItem[] }) {
   return (
     <ul className="grid w-[360px] auto-rows-min gap-1 p-2">
@@ -375,7 +439,7 @@ function NavGrid({ items }: { items: NavItem[] }) {
             <NavigationMenuLink
               render={<Link href={item.href} />}
               closeOnClick
-              className="group/item flex items-center gap-3 rounded-full p-2 pr-4 transition hover:bg-surface-muted focus:bg-surface-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              className="group/item flex items-center gap-3 rounded-2xl p-2 pr-4 transition hover:bg-surface-muted focus:bg-surface-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
               <span className="grid size-10 shrink-0 place-items-center rounded-full bg-brand-tint text-brand ring-1 ring-brand/15 transition group-hover/item:bg-brand group-hover/item:text-on-inverse group-hover/item:ring-brand dark:bg-brand-tint-dark dark:ring-brand/25">
                 <Icon weight="duotone" className="size-4" />

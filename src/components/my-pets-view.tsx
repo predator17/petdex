@@ -139,7 +139,7 @@ export function MyPetsView({
             public profile
           </a>
           . Pending stay private until reviewed; rejected ones are gone. Edit
-          name, description or tags directly on each card — changes go through a
+          name, description or tags directly on each card. Changes go through a
           quick re-approval.
         </p>
       </header>

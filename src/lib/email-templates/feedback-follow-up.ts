@@ -24,7 +24,7 @@ export function renderFeedbackFollowUpEmail(
   const copy =
     current === "es"
       ? {
-          subject: `Seguimiento de feedback de Petdex — ${vars.kindLabel}`,
+          subject: `Seguimiento de feedback de Petdex: ${vars.kindLabel}`,
           intro: "Hay un nuevo seguimiento en un hilo de feedback de Petdex.",
           original: `Original (${vars.kindLabel}, ${vars.statusLabel}):`,
           reply: "Respuesta del usuario:",
@@ -32,14 +32,14 @@ export function renderFeedbackFollowUpEmail(
         }
       : current === "zh"
         ? {
-            subject: `Petdex 反馈跟进 — ${vars.kindLabel}`, // fixme:zh
+            subject: `Petdex 反馈跟进：${vars.kindLabel}`, // fixme:zh
             intro: "有一条新的 Petdex 反馈跟进。", // fixme:zh
             original: `原始反馈（${vars.kindLabel}，${vars.statusLabel}）：`, // fixme:zh
             reply: "用户回复：", // fixme:zh
             open: `打开线程：${vars.threadUrl}`, // fixme:zh
           }
         : {
-            subject: `Petdex feedback follow-up — ${vars.kindLabel}`,
+            subject: `Petdex feedback follow-up: ${vars.kindLabel}`,
             intro: "New follow-up on a Petdex feedback thread.",
             original: `Original (${vars.kindLabel}, ${vars.statusLabel}):`,
             reply: "User reply:",

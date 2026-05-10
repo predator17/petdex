@@ -1,6 +1,6 @@
 "use client";
 
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, memo } from "react";
 
 import { type PetStateId, petStates } from "@/lib/pet-states";
 
@@ -10,39 +10,33 @@ type PetSpriteProps = {
   scale?: number;
   label?: string;
   className?: string;
+  /**
+   * When true, the rendered animation state is picked deterministically
+   * from `src` so cards across the gallery look visually diverse without
+   * any React state. Each pet always shows the same hashed state on
+   * every render — no setInterval, no re-renders, no cascade.
+   */
   cycleStates?: boolean;
+  /**
+   * Kept on the prop type for source compatibility with older call
+   * sites. Has no effect since the cycling interval no longer exists.
+   */
   cycleIntervalMs?: number;
 };
 
-export function PetSprite({
+function PetSpriteImpl({
   src,
   state = "idle",
   scale = 1,
   label,
   className = "",
   cycleStates = false,
-  cycleIntervalMs = 1800,
 }: PetSpriteProps) {
-  const initialCycleIndex = useMemo(
-    () => hashString(src) % petStates.length,
-    [src],
-  );
-  const [cycleIndex, setCycleIndex] = useState(initialCycleIndex);
   const fixedAnimation =
     petStates.find((item) => item.id === state) ?? petStates[0];
-  const animation = cycleStates ? petStates[cycleIndex] : fixedAnimation;
-
-  useEffect(() => {
-    if (!cycleStates) {
-      return;
-    }
-
-    const interval = window.setInterval(() => {
-      setCycleIndex((current) => (current + 1) % petStates.length);
-    }, cycleIntervalMs);
-
-    return () => window.clearInterval(interval);
-  }, [cycleIntervalMs, cycleStates]);
+  const animation = cycleStates
+    ? petStates[hashString(src) % petStates.length]
+    : fixedAnimation;
 
   return (
     <div
@@ -59,7 +53,7 @@ export function PetSprite({
         className="pet-sprite"
         style={
           {
-            "--sprite-url": `url(${src})`,
+            "--sprite-url": `url("${src.replace(/"/g, '\\"')}")`,
             "--sprite-row": animation.row,
             "--sprite-frames": animation.frames,
             "--sprite-duration": `${animation.durationMs}ms`,
@@ -69,6 +63,8 @@ export function PetSprite({
     </div>
   );
 }
+
+export const PetSprite = memo(PetSpriteImpl);
 
 function hashString(value: string) {
   let hash = 0;

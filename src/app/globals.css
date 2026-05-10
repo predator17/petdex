@@ -416,6 +416,11 @@ input {
   width: calc(192px * var(--pet-scale));
   height: calc(208px * var(--pet-scale));
   overflow: hidden;
+  /* Promote to its own paint layer + isolate so the browser does not
+     evict the WebP decode buffer when the card scrolls off-screen.
+     Without this, sprites flicker (decode -> paint -> evict -> redecode)
+     on every scroll back into view. */
+  contain: layout paint;
 }
 
 .pet-sprite {
@@ -430,8 +435,13 @@ input {
   background-repeat: no-repeat;
   background-size: 1536px 1872px;
   image-rendering: pixelated;
-  transform: scale(var(--pet-scale));
+  /* translateZ(0) forces a GPU-composited layer so background-image
+     decode + animation stay on the compositor thread instead of being
+     re-rasterized on each scroll-induced repaint. Combined with
+     contain:paint on the parent, the WebP stays decoded. */
+  transform: scale(var(--pet-scale)) translateZ(0);
   transform-origin: top left;
+  will-change: background-position;
   animation: pet-state var(--sprite-duration) steps(var(--sprite-frames))
     infinite;
 }
@@ -453,16 +463,18 @@ input {
 }
 
 /* Static variant for list contexts (leaderboard rows, owner mini-grids).
-   Renders only the first idle frame — no infinite keyframe, no paint
+   Renders only the first frame of a chosen state row — no infinite keyframe, no paint
    thrash on scroll. Same dimensions as .pet-sprite so layouts can
    swap one for the other without touching parent CSS. */
 .pet-sprite-static {
+  --sprite-row: 0;
+  --sprite-y: calc(var(--sprite-row) * -208px);
   width: 192px;
   height: 208px;
   background-image: var(--sprite-url);
   background-repeat: no-repeat;
   background-size: 1536px 1872px;
-  background-position: 0 0;
+  background-position: 0 var(--sprite-y);
   image-rendering: pixelated;
   transform: scale(var(--pet-scale, 1));
   transform-origin: top left;

@@ -1,25 +1,22 @@
 import Link from "next/link";
 
-import { getTranslations } from "next-intl/server";
+import { ArrowRight } from "lucide-react";
+import { getLocale, getTranslations } from "next-intl/server";
 
 import { getActiveFeedAds } from "@/lib/ads/queries";
 import {
-  getFeaturedCollections,
+  getCollectionsBySlugs,
   type PetCollectionWithPets,
 } from "@/lib/collections";
 import { getDexNumberMap } from "@/lib/dex";
 import { buildLocaleAlternates } from "@/lib/locale-routing";
 import { searchPets } from "@/lib/pet-search";
-import { hasLocale } from "@/i18n/config";
-import {
-  getApprovedPetCount,
-  getFeaturedPetsWithMetrics,
-  type PetWithMetrics,
-} from "@/lib/pets";
+import { getFeaturedPetsWithMetrics, type PetWithMetrics } from "@/lib/pets";
 
 import { CollectionCover } from "@/components/collection-cover";
 import { CommandLine } from "@/components/command-line";
 import { DiscordLink } from "@/components/discord-link";
+import { DownloadDesktopCTA } from "@/components/download-desktop-cta";
 import { JsonLd } from "@/components/json-ld";
 import { PetGallery } from "@/components/pet-gallery";
 import { PetSprite } from "@/components/pet-sprite";
@@ -28,6 +25,8 @@ import { SiteHeader } from "@/components/site-header";
 import { SubmitCTA } from "@/components/submit-cta";
 import { SurprisePetCard } from "@/components/surprise-pet-card";
 
+import { hasLocale, locales } from "@/i18n/config";
+
 // ISR. The home page used to be force-dynamic because it pulled the
 // visitor's shuffle seed cookie and caught-slug set. Both moved to
 // the client: PetGallery re-fetches /api/pets/search after hydration
@@ -35,6 +34,7 @@ import { SurprisePetCard } from "@/components/surprise-pet-card";
 // "caught" highlight. The server now renders an alpha-ordered, anon
 // shell that the edge can cache for 60s — enough to keep new pets
 // surfacing without waking a function on every visit.
+export const dynamic = "force-static";
 export const revalidate = 60;
 export async function generateMetadata({
   params,
@@ -43,44 +43,45 @@ export async function generateMetadata({
 }) {
   const { locale } = await params;
   return {
-    alternates: buildLocaleAlternates("/", hasLocale(locale) ? locale : undefined),
+    alternates: buildLocaleAlternates(
+      "/",
+      hasLocale(locale) ? locale : undefined,
+    ),
   };
 }
 const SITE_URL = "https://petdex.crafter.run";
 
+export function generateStaticParams() {
+  return locales.map((locale) => ({ locale }));
+}
+
 export default async function Home() {
   const t = await getTranslations("home");
-
-  const [
-    heroPets,
-    totalPets,
-    initialSearch,
-    dexEntries,
-    allFeaturedCollections,
-    feedAds,
-  ] = await Promise.all([
-    getFeaturedPetsWithMetrics(6),
-    getApprovedPetCount(),
-    // No shuffleSeed → searchPets falls back to alpha order, which is
-    // the same for every visitor and therefore safe to cache. The
-    // client re-fetches with the visitor's seed on hydration.
-    searchPets({ sort: "curated" }),
-    getDexNumberMap(),
-    getFeaturedCollections(20),
-    getActiveFeedAds(6),
-  ]);
+  const locale = await getLocale();
 
   // Hand-pick the 3 collections that show on the landing strip in a
-  // specific narrative order: GRAYCRAFT (creator IP) → Meme Lords (cultural
-  // hook) → Anime Heroes (mainstream pull). Anything else lives behind
-  // the View all button.
-  const LANDING_COLLECTION_ORDER = ["graycraft", "meme-lords", "anime-heroes"];
-  const collectionsBySlug = new Map(
-    allFeaturedCollections.map((c) => [c.slug, c]),
-  );
-  const collections = LANDING_COLLECTION_ORDER.map((slug) =>
-    collectionsBySlug.get(slug),
-  ).filter((c): c is NonNullable<typeof c> => Boolean(c));
+  // specific narrative order: Pokemon (instant recognition) →
+  // League of Legends (largest deck, gamer pull) →
+  // JoJo's Bizarre Adventure (anime culture). Anything else lives
+  // behind the View all button.
+  const LANDING_COLLECTION_ORDER = [
+    "franchise-pokemon",
+    "franchise-league-of-legends",
+    "franchise-jojos-bizarre-adventure",
+  ];
+
+  const [heroPets, initialSearch, dexEntries, collections, feedAds] =
+    await Promise.all([
+      getFeaturedPetsWithMetrics(6),
+      // No shuffleSeed → searchPets falls back to alpha order, which is
+      // the same for every visitor and therefore safe to cache. The
+      // client re-fetches with the visitor's seed on hydration.
+      searchPets({ sort: "curated" }),
+      getDexNumberMap(),
+      getCollectionsBySlugs(LANDING_COLLECTION_ORDER, 6),
+      getActiveFeedAds(6),
+    ]);
+  const totalPets = initialSearch.total;
 
   // Plain-object so the server -> client serializer doesn't choke on a
   // Map. Same source of truth either way.
@@ -142,11 +143,21 @@ export default async function Home() {
                 brand: () => <strong>Codex</strong>,
               })}
             </p>
-            <CommandLine
-              command="npx petdex install boba"
-              source="hero"
-              className="mt-5 w-full max-w-sm"
-            />
+            <div className="mt-5 flex w-full flex-col items-stretch justify-center gap-2 sm:flex-row sm:items-center">
+              <CommandLine
+                command="npx petdex install boba"
+                source="hero"
+                className="w-full sm:w-auto"
+              />
+              <DownloadDesktopCTA
+                href={`/${locale}/download`}
+                source="hero_primary"
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-inverse px-5 text-sm font-medium text-on-inverse transition hover:bg-inverse-hover"
+              >
+                {t("downloadCta")}
+                <ArrowRight className="size-4" />
+              </DownloadDesktopCTA>
+            </div>
           </div>
 
           <HeroPetParade pets={heroPets} />

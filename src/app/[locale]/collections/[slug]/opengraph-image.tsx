@@ -119,7 +119,11 @@ export default async function Image({
             fontWeight: 600,
           }}
         >
-          <span>{copy.collectionLabel}</span>
+          <span>
+            {collection.featured
+              ? copy.collectionLabel
+              : copy.personalCollectionLabel}
+          </span>
         </div>
       </div>
 
@@ -252,10 +256,16 @@ async function getOgImageCopy(locale: string) {
   const resolvedLocale = locale && hasLocale(locale) ? locale : defaultLocale;
   const messages = (await import(`@/i18n/messages/${resolvedLocale}.json`))
     .default as {
-    ogImage?: { collectionLabel?: string; petsLabel?: string };
+    ogImage?: {
+      collectionLabel?: string;
+      personalCollectionLabel?: string;
+      petsLabel?: string;
+    };
   };
   return {
     collectionLabel: messages.ogImage?.collectionLabel ?? "Featured collection",
+    personalCollectionLabel:
+      messages.ogImage?.personalCollectionLabel ?? "Personal collection",
     petsLabel: messages.ogImage?.petsLabel ?? "pets",
   };
 }

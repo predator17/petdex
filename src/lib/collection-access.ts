@@ -1,33 +1,18 @@
 import "server-only";
 
-import { clerkClient } from "@clerk/nextjs/server";
+// Cap on personal (unfeatured) collections per creator. Featured ones
+// are admin-curated promotions and do not count.
+export const MAX_OWNER_COLLECTIONS = 10;
 
-import { isAdmin } from "@/lib/admin";
-
-type Metadata = Record<string, unknown>;
-
-function isRecord(value: unknown): value is Metadata {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-export function hasCreatorCollectionMetadata(metadata: unknown): boolean {
-  if (!isRecord(metadata)) return false;
-  if (metadata.canCreateCollections === true) return true;
-  const petdex = metadata.petdex;
-  return isRecord(petdex) && petdex.canCreateCollections === true;
-}
-
+// Personal collections are open to every signed-in user. The endpoint
+// still validates ownership of the pets being added and the cap, so
+// the gate exists at the action level (you can only edit your own
+// collection items, you can only create up to MAX_OWNER_COLLECTIONS).
+//
+// Kept as an async function so existing callers (`await canManage...`)
+// don't have to change shape.
 export async function canManageCreatorCollections(
   userId: string | null | undefined,
 ): Promise<boolean> {
-  if (!userId) return false;
-  if (isAdmin(userId)) return true;
-
-  try {
-    const client = await clerkClient();
-    const user = await client.users.getUser(userId);
-    return hasCreatorCollectionMetadata(user.privateMetadata);
-  } catch {
-    return false;
-  }
+  return Boolean(userId);
 }

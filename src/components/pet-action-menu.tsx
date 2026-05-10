@@ -125,7 +125,7 @@ export function PetActionMenu({ pet, variant = "card", ownerActions }: Props) {
   );
 
   const onShareX = useCallback(() => {
-    const text = `${pet.displayName} — an animated Codex pet on Petdex.\n\n${installCmd}`;
+    const text = `${pet.displayName}: an animated Codex pet on Petdex.\n\n${installCmd}`;
     const url = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(pageUrl)}`;
     track("pet_action_share", { slug: pet.slug, target: "x" });
     window.open(url, "_blank", "noopener,noreferrer,width=560,height=540");
@@ -147,8 +147,8 @@ export function PetActionMenu({ pet, variant = "card", ownerActions }: Props) {
           share: (data: ShareData) => Promise<void>;
         }
       ).share({
-        title: `${pet.displayName} — Petdex`,
-        text: `${pet.displayName} — an animated Codex pet`,
+        title: `${pet.displayName} | Petdex`,
+        text: `${pet.displayName}: an animated Codex pet`,
         url: pageUrl,
       });
       track("pet_action_share", { slug: pet.slug, target: "native" });
@@ -211,7 +211,7 @@ export function PetActionMenu({ pet, variant = "card", ownerActions }: Props) {
     if (withdrawing || !ownerActions) return;
     if (
       !window.confirm(
-        `Withdraw "${pet.displayName}"? Pending submissions can't be brought back — you'd have to resubmit.`,
+        `Withdraw "${pet.displayName}"? Pending submissions can't be brought back. You'd have to resubmit.`,
       )
     ) {
       return;

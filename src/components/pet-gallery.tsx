@@ -4,6 +4,7 @@ import Link from "next/link";
 import {
   type CSSProperties,
   Fragment,
+  memo,
   useCallback,
   useEffect,
   useRef,
@@ -68,14 +69,20 @@ type SearchMode = "vibe" | "keyword" | "all";
 
 type SearchPayload = {
   pets: PetWithMetrics[];
-  total: number;
+  total?: number;
   nextCursor: number | null;
   searchMode?: SearchMode;
+  facets?: Facets;
+  shuffleSeed?: string;
+};
+
+type InitialSearchPayload = SearchPayload & {
+  total: number;
   facets: Facets;
 };
 
 type PetGalleryProps = {
-  initial: SearchPayload;
+  initial: InitialSearchPayload;
   totalPets: number;
   caughtSlugs?: string[];
   /**
@@ -151,10 +158,11 @@ export function PetGallery({
   const [loadingMore, setLoadingMore] = useState(false);
 
   const requestSeq = useRef(0);
+  const shuffleSeedRef = useRef<string | null>(initial.shuffleSeed ?? null);
   const stateCount = petStates.length;
 
   const buildParams = useCallback(
-    (cursor: number) => {
+    (cursor: number, includeMeta = true) => {
       const p = new URLSearchParams();
       if (trimmedQuery) p.set("q", trimmedQuery);
       if (activeKinds.size > 0) p.set("kinds", [...activeKinds].join(","));
@@ -163,9 +171,16 @@ export function PetGallery({
       if (activeBatches.size > 0) {
         p.set("batches", [...activeBatches].join(","));
       }
-      if (sort !== "curated") p.set("sort", sort);
+      if (sort === "curated") {
+        if (shuffleSeedRef.current) {
+          p.set("shuffleSeed", shuffleSeedRef.current);
+        }
+      } else {
+        p.set("sort", sort);
+      }
       if (cursor > 0) p.set("cursor", String(cursor));
       p.set("limit", String(PAGE_SIZE));
+      if (!includeMeta) p.set("includeMeta", "0");
       return p;
     },
     [trimmedQuery, activeKinds, activeVibes, activeColors, activeBatches, sort],
@@ -174,17 +189,25 @@ export function PetGallery({
   // Re-fetch on filter / sort / query changes (debounced for the query).
   useEffect(() => {
     const seq = ++requestSeq.current;
+    const controller = new AbortController();
+    let cancelled = false;
+    setLoadingMore(false);
     setLoadingPage(true);
     const handle = window.setTimeout(async () => {
       try {
         const params = buildParams(0);
-        const res = await fetch(`/api/pets/search?${params}`);
+        const res = await fetch(`/api/pets/search?${params}`, {
+          signal: controller.signal,
+        });
+        if (!res.ok) throw new Error("search_failed");
         const data = (await res.json()) as SearchPayload;
-        if (seq !== requestSeq.current) return;
+        if (cancelled || seq !== requestSeq.current) return;
+        if (data.shuffleSeed) shuffleSeedRef.current = data.shuffleSeed;
+        const nextTotal = data.total ?? data.pets.length;
         setPets(data.pets);
-        setTotal(data.total);
+        setTotal(nextTotal);
         setNextCursor(data.nextCursor);
-        setFacets(data.facets);
+        if (data.facets) setFacets(data.facets);
         const mode = data.searchMode ?? "all";
         setSearchMode(mode);
         // Track only meaningful searches (skip the empty initial load
@@ -195,22 +218,27 @@ export function PetGallery({
           track("gallery_searched", {
             mode,
             length: trimmedQuery.length,
-            results: data.total,
+            results: nextTotal,
           });
-          if (data.total === 0) {
+          if (nextTotal === 0) {
             track("gallery_no_results", {
               query_length: trimmedQuery.length,
               mode,
             });
           }
         }
-      } catch {
+      } catch (error) {
+        if (isAbortError(error)) return;
         // soft-fail: keep whatever's already on screen
       } finally {
-        if (seq === requestSeq.current) setLoadingPage(false);
+        if (!cancelled && seq === requestSeq.current) setLoadingPage(false);
       }
     }, 250);
-    return () => window.clearTimeout(handle);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      window.clearTimeout(handle);
+    };
   }, [buildParams, trimmedQuery]);
 
   const loadMore = useCallback(async () => {
@@ -218,17 +246,18 @@ export function PetGallery({
     const seq = requestSeq.current;
     setLoadingMore(true);
     try {
-      const params = buildParams(nextCursor);
+      const params = buildParams(nextCursor, false);
       const res = await fetch(`/api/pets/search?${params}`);
+      if (!res.ok) throw new Error("search_failed");
       const data = (await res.json()) as SearchPayload;
       if (seq !== requestSeq.current) return;
+      if (data.shuffleSeed) shuffleSeedRef.current = data.shuffleSeed;
       setPets((prev) => [...prev, ...data.pets]);
       setNextCursor(data.nextCursor);
-      setTotal(data.total);
     } catch {
       // ignore, sentinel will retry on next intersect
     } finally {
-      setLoadingMore(false);
+      if (seq === requestSeq.current) setLoadingMore(false);
     }
   }, [nextCursor, loadingMore, loadingPage, buildParams]);
 
@@ -280,7 +309,7 @@ export function PetGallery({
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="font-mono text-xs tracking-[0.18em] text-brand-light uppercase">
-            Gallery — {totalPets} pets
+            Gallery · {totalPets} pets
           </p>
           <h2 className="mt-1.5 text-3xl font-medium tracking-tight text-black md:text-4xl dark:text-stone-100">
             Pick a companion
@@ -579,7 +608,7 @@ export function PetGallery({
         </div>
       ) : pets.length > 0 ? (
         <p className="py-6 text-center font-mono text-[10px] tracking-[0.22em] text-muted-4 uppercase">
-          End of gallery — {total} shown
+          End of gallery · {total} shown
         </p>
       ) : null}
     </section>
@@ -707,6 +736,15 @@ function adForPetIndex(
   return ads[adIndex] ?? null;
 }
 
+function isAbortError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "name" in error &&
+    error.name === "AbortError"
+  );
+}
+
 export type PetCardOwnerActions = {
   /**
    * Submission id (pet_xxx). Required to call the owner-action APIs
@@ -773,7 +811,7 @@ type PetCardProps = {
   pinState?: PetCardPinState;
 };
 
-export function PetCard({
+function PetCardImpl({
   pet,
   index,
   dexNumber,
@@ -973,6 +1011,8 @@ export function PetCard({
     </article>
   );
 }
+
+export const PetCard = memo(PetCardImpl);
 
 function toggleSet<T>(set: Set<T>, value: T): Set<T> {
   const next = new Set(set);

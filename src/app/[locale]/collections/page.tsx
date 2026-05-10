@@ -1,12 +1,8 @@
-import Link from "next/link";
-
-import { ExternalLink } from "lucide-react";
-
-import { getAllCollections } from "@/lib/collections";
+import { getCollectionsForListing } from "@/lib/collections";
 import { buildLocaleAlternates } from "@/lib/locale-routing";
 import { resolveOwnerCredits } from "@/lib/owner-credit";
 
-import { CollectionCover } from "@/components/collection-cover";
+import { CollectionsBrowser } from "@/components/collections-browser";
 import { JsonLd } from "@/components/json-ld";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -17,19 +13,22 @@ import { SiteHeader } from "@/components/site-header";
 export const revalidate = 300;
 
 const SITE_URL = "https://petdex.crafter.run";
+const MIN_PETS = 4;
 
 export async function generateMetadata() {
   return {
     title: "Featured collections",
-    description: "Original Petdex character sets grouped by creator and IP.",
+    description:
+      "Browse Petdex collections by franchise, category, or theme. Search, sort, and filter to find your set.",
     alternates: buildLocaleAlternates("/collections"),
   };
 }
 
 export default async function CollectionsPage() {
-  const collections = await getAllCollections();
+  const collections = await getCollectionsForListing(MIN_PETS, 6);
+
   const ownerIds = collections
-    .map((collection) => collection.ownerId)
+    .map((c) => c.ownerId)
     .filter((id): id is string => Boolean(id));
   const credits = await resolveOwnerCredits(
     ownerIds.map((ownerId) => ({
@@ -39,6 +38,7 @@ export default async function CollectionsPage() {
       creditImage: null,
     })),
   );
+  const creditsObj = Object.fromEntries(credits);
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -47,103 +47,49 @@ export default async function CollectionsPage() {
     url: `${SITE_URL}/collections`,
     mainEntity: {
       "@type": "ItemList",
-      itemListElement: collections.map((collection, index) => ({
+      itemListElement: collections.map((c, index) => ({
         "@type": "ListItem",
         position: index + 1,
-        url: `${SITE_URL}/collections/${collection.slug}`,
-        name: collection.title,
+        url: `${SITE_URL}/collections/${c.slug}`,
+        name: c.title,
       })),
     },
   };
+
+  const browserItems = collections.map((c) => ({
+    slug: c.slug,
+    title: c.title,
+    description: c.description,
+    ownerId: c.ownerId,
+    externalUrl: c.externalUrl,
+    coverPetSlug: c.coverPetSlug,
+    petCount: c.petCount,
+    pets: c.pets,
+  }));
 
   return (
     <main className="min-h-dvh bg-background text-foreground">
       <JsonLd data={jsonLd} />
       <SiteHeader />
       <section className="petdex-cloud relative -mt-[84px] overflow-clip pt-[84px]">
-        <div className="relative mx-auto flex w-full max-w-6xl flex-col px-5 pb-12 md:px-8">
+        <div className="relative mx-auto flex w-full max-w-[1440px] flex-col px-5 pb-10 md:px-8">
           <div className="mt-12 max-w-2xl md:mt-16">
             <p className="font-mono text-xs tracking-[0.22em] text-brand uppercase">
               Featured collections
             </p>
             <h1 className="mt-3 text-balance text-[40px] leading-[1] font-semibold tracking-tight md:text-[64px]">
-              Original IP sets for your Codex desk
+              Find your set, install in one line
             </h1>
             <p className="mt-5 text-balance text-base leading-7 text-muted-1 md:text-lg">
-              Curated character families from Petdex creators. Catch a whole
-              set, follow the artist, and install the ones that match your
-              workspace.
+              {collections.length} collections from across the Petdex catalog.
+              Browse by franchise, category, or themed mood.
             </p>
           </div>
         </div>
       </section>
 
-      <section className="mx-auto grid w-full max-w-[1440px] auto-rows-fr gap-5 px-5 py-12 md:grid-cols-2 md:px-8 md:py-16">
-        {collections.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-border-base bg-surface/60 p-10 text-center text-sm text-muted-2 md:col-span-2">
-            No collections are featured yet.
-          </div>
-        ) : (
-          collections.map((collection) => {
-            const owner = collection.ownerId
-              ? credits.get(collection.ownerId)
-              : null;
-            return (
-              <article
-                key={collection.slug}
-                className="flex h-full flex-col overflow-hidden rounded-3xl border border-border-base bg-surface/80"
-              >
-                <Link
-                  href={`/collections/${collection.slug}`}
-                  className="block"
-                >
-                  <CollectionCover
-                    pets={collection.pets}
-                    coverSlug={collection.coverPetSlug}
-                    max={5}
-                    scale={0.55}
-                  />
-                </Link>
-                <div className="flex flex-1 flex-col p-6">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="font-mono text-[10px] tracking-[0.18em] text-muted-3 uppercase">
-                        {collection.pets.length} pets
-                      </p>
-                      <h2 className="mt-1 text-2xl font-semibold tracking-tight">
-                        <Link href={`/collections/${collection.slug}`}>
-                          {collection.title}
-                        </Link>
-                      </h2>
-                    </div>
-                    {collection.externalUrl ? (
-                      <Link
-                        href={collection.externalUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border-base bg-surface px-3 text-xs font-medium text-muted-2 transition hover:border-border-strong"
-                      >
-                        <ExternalLink className="size-3.5" />
-                        IP site
-                      </Link>
-                    ) : null}
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-muted-2">
-                    {collection.description}
-                  </p>
-                  {owner ? (
-                    <Link
-                      href={`/u/${owner.handle}`}
-                      className="mt-auto inline-flex pt-4 text-sm font-medium text-brand hover:underline"
-                    >
-                      by {owner.name}
-                    </Link>
-                  ) : null}
-                </div>
-              </article>
-            );
-          })
-        )}
+      <section className="mx-auto w-full max-w-[1440px] px-5 py-10 md:px-8 md:py-14">
+        <CollectionsBrowser collections={browserItems} credits={creditsObj} />
       </section>
 
       <SiteFooter />

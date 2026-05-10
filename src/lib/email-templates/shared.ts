@@ -35,6 +35,34 @@ export function wrapEmail(title: string, blocks: string[]): string {
   ].join("");
 }
 
+export function buildUnsubscribeFooter(
+  locale: Locale,
+  unsubscribeToken: string,
+): { html: string; text: string } {
+  const url = `${SITE_URL}${localizePath(locale, "/unsubscribe")}?token=${encodeURIComponent(unsubscribeToken)}`;
+  const html = `<p style="margin:32px 0 0;padding-top:16px;border-top:1px solid #e7e5e4;color:#a8a29e;font-size:11px;line-height:1.5;">You are receiving this because you signed up for Petdex. <a href="${url}" style="color:#a8a29e;text-decoration:underline;">Unsubscribe</a></p>`;
+  const text = `\n\n---\nYou are receiving this because you signed up for Petdex.\nUnsubscribe: ${url}`;
+  return { html, text };
+}
+
+export function wrapBroadcastEmail(
+  title: string,
+  blocks: string[],
+  locale: Locale,
+  unsubscribeToken: string,
+): string {
+  const footer = buildUnsubscribeFooter(locale, unsubscribeToken);
+  return [
+    "<!doctype html>",
+    '<html><body style="margin:0;padding:24px;background:#f7f5f2;color:#171717;font-family:ui-sans-serif,system-ui,sans-serif;">',
+    '<div style="max-width:640px;margin:0 auto;background:#fff;border:1px solid #e7e5e4;border-radius:16px;padding:24px;">',
+    `<h1 style="margin:0 0 16px;font-size:22px;line-height:1.2;">${escapeHtml(title)}</h1>`,
+    ...blocks,
+    footer.html,
+    "</div></body></html>",
+  ].join("");
+}
+
 export function p(text: string): string {
   return `<p style="margin:0 0 16px;line-height:1.6;">${textToHtml(text)}</p>`;
 }

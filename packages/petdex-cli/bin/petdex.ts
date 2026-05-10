@@ -7,6 +7,33 @@ import JSZip from "jszip";
 import pc from "picocolors";
 
 import { ClerkCliAuth } from "../src/cli-auth/index.js";
+import {
+  isTrustedAssetUrl,
+  runInstallDesktop,
+} from "../src/desktop/install.js";
+import {
+  cmdDesktopStart,
+  cmdDesktopStatus,
+  cmdDesktopStop,
+  desktopStatus,
+  startDesktop,
+  stopDesktop,
+} from "../src/desktop/process.js";
+import { runDoctor } from "../src/desktop/doctor.js";
+import { runUpdate } from "../src/desktop/update.js";
+import { runInstall as runHooksInstall } from "../src/hooks/install.js";
+import {
+  getKillswitchState,
+  setKillswitchState,
+  toggleKillswitch,
+} from "../src/hooks/killswitch.js";
+import { runUninstall as runHooksUninstall } from "../src/hooks/uninstall.js";
+import {
+  emit,
+  getStatus,
+  maybeShowFirstRunNotice,
+  setEnabled,
+} from "../src/telemetry.js";
 
 // ─── config ────────────────────────────────────────────────────────────────
 const PETDEX_URL = process.env.PETDEX_URL ?? "https://petdex.crafter.run";
@@ -78,7 +105,7 @@ async function getAuth(): Promise<ClerkCliAuth> {
   return _auth;
 }
 
-const VERSION = "0.1.2";
+const VERSION = "0.3.5";
 
 // ─── entrypoint ────────────────────────────────────────────────────────────
 main().catch((err) => {
@@ -90,9 +117,31 @@ async function main() {
   const args = process.argv.slice(2);
   const cmd = args[0];
 
+  // Hot path: `petdex bubble <event>` runs from agent hooks on every
+  // tool call. We bypass the help/notice/telemetry pipeline so the
+  // Node startup is the only overhead — no extra fs reads, no
+  // banner logic. Anything else here would multiply across the
+  // 20-50 hooks/min an active session generates.
+  if (cmd === "bubble") {
+    const { runBubble } = await import("../src/hooks/bubble-runner");
+    await runBubble(args.slice(1));
+    return;
+  }
+
   if (!cmd || cmd === "--help" || cmd === "-h" || cmd === "help") {
     printHelp();
     return;
+  }
+
+  // Meta commands must produce machine-readable output. `petdex --version`
+  // is parsed by package managers and CI scripts; the multi-line telemetry
+  // notice would corrupt that. `telemetry on|off|status` manages the
+  // notice itself, so triggering it there creates a confusing UX. The
+  // notice still fires on the first real command (install / submit /
+  // hooks / desktop / update).
+  const META_COMMANDS = new Set(["version", "--version", "-v", "telemetry"]);
+  if (!META_COMMANDS.has(cmd)) {
+    maybeShowFirstRunNotice();
   }
 
   switch (cmd) {
@@ -114,6 +163,33 @@ async function main() {
     case "list":
       await cmdList();
       break;
+    case "hooks":
+      await cmdHooks(args.slice(1));
+      break;
+    case "desktop":
+      await cmdDesktop(args.slice(1));
+      break;
+    case "init":
+      await cmdInit();
+      break;
+    case "up":
+      await cmdUp();
+      break;
+    case "down":
+      await cmdDown();
+      break;
+    case "toggle":
+      await cmdToggle();
+      break;
+    case "update":
+      await runUpdate(args.slice(1));
+      break;
+    case "doctor":
+      await runDoctor();
+      break;
+    case "telemetry":
+      cmdTelemetry(args.slice(1));
+      break;
     case "version":
     case "--version":
     case "-v":
@@ -132,25 +208,37 @@ function printHelp() {
   console.log(
     [
       "",
-      `  ${pc.bold(pc.magenta("petdex"))} ${dim(VERSION)} ${dim("— Codex pet gallery CLI")}`,
+      `  ${pc.bold(pc.magenta("petdex"))} ${dim(VERSION)} ${dim("Codex pet gallery CLI")}`,
       "",
       `  ${c("Usage")}`,
       `    petdex <command> [args]`,
       "",
       `  ${c("Commands")}`,
+      `    ${pc.bold("init")}               First-run setup: wires hooks across your agents AND wakes the mascot ${pc.green("(start here)")}`,
       `    ${pc.bold("login")}              Sign in with Clerk OAuth`,
       `    ${pc.bold("logout")}             Clear stored credentials`,
       `    ${pc.bold("whoami")}             Show signed-in user`,
       `    ${pc.bold("submit")} <path>      Submit a pet folder, zip, or parent of pets (bulk)`,
-      `    ${pc.bold("install")} <slug>     Install a pet into ~/.codex/pets/<slug>`,
+      `    ${pc.bold("install")} <slug>     Install a pet into ~/.petdex/pets and ~/.codex/pets`,
+      `    ${pc.bold("install desktop")}    Install the petdex-desktop binary (alternative to the .dmg)`,
       `    ${pc.bold("list")}               List approved pets`,
+      `    ${pc.bold("hooks install")}      Wire petdex-desktop into your coding agents`,
+      `    ${pc.bold("toggle")}             One-shot wake/sleep. Flips the mascot on or off depending on current state`,
+      `    ${pc.bold("up")}                 Force-wake the mascot. Enables hooks AND launches petdex-desktop`,
+      `    ${pc.bold("down")}               Force-sleep the mascot. Disables hooks AND stops petdex-desktop`,
+      `    ${pc.bold("desktop")} <cmd>      Manage petdex-desktop (start | stop | status)`,
+      `    ${pc.bold("update")}             Pull the latest petdex-desktop release and restart`,
+      `    ${pc.bold("doctor")}             Diagnose install/runtime/agents and surface fixes`,
+      `    ${pc.bold("telemetry")} [on|off|status]  Manage anonymous usage telemetry`,
       "",
       `  ${c("Examples")}`,
+      `    ${dim("$")} petdex init                            ${dim("# after dragging Petdex.app from the .dmg → just run this")}`,
       `    ${dim("$")} petdex login`,
       `    ${dim("$")} petdex submit ~/.codex/pets/boba       ${dim("# single folder")}`,
-      `    ${dim("$")} petdex submit ~/Downloads/boba.zip     ${dim("# zip file")}`,
-      `    ${dim("$")} petdex submit ~/.codex/pets            ${dim("# bulk all subfolders")}`,
-      `    ${dim("$")} petdex install boba`,
+      `    ${dim("$")} petdex install boba                    ${dim("# install a pet by slug")}`,
+      `    ${dim("$")} petdex toggle                          ${dim("# wake or sleep the mascot")}`,
+      `    ${dim("$")} petdex doctor                          ${dim("# diagnose install + agents")}`,
+      `    ${dim("$")} petdex update                          ${dim("# pull the latest release")}`,
       "",
       `  ${dim("Gallery & docs:")} ${pc.underline(PETDEX_URL)}`,
       "",
@@ -210,8 +298,23 @@ async function cmdWhoami() {
 async function cmdInstall(args: string[]) {
   const slug = args[0];
   if (!slug) {
-    p.cancel(`Usage: ${pc.cyan("petdex install <slug>")}`);
+    p.cancel(`Usage: ${pc.cyan("petdex install <slug|desktop>")}`);
     process.exit(1);
+  }
+  if (slug === "desktop") {
+    const { tag } = await runInstallDesktop();
+    emit("cli_install_desktop_success", {
+      cli_version: VERSION,
+      os: process.platform,
+      arch: process.arch,
+      // Strip the `desktop-v` prefix from the release tag (e.g.
+      // `desktop-v0.1.4` -> `0.1.4`) so it matches the telemetry
+      // endpoint's semver-only validator. Without this the value
+      // gets dropped server-side and the version adoption chart
+      // stays empty.
+      binary_version: tag.replace(/^desktop-v/, ""),
+    });
+    return;
   }
 
   // Cross-platform install implemented in Node. Earlier versions piped a
@@ -250,21 +353,66 @@ async function cmdInstall(args: string[]) {
       );
       process.exit(1);
     }
+    // Belt-and-braces: server-side validation already enforces the
+    // host allowlist on submission, but a legacy/compromised approved
+    // row could still slip a non-allowlisted URL into /api/manifest
+    // (the route returns raw DB columns). Refuse to download bytes
+    // from anything outside the trusted asset origins instead of
+    // writing them into the user's HOME.
+    if (
+      !isTrustedAssetUrl(found.spritesheetUrl) ||
+      !isTrustedAssetUrl(found.petJsonUrl)
+    ) {
+      s.stop(pc.red("untrusted asset host"));
+      p.cancel(
+        `Refusing to install ${pc.bold(slug)}: asset URLs are outside the petdex host allowlist. This row may need to be re-uploaded by an admin.`,
+      );
+      process.exit(1);
+    }
     pet = found;
   } catch (err) {
     s.stop(pc.red("failed"));
     throw err;
   }
 
-  const petDir = path.join(homedir(), ".codex", "pets", slug);
-  s.message(`Downloading to ${petDir}`);
+  // Multi-target install: write to ~/.petdex/pets/ AND ~/.codex/pets/ so
+  // both Petdex Desktop and Codex Desktop can see the pet immediately.
+  // Petdex Desktop reads from either dir via resolvePetsDir().
+  const petdexDir = path.join(homedir(), ".petdex", "pets", slug);
+  const codexDir = path.join(homedir(), ".codex", "pets", slug);
+  s.message(`Downloading ${slug}`);
 
-  await mkdir(petDir, { recursive: true });
+  await Promise.all([
+    mkdir(petdexDir, { recursive: true }),
+    mkdir(codexDir, { recursive: true }),
+  ]);
 
   const ext = pet.spritesheetUrl.endsWith(".png") ? "png" : "webp";
+  // Download once, write to both targets to save bandwidth.
+  // Validate response status before reading the body so a 404/500
+  // doesn't silently land HTML inside pet.json or spritesheet.*.
+  const fetchOrThrow = async (url: string): Promise<ArrayBuffer> => {
+    const res = await fetch(url);
+    if (!res.ok) {
+      throw new Error(`download ${url} → ${res.status} ${res.statusText}`);
+    }
+    return res.arrayBuffer();
+  };
+  const [petJson, spritesheet] = await Promise.all([
+    fetchOrThrow(pet.petJsonUrl),
+    fetchOrThrow(pet.spritesheetUrl),
+  ]);
   await Promise.all([
-    download(pet.petJsonUrl, path.join(petDir, "pet.json")),
-    download(pet.spritesheetUrl, path.join(petDir, `spritesheet.${ext}`)),
+    writeFile(path.join(petdexDir, "pet.json"), Buffer.from(petJson)),
+    writeFile(
+      path.join(petdexDir, `spritesheet.${ext}`),
+      Buffer.from(spritesheet),
+    ),
+    writeFile(path.join(codexDir, "pet.json"), Buffer.from(petJson)),
+    writeFile(
+      path.join(codexDir, `spritesheet.${ext}`),
+      Buffer.from(spritesheet),
+    ),
   ]);
 
   // Fire-and-forget install metric so the gallery counter ticks up.
@@ -276,11 +424,13 @@ async function cmdInstall(args: string[]) {
 
   p.note(
     [
-      `Path: ${pc.dim(petDir)}`,
+      `Paths:`,
+      `  ${pc.dim(`~/.petdex/pets/${slug}`)} (Petdex Desktop)`,
+      `  ${pc.dim(`~/.codex/pets/${slug}`)} (Codex Desktop)`,
       "",
-      "Activate inside Codex:",
+      "Activate in Petdex Desktop: right-click the mascot.",
+      "Activate in Codex Desktop:",
       `  ${pc.cyan("Settings → Appearance → Pets")} → select ${pc.bold(pet.displayName)}`,
-      `Then ${pc.cyan("/pet")} inside Codex to wake or tuck it away.`,
     ].join("\n"),
     "Next steps",
   );
@@ -315,7 +465,7 @@ async function cmdList() {
   s.stop(`${data.total} pets`);
 
   const lines = data.pets.map((pet) => {
-    const tag = pet.submittedBy ? pc.dim(` — by ${pet.submittedBy}`) : "";
+    const tag = pet.submittedBy ? pc.dim(` by ${pet.submittedBy}`) : "";
     return `  ${pc.cyan(pet.slug.padEnd(26))} ${pet.displayName}${tag}`;
   });
   console.log(lines.join("\n"));
@@ -720,9 +870,9 @@ function formatSubmissionOutcome(result: SubmitOneResult): string {
     return `${slug} ${pc.green("approved")}`;
   }
   if (result.review.decision === "rejected") {
-    return `${slug} ${pc.red("rejected")}${explanation ? pc.dim(` — ${explanation}`) : ""}`;
+    return `${slug} ${pc.red("rejected")}${explanation ? pc.dim(`: ${explanation}`) : ""}`;
   }
-  return `${slug} ${pc.yellow("held for review")}${explanation ? pc.dim(` — ${explanation}`) : ""}`;
+  return `${slug} ${pc.yellow("held for review")}${explanation ? pc.dim(`: ${explanation}`) : ""}`;
 }
 
 function reviewExplanation(review: SubmissionReviewOutcome): string | null {
@@ -941,4 +1091,327 @@ function parseImageDims(buf: Buffer): { width: number; height: number } {
     }
   }
   return { width: 0, height: 0 };
+}
+
+// ─── hooks ─────────────────────────────────────────────────────────────────
+
+async function cmdHooks(args: string[]) {
+  const sub = args[0];
+  if (!sub || sub === "--help" || sub === "-h" || sub === "help") {
+    printHooksHelp();
+    return;
+  }
+  switch (sub) {
+    case "install": {
+      const { installedAgents } = await runHooksInstall();
+      // Only emit success when at least one agent was actually written.
+      // Cancelled/no-op runs return an empty array; counting those as
+      // success makes the dashboard "agents wired up" funnel lie.
+      if (installedAgents.length > 0) {
+        emit("cli_hooks_install_success", {
+          cli_version: VERSION,
+          agents: installedAgents,
+        });
+        // Same hand-off as cmdInit prints. Tells the user the
+        // single next action without leaking sidecar internals.
+        console.log("");
+        console.log(
+          `${pc.green("✓")} ${pc.bold("All set.")} Open your agent and run ${pc.cyan("/petdex")} to wake the mascot.`,
+        );
+      }
+      break;
+    }
+    case "toggle":
+    case "on":
+    case "off":
+    case "status": {
+      cmdHooksKillswitch(sub);
+      break;
+    }
+    case "uninstall": {
+      const removeToken = args.includes("--remove-token");
+      await runHooksUninstall({ removeToken });
+      break;
+    }
+    case "refresh": {
+      // Non-interactive re-write for already-wired agents. Picks up
+      // changes to slash command body, hook templates, or the
+      // persisted binary without a fresh `init`. Used after
+      // `petdex update` and as a manual recovery command.
+      const { runRefresh } = await import("../src/hooks/refresh");
+      const result = await runRefresh();
+      if (result.binaryPersisted) {
+        console.log(
+          `${pc.green("✓")} Snapshotted petdex binary at ${pc.dim("~/.petdex/bin/petdex.js")}`,
+        );
+      } else if (result.binaryReason) {
+        console.log(
+          `${pc.yellow("!")} Binary snapshot skipped: ${result.binaryReason}`,
+        );
+      }
+      for (const id of result.refreshed) {
+        console.log(`${pc.green("✓")} Refreshed ${id}`);
+      }
+      for (const { id, reason } of result.skipped) {
+        if (reason === "not installed") continue;
+        console.log(`${pc.yellow("!")} Skipped ${id}: ${reason}`);
+      }
+      const totalRefreshed = result.refreshed.length;
+      console.log("");
+      if (totalRefreshed === 0) {
+        console.log(
+          `${pc.dim("No wired agents found. Run")} ${pc.cyan("petdex init")} ${pc.dim("first.")}`,
+        );
+      } else {
+        console.log(
+          `${pc.green("✓")} ${pc.bold(`${totalRefreshed} agent${totalRefreshed === 1 ? "" : "s"} refreshed.`)} Restart your agent to load the new hooks.`,
+        );
+      }
+      break;
+    }
+    default:
+      console.error(pc.red(`Unknown hooks command: ${sub}`));
+      printHooksHelp();
+      process.exit(1);
+  }
+}
+
+function cmdHooksKillswitch(sub: "toggle" | "on" | "off" | "status"): void {
+  let state: "on" | "off";
+  if (sub === "toggle") {
+    state = toggleKillswitch();
+  } else if (sub === "on") {
+    state = setKillswitchState("on");
+  } else if (sub === "off") {
+    state = setKillswitchState("off");
+  } else {
+    state = getKillswitchState();
+  }
+  if (state === "on") {
+    console.log(`${pc.green("●")} Petdex hooks are ${pc.bold("ENABLED")}`);
+    console.log(
+      pc.dim(
+        `  agent tool calls will animate the mascot when petdex-desktop is running`,
+      ),
+    );
+  } else {
+    console.log(`${pc.yellow("○")} Petdex hooks are ${pc.bold("DISABLED")}`);
+    console.log(
+      pc.dim(
+        `  agent hooks short-circuit before any network call. Re-enable: petdex hooks on`,
+      ),
+    );
+  }
+}
+
+// One-shot first-run setup. Installs hooks across detected agents
+// (which also writes the /petdex slash command file into each agent's
+// commands dir). Does NOT auto-launch the desktop — the user wakes it
+// with /petdex from inside their agent, which is the canonical UX.
+//
+// Idempotent: re-running refreshes the hook configs and rewrites the
+// slash command files. Safe to invoke any time.
+async function cmdInit(): Promise<void> {
+  const { installedAgents } = await runHooksInstall();
+  if (installedAgents.length > 0) {
+    emit("cli_hooks_install_success", {
+      cli_version: VERSION,
+      agents: installedAgents,
+    });
+    // Final hand-off — tell the user how to actually wake the
+    // mascot. We don't spawn the desktop here because that
+    // surprises users who just wanted to wire up hooks (and the
+    // .app may not be installed yet on a fresh machine).
+    console.log("");
+    console.log(
+      `${pc.green("✓")} ${pc.bold("All set.")} Open your agent and run ${pc.cyan("/petdex")} to wake the mascot.`,
+    );
+    console.log(
+      pc.dim(
+        `  Or from a shell: ${pc.cyan("petdex up")} (force-wake) · ${pc.cyan("petdex toggle")} (smart wake/sleep)`,
+      ),
+    );
+  }
+}
+
+// Wake-up: clears the killswitch AND ensures the desktop is running.
+// This is what /petdex (no args) calls from inside an agent. The
+// command is idempotent — safe to call when desktop is already up,
+// or when hooks were already enabled.
+async function cmdUp(): Promise<void> {
+  setKillswitchState("on");
+  console.log(`${pc.green("●")} Hooks ${pc.bold("ENABLED")}`);
+
+  const status = desktopStatus();
+  if (status.state === "running") {
+    console.log(
+      `${pc.green("●")} Desktop already running (pid ${status.pid})`,
+    );
+    return;
+  }
+  // Either stopped or stale — startDesktop handles both.
+  const result = await startDesktop();
+  if (result.ok) {
+    console.log(
+      result.alreadyRunning
+        ? `${pc.dim("•")} Desktop already running (pid ${result.pid})`
+        : `${pc.green("✓")} Desktop started (pid ${result.pid})`,
+    );
+  } else {
+    console.log(`${pc.yellow("!")} ${result.reason}`);
+    console.log(
+      pc.dim(
+        `  Install the binary first: ${pc.cyan("petdex install desktop")}`,
+      ),
+    );
+  }
+}
+
+// One-shot toggle: if the mascot is awake (hooks on AND desktop
+// running), this is `down`. Otherwise it's `up`. Drives the
+// /petdex slash with no args — single keystroke flips the whole
+// state. "Awake" requires BOTH because either alone is a degraded
+// state worth flipping out of.
+async function cmdToggle(): Promise<void> {
+  const hooksOn = getKillswitchState() === "on";
+  const desktopRunning = desktopStatus().state === "running";
+  const awake = hooksOn && desktopRunning;
+  if (awake) {
+    await cmdDown();
+  } else {
+    await cmdUp();
+  }
+}
+
+// Sleep: sets the killswitch + stops the desktop. The killswitch
+// alone would silence hooks but leave the mascot floating. `down`
+// is the symmetric "go away" command.
+async function cmdDown(): Promise<void> {
+  setKillswitchState("off");
+  console.log(`${pc.yellow("○")} Hooks ${pc.bold("DISABLED")}`);
+
+  const status = desktopStatus();
+  if (status.state === "stopped") {
+    console.log(`${pc.dim("•")} Desktop wasn't running`);
+    return;
+  }
+  const result = await stopDesktop();
+  if (result.ok) {
+    console.log(`${pc.green("✓")} Desktop stopped (pid ${result.pid})`);
+  } else {
+    console.log(`${pc.dim("•")} ${result.reason}`);
+  }
+}
+
+function printHooksHelp() {
+  const c = pc.cyan;
+  const dim = pc.dim;
+  console.log(
+    [
+      "",
+      `  ${pc.bold(pc.magenta("petdex hooks"))}`,
+      "",
+      `  ${c("Usage")}`,
+      `    petdex hooks <command>`,
+      "",
+      `  ${c("Commands")}`,
+      `    ${pc.bold("install")}              Wire petdex into your coding agents`,
+      `    ${pc.bold("refresh")}              Re-write hook configs + slash commands for already-wired agents (non-interactive)`,
+      `    ${pc.bold("uninstall")}            Remove petdex from your agent configs (--remove-token also drops the auth token)`,
+      `    ${pc.bold("toggle")}               Flip the killswitch. Disable/enable hooks without restarting agents`,
+      `    ${pc.bold("on")}                   Enable hooks (clears the killswitch)`,
+      `    ${pc.bold("off")}                  Disable hooks (sets the killswitch, agent tool calls become no-ops)`,
+      `    ${pc.bold("status")}               Show whether hooks are currently enabled`,
+      "",
+      `  ${c("Examples")}`,
+      `    ${dim("$")} petdex hooks install`,
+      `    ${dim("$")} petdex hooks toggle`,
+      `    ${dim("$")} petdex hooks status`,
+      "",
+    ].join("\n"),
+  );
+}
+
+// ─── desktop ───────────────────────────────────────────────────────────────
+
+async function cmdDesktop(args: string[]) {
+  const sub = args[0];
+  if (!sub || sub === "--help" || sub === "-h" || sub === "help") {
+    printDesktopHelp();
+    return;
+  }
+  switch (sub) {
+    case "start":
+      await cmdDesktopStart();
+      emit("cli_desktop_start_success", { cli_version: VERSION });
+      break;
+    case "stop":
+      await cmdDesktopStop();
+      break;
+    case "status":
+      cmdDesktopStatus();
+      break;
+    default:
+      console.error(pc.red(`Unknown desktop command: ${sub}`));
+      printDesktopHelp();
+      process.exit(1);
+  }
+}
+
+function printDesktopHelp() {
+  const c = pc.cyan;
+  const dim = pc.dim;
+  console.log(
+    [
+      "",
+      `  ${pc.bold(pc.magenta("petdex desktop"))}`,
+      "",
+      `  ${c("Usage")}`,
+      `    petdex desktop <command>`,
+      "",
+      `  ${c("Commands")}`,
+      `    ${pc.bold("start")}     Launch petdex-desktop in the background`,
+      `    ${pc.bold("stop")}      Terminate the running petdex-desktop process`,
+      `    ${pc.bold("status")}    Show whether petdex-desktop is running`,
+      "",
+      `  ${c("Examples")}`,
+      `    ${dim("$")} petdex desktop start`,
+      `    ${dim("$")} petdex desktop status`,
+      `    ${dim("$")} petdex desktop stop`,
+      "",
+    ].join("\n"),
+  );
+}
+
+// ─── telemetry ─────────────────────────────────────────────────────────────
+
+function cmdTelemetry(args: string[]): void {
+  const sub = args[0];
+  if (sub === "on" || sub === "off") {
+    // setEnabled returns false when ~/.petdex/telemetry.json can't be
+    // written (read-only HOME, disk full, perms changed). Without
+    // checking it we'd report "Telemetry disabled" while the live
+    // config still reads enabled=true — the worst possible outcome
+    // for a privacy toggle. Surface the failure and exit 1 so scripts
+    // can detect it.
+    const desired = sub === "on";
+    if (setEnabled(desired)) {
+      console.log(desired ? "Telemetry enabled" : "Telemetry disabled");
+    } else {
+      console.error(
+        pc.red(
+          `${pc.bold("Failed to persist preference.")} ~/.petdex/telemetry.json is not writable. Check filesystem permissions, then run \`petdex telemetry ${sub}\` again.`,
+        ),
+      );
+      process.exit(1);
+    }
+  } else if (sub === "status" || !sub) {
+    const status = getStatus();
+    console.log(`Status: ${status.enabled ? "enabled" : "disabled"}`);
+    if (status.install_id) console.log(`Install ID: ${status.install_id}`);
+  } else {
+    console.error(pc.red(`Unknown telemetry subcommand: ${sub}`));
+    console.error("Use: petdex telemetry [on|off|status]");
+    process.exit(1);
+  }
 }

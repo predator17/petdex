@@ -12,6 +12,10 @@ import { auth } from "@clerk/nextjs/server";
 import { and, eq } from "drizzle-orm";
 
 import { db, schema } from "@/lib/db/client";
+import {
+  BLOCKED_KEYWORD_REASON,
+  containsBlockedKeyword,
+} from "@/lib/keyword-blocklist";
 import { submitRatelimit } from "@/lib/ratelimit";
 import { requireSameOrigin } from "@/lib/same-origin";
 
@@ -52,6 +56,13 @@ export async function POST(
     return NextResponse.json({ error: "invalid_pet_slug" }, { status: 400 });
   }
   const note = body.note?.toString().trim().slice(0, 500) || null;
+
+  if (containsBlockedKeyword(note, petSlug)) {
+    return NextResponse.json(
+      { error: "blocked_content", message: BLOCKED_KEYWORD_REASON },
+      { status: 422 },
+    );
+  }
 
   // Find the collection. We accept either featured or community
   // collections — the community surface might let users vote on

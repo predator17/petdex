@@ -77,20 +77,20 @@ Both work without editing the file.
 ### What works in docker mode
 
 - Real Clerk sign-in (GitHub, Google, email magic link)
-- Real Postgres planner — bugs that only repro in production stop
-  hiding behind in-memory quirks
+- Real Postgres planner. Bugs that only repro in production stop
+  hiding behind in-memory quirks.
 - Rate limits actually rate-limit (Upstash REST + local Redis)
 - Real schema migrations via drizzle-kit
 - Likes, profile edits, pinned reorder, collections, takedowns
 
 ### What does NOT work in docker mode (yet)
 
-- R2 uploads — without R2 credentials, presign returns a non-routable
+- R2 uploads: without R2 credentials, presign returns a non-routable
   host so an accidental upload errors out fast. Set `R2_*` in your own
   `.env.local` if you actually want to test uploads against a bucket.
-- Outbound emails — `RESEND_API_KEY` is empty, so notification emails
+- Outbound emails: `RESEND_API_KEY` is empty, so notification emails
   are skipped. In-app notifications still fire.
-- AI features (auto-tag, vibe search, pet sound) — these need
+- AI features (auto-tag, vibe search, pet sound): these need
   `OPENAI_API_KEY` / `ELEVENLABS_API_KEY` in your `.env.local`.
 
 ### Becoming a dev admin
@@ -100,7 +100,7 @@ user id to be in `PETDEX_ADMIN_USER_IDS`. After signing in:
 
 1. Open <http://localhost:3000/u/your-handle> while signed in
 2. Open browser devtools → Application → Cookies and find
-   `__session` — your Clerk user id is in the JWT payload, prefixed
+   `__session`. Your Clerk user id is in the JWT payload, prefixed
    `user_`. Or copy it from the dashboard at <https://dashboard.clerk.com>.
 3. Add it to your `.env.local`:
    ```

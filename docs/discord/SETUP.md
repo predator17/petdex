@@ -1,4 +1,4 @@
-# Petdex Community — Discord setup
+# Petdex Community Discord setup
 
 End-to-end checklist. Total time: ~10 min once you have the bot token.
 
@@ -6,7 +6,7 @@ End-to-end checklist. Total time: ~10 min once you have the bot token.
 
 1. https://discord.com/developers/applications/1501142945909440592/bot
 2. Click **Reset Token** (or **View Token** if you've made one before).
-3. Copy the token — looks like `MTEx...:G...:H...`. **Don't share it
+3. Copy the token (looks like `MTEx...:G...:H...`). **Don't share it
    publicly** (different from the public Application ID).
 
 ## 2. Invite the bot to your server
@@ -17,7 +17,7 @@ End-to-end checklist. Total time: ~10 min once you have the bot token.
 3. In the Developer Portal, go to **OAuth2 → URL Generator**.
 4. Scopes: `bot`, `applications.commands`.
 5. Bot permissions: `Administrator` (we'll trim these once the server
-   is built — for the initial template apply we want full access).
+   is built. For the initial template apply we want full access).
 6. Copy the generated URL, open it in your browser, pick "Petdex
    Community" from the dropdown, authorize.
 
@@ -73,7 +73,7 @@ When it finishes, verify by hand in Discord that:
 
 ## 7. Manual followups
 
-Things the MCP can't do — you finish these in the Discord UI:
+Things the MCP can't do. Finish these in the Discord UI:
 
 - Server Settings → Enable Community → set rules + community updates
   channels + safety email
@@ -97,7 +97,7 @@ Once the server is up, we'll add a webhook handler at
 - collection_featured → bot posts to #ip-spotlight
 - pet_install_milestone (3, 10, 50) → bot DMs the installer with @Collector
 
-That's a separate task — we'll do it after the server template lands.
+That's a separate task. We'll do it after the server template lands.
 
 ## 9. Add the Discord invite to the website
 

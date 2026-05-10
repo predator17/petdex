@@ -11,8 +11,8 @@ import { getDexNumberMap } from "@/lib/dex";
 import { buildLocaleAlternates } from "@/lib/locale-routing";
 import { resolveOwnerCredits } from "@/lib/owner-credit";
 
+import { CollectionPetGrid } from "@/components/collection-pet-grid";
 import { JsonLd } from "@/components/json-ld";
-import { PetCard } from "@/components/pet-gallery";
 import { PetSprite } from "@/components/pet-sprite";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -215,23 +215,11 @@ export default async function CollectionPage({ params }: PageProps) {
           </Link>
         </div>
 
-        {collection.pets.length === 0 ? (
-          <div className="rounded-3xl border border-dashed border-border-base bg-surface/60 p-10 text-center text-sm text-muted-2">
-            This collection has no approved pets yet.
-          </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 md:gap-5">
-            {collection.pets.map((pet, index) => (
-              <PetCard
-                key={pet.slug}
-                pet={pet}
-                index={index}
-                dexNumber={dexMap[pet.slug] ?? null}
-                caught={caughtSlugs.has(pet.slug)}
-              />
-            ))}
-          </div>
-        )}
+        <CollectionPetGrid
+          pets={collection.pets}
+          dexMap={dexMap}
+          caughtSlugs={[...caughtSlugs]}
+        />
       </section>
 
       <SiteFooter />

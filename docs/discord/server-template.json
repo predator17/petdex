@@ -18,7 +18,7 @@
       "hoist": true,
       "mentionable": false,
       "permissions": ["Administrator"],
-      "_comment": "Founders + admins. Skip discord ban hammer for these — Clerk admin status is the source of truth, this is just a colored badge."
+      "_comment": "Founders + admins. Skip discord ban hammer for these. Clerk admin status is the source of truth, this is just a colored badge."
     },
     {
       "name": "Featured Creator",
@@ -56,7 +56,7 @@
       "hoist": false,
       "mentionable": false,
       "permissions": ["SendMessages", "AddReactions", "UseApplicationCommands"],
-      "_comment": "Auto-assigned at 3+ caught pets. Pure flair — feeds the leaderboard rivalry."
+      "_comment": "Auto-assigned at 3+ caught pets. Pure flair, feeds the leaderboard rivalry."
     },
     {
       "name": "Verified",
@@ -121,7 +121,7 @@
         {
           "name": "wip",
           "type": "text",
-          "topic": "Share work-in-progress sprites. Honest feedback only — no critique = no growth."
+          "topic": "Share work-in-progress sprites. Honest feedback only. No critique = no growth."
         },
         {
           "name": "collections",
@@ -142,7 +142,7 @@
         {
           "name": "general",
           "type": "text",
-          "topic": "The default room. Pets, code, life — keep it kind."
+          "topic": "The default room. Pets, code, life. Keep it kind."
         },
         {
           "name": "off-topic",
@@ -225,7 +225,7 @@
         {
           "name": "admin",
           "type": "text",
-          "topic": "Admin coordination — pet approvals, collection curation, comms."
+          "topic": "Admin coordination: pet approvals, collection curation, comms."
         },
         {
           "name": "moderation",

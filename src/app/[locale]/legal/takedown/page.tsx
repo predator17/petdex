@@ -5,7 +5,7 @@ import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 
 export const metadata = {
-  title: "Takedown — Petdex",
+  title: "Takedown | Petdex",
   description: "How to report a pet that infringes your rights.",
   alternates: buildLocaleAlternates("/legal/takedown"),
   robots: { index: true, follow: true },

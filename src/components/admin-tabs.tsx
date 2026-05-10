@@ -15,8 +15,11 @@ const TABS: Array<{
     | "requests"
     | "collections"
     | "feedback"
+    | "campaigns"
+    | "mailing"
     | "manifest"
-    | "insights";
+    | "insights"
+    | "telemetry";
   match: (pathname: string) => boolean;
 }> = [
   {
@@ -45,6 +48,16 @@ const TABS: Array<{
     match: (p) => p.startsWith("/admin/feedback"),
   },
   {
+    href: "/admin/campaigns",
+    key: "campaigns",
+    match: (p) => p.startsWith("/admin/campaigns"),
+  },
+  {
+    href: "/admin/mailing",
+    key: "mailing",
+    match: (p) => p.startsWith("/admin/mailing"),
+  },
+  {
     href: "/admin/manifest",
     key: "manifest",
     match: (p) => p.startsWith("/admin/manifest"),
@@ -53,6 +66,11 @@ const TABS: Array<{
     href: "/admin/insights",
     key: "insights",
     match: (p) => p.startsWith("/admin/insights"),
+  },
+  {
+    href: "/admin/telemetry",
+    key: "telemetry",
+    match: (p) => p.startsWith("/admin/telemetry"),
   },
 ];
 

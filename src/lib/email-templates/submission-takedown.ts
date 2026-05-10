@@ -21,7 +21,7 @@ export function renderSubmissionTakedownEmail(
   const copy =
     current === "es"
       ? {
-          subject: `Tu mascota fue retirada de Petdex — ${vars.petName}`,
+          subject: `Tu mascota fue retirada de Petdex: ${vars.petName}`,
           intro: `Hola, tu mascota "${vars.petName}" fue retirada de Petdex y sus archivos fueron eliminados.`,
           noReason:
             "No se indicó una razón pública. El slug queda libre por si quieres volver a enviarla.",
@@ -29,13 +29,13 @@ export function renderSubmissionTakedownEmail(
         }
       : current === "zh"
         ? {
-            subject: `你的宠物已从 Petdex 下架 — ${vars.petName}`, // fixme:zh
+            subject: `你的宠物已从 Petdex 下架：${vars.petName}`, // fixme:zh
             intro: `你好，你的宠物“${vars.petName}”已从 Petdex 下架，相关文件也已删除。`, // fixme:zh
             noReason: "没有提供公开原因。该 slug 已释放，你可以重新提交。", // fixme:zh
             cta: `如需上传新版本，请前往：${submitUrl}`, // fixme:zh
           }
         : {
-            subject: `Your pet was taken down from Petdex — ${vars.petName}`,
+            subject: `Your pet was taken down from Petdex: ${vars.petName}`,
             intro: `Hey, your pet "${vars.petName}" was taken down from Petdex and its files were removed.`,
             noReason:
               "No public reason was given. The slug is free again if you want to resubmit.",

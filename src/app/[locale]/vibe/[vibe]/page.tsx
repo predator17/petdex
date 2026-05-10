@@ -106,7 +106,7 @@ export default async function VibePage({ params }: Props) {
     <>
       <JsonLd data={jsonLd} />
       <FacetPage
-        eyebrow={`Vibe — ${vibe}`}
+        eyebrow={`Vibe: ${vibe}`}
         title={copy.title}
         intro={copy.intro}
         count={filtered.length}

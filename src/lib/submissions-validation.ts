@@ -1,3 +1,7 @@
+import {
+  BLOCKED_KEYWORD_REASON,
+  findBlockedKeyword,
+} from "@/lib/keyword-blocklist";
 import { isAllowedAssetUrl } from "@/lib/url-allowlist";
 
 export type SubmissionInput = {
@@ -80,6 +84,19 @@ export function validateSubmission(
         message: `${field} must be hosted on the petdex R2 bucket.`,
       };
     }
+  }
+  // Keyword blocklist — runs after structural validation so a blocked
+  // submission gets the same shape as other 400s. Hit returns 422 to
+  // distinguish moderation rejects from bad input in logs.
+  const hit = findBlockedKeyword(body.displayName, body.description);
+  if (hit) {
+    return {
+      ok: false,
+      status: 422,
+      error: "blocked_content",
+      field: "displayName",
+      message: BLOCKED_KEYWORD_REASON,
+    };
   }
   return null;
 }

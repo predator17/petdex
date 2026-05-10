@@ -3,6 +3,8 @@
 // JSON dump is only consulted by that backfill script; the rest of the app
 // reads from the DB.
 
+import { cache } from "react";
+
 import { and, eq, sql } from "drizzle-orm";
 
 import { db, schema } from "@/lib/db/client";
@@ -21,15 +23,17 @@ const EMPTY_METRICS: Metrics = {
   likeCount: 0,
 };
 
-export async function getPet(slug: string): Promise<PetdexPet | undefined> {
-  const row = await db.query.submittedPets.findFirst({
-    where: and(
-      eq(schema.submittedPets.slug, slug),
-      eq(schema.submittedPets.status, "approved"),
-    ),
-  });
-  return row ? rowToPet(row) : undefined;
-}
+export const getPet = cache(
+  async (slug: string): Promise<PetdexPet | undefined> => {
+    const row = await db.query.submittedPets.findFirst({
+      where: and(
+        eq(schema.submittedPets.slug, slug),
+        eq(schema.submittedPets.status, "approved"),
+      ),
+    });
+    return row ? rowToPet(row) : undefined;
+  },
+);
 
 export async function getPetWithMetrics(
   slug: string,

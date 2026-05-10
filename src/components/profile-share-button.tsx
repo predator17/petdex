@@ -134,7 +134,7 @@ export function ProfileShareButton({ handle, displayName }: Props) {
           share: (data: ShareData) => Promise<void>;
         }
       ).share({
-        title: `${shareLabel} — Petdex`,
+        title: `${shareLabel} | Petdex`,
         text: shareText,
         url: profileUrl,
       });

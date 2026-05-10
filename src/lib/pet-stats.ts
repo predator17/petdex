@@ -1,4 +1,4 @@
-import type { Metrics } from "@/lib/db/metrics";
+import type { Metrics, MetricsSummary } from "@/lib/db/metrics";
 import { petStates } from "@/lib/pet-states";
 
 type PetStatsSource = {
@@ -73,6 +73,29 @@ export function computeStats(
       maxInstalls,
     ),
     loved: getNormalizedLogScore(pet.metrics?.likeCount ?? 0, maxLikes),
+    freshness: Math.round(100 - clamp((daysSinceApproved / 90) * 100, 0, 100)),
+  };
+}
+
+export function computeStatsFromSummary(
+  pet: PetStatsSource,
+  summary: MetricsSummary,
+): PetStats {
+  const approvedAt = new Date(pet.importedAt);
+  const daysSinceApproved = Number.isNaN(approvedAt.getTime())
+    ? 90
+    : (Date.now() - approvedAt.getTime()) / (1000 * 60 * 60 * 24);
+
+  return {
+    vibrance: toPercent(getVibranceValue(pet), DEFAULT_FRAME_TOTAL),
+    popularity: getNormalizedLogScore(
+      pet.metrics?.installCount ?? 0,
+      summary.maxInstallCount,
+    ),
+    loved: getNormalizedLogScore(
+      pet.metrics?.likeCount ?? 0,
+      summary.maxLikeCount,
+    ),
     freshness: Math.round(100 - clamp((daysSinceApproved / 90) * 100, 0, 100)),
   };
 }

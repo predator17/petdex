@@ -1,4 +1,4 @@
-import { inArray, sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 
 import { db, schema } from "./client";
 
@@ -52,6 +52,11 @@ export type Metrics = {
   likeCount: number;
 };
 
+export type MetricsSummary = {
+  maxInstallCount: number;
+  maxLikeCount: number;
+};
+
 export async function getAllMetrics(): Promise<Map<string, Metrics>> {
   const rows = await db.select().from(schema.petMetrics);
   const map = new Map<string, Metrics>();
@@ -92,5 +97,24 @@ export async function getMetricsForSlug(slug: string): Promise<Metrics> {
     installCount: row?.installCount ?? 0,
     zipDownloadCount: row?.zipDownloadCount ?? 0,
     likeCount: row?.likeCount ?? 0,
+  };
+}
+
+export async function getMetricsSummary(): Promise<MetricsSummary> {
+  const [row] = await db
+    .select({
+      maxInstallCount: sql<number>`coalesce(max(${schema.petMetrics.installCount}), 0)::int`,
+      maxLikeCount: sql<number>`coalesce(max(${schema.petMetrics.likeCount}), 0)::int`,
+    })
+    .from(schema.petMetrics)
+    .innerJoin(
+      schema.submittedPets,
+      eq(schema.petMetrics.petSlug, schema.submittedPets.slug),
+    )
+    .where(eq(schema.submittedPets.status, "approved"));
+
+  return {
+    maxInstallCount: row?.maxInstallCount ?? 0,
+    maxLikeCount: row?.maxLikeCount ?? 0,
   };
 }
