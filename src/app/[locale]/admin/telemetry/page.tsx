@@ -9,6 +9,16 @@ import { getTranslations } from "next-intl/server";
 
 import { getTelemetrySummary } from "@/lib/telemetry/queries";
 
+import { AdminAdoptionChart } from "@/components/admin-adoption-chart";
+import { Badge } from "@/components/ui/badge";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
 export const dynamic = "force-dynamic";
 
 export const metadata = {
@@ -63,105 +73,152 @@ export default async function AdminTelemetryPage({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        <ChartCard
-          title={t("sections.adoptionCurve")}
-          icon={<BarChart2 className="size-3.5" />}
-        >
-          <AdoptionChart data={summary.installsByDay} />
-        </ChartCard>
+        <Card>
+          <CardHeader>
+            <p className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.22em] text-brand uppercase">
+              <BarChart2 className="size-3" />
+              {t("sections.adoptionCurve")}
+            </p>
+            <CardTitle className="text-base md:text-lg">
+              Daily installs, last 30 days
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AdminAdoptionChart
+              data={summary.installsByDay}
+              emptyLabel={t("noData")}
+            />
+          </CardContent>
+        </Card>
 
-        <ChartCard
-          title={t("sections.osDistribution")}
-          icon={<MonitorSmartphone className="size-3.5" />}
-        >
-          <BarList
-            items={summary.osDistribution.map((r) => ({
-              label: r.os,
-              count: r.count,
-            }))}
-            emptyLabel={t("noData")}
-          />
-        </ChartCard>
+        <Card>
+          <CardHeader>
+            <p className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.22em] text-brand uppercase">
+              <MonitorSmartphone className="size-3" />
+              {t("sections.osDistribution")}
+            </p>
+          </CardHeader>
+          <CardContent>
+            <BarList
+              items={summary.osDistribution.map((r) => ({
+                label: r.os,
+                count: r.count,
+              }))}
+              emptyLabel={t("noData")}
+            />
+          </CardContent>
+        </Card>
 
-        <ChartCard
-          title={t("sections.archDistribution")}
-          icon={<MonitorSmartphone className="size-3.5" />}
-        >
-          <BarList
-            items={summary.archDistribution.map((r) => ({
-              label: r.arch,
-              count: r.count,
-            }))}
-            emptyLabel={t("noData")}
-          />
-        </ChartCard>
+        <Card>
+          <CardHeader>
+            <p className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.22em] text-brand uppercase">
+              <MonitorSmartphone className="size-3" />
+              {t("sections.archDistribution")}
+            </p>
+          </CardHeader>
+          <CardContent>
+            <BarList
+              items={summary.archDistribution.map((r) => ({
+                label: r.arch,
+                count: r.count,
+              }))}
+              emptyLabel={t("noData")}
+            />
+          </CardContent>
+        </Card>
 
-        <ChartCard
-          title={t("sections.versionAdoption")}
-          icon={<BarChart2 className="size-3.5" />}
-        >
-          <BarList
-            items={summary.versionDistribution.map((r) => ({
-              label: r.binary_version,
-              count: r.count,
-            }))}
-            emptyLabel={t("noData")}
-          />
-        </ChartCard>
+        <Card>
+          <CardHeader>
+            <p className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.22em] text-brand uppercase">
+              <BarChart2 className="size-3" />
+              {t("sections.versionAdoption")}
+            </p>
+          </CardHeader>
+          <CardContent>
+            <BarList
+              items={summary.versionDistribution.map((r) => ({
+                label: r.binary_version,
+                count: r.count,
+              }))}
+              emptyLabel={t("noData")}
+            />
+          </CardContent>
+        </Card>
 
-        <ChartCard
-          title={t("sections.topAgents")}
-          icon={<Terminal className="size-3.5" />}
-        >
-          <BarList
-            items={summary.topAgents.map((r) => ({
-              label: r.agent,
-              count: r.count,
-            }))}
-            emptyLabel={t("noData")}
-          />
-        </ChartCard>
+        <Card>
+          <CardHeader>
+            <p className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.22em] text-brand uppercase">
+              <Terminal className="size-3" />
+              {t("sections.topAgents")}
+            </p>
+          </CardHeader>
+          <CardContent>
+            <BarList
+              items={summary.topAgents.map((r) => ({
+                label: r.agent,
+                count: r.count,
+              }))}
+              emptyLabel={t("noData")}
+            />
+          </CardContent>
+        </Card>
 
-        <ChartCard
-          title={t("sections.geoTop10")}
-          icon={<Globe className="size-3.5" />}
-        >
-          <BarList
-            items={summary.countryTop10.map((r) => ({
-              label: r.country,
-              count: r.count,
-            }))}
-            emptyLabel={t("noData")}
-          />
-        </ChartCard>
+        <Card>
+          <CardHeader>
+            <p className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.22em] text-brand uppercase">
+              <Globe className="size-3" />
+              {t("sections.geoTop10")}
+            </p>
+          </CardHeader>
+          <CardContent>
+            <BarList
+              items={summary.countryTop10.map((r) => ({
+                label: r.country,
+                count: r.count,
+              }))}
+              emptyLabel={t("noData")}
+            />
+          </CardContent>
+        </Card>
       </div>
 
-      <ChartCard
-        title={t("sections.funnel")}
-        icon={<BarChart2 className="size-3.5" />}
-      >
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <FunnelCard
-            label={t("funnel.install")}
-            count={summary.funnel.install}
-          />
-          <FunnelCard
-            label={t("funnel.hooks")}
-            count={summary.funnel.hooks}
-            pct={summary.funnel.installToHooksPct}
-          />
-          <FunnelCard
-            label={t("funnel.start")}
-            count={summary.funnel.start}
-            pct={summary.funnel.hooksToStartPct}
-          />
-          <FunnelCard
-            label={t("funnel.firstEvent")}
-            count={summary.funnel.firstEvent}
-            pct={summary.funnel.startToFirstPct}
-          />
-        </div>
-      </ChartCard>
+      <Card>
+        <CardHeader>
+          <p className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.22em] text-brand uppercase">
+            <BarChart2 className="size-3" />
+            {t("sections.funnel")}
+          </p>
+          <CardTitle className="text-base md:text-lg">
+            Install to first event
+          </CardTitle>
+          <CardDescription>
+            Conversion rate from install to first telemetry event recorded.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <FunnelCard
+              label={t("funnel.install")}
+              count={summary.funnel.install}
+            />
+            <FunnelCard
+              label={t("funnel.hooks")}
+              count={summary.funnel.hooks}
+              pct={summary.funnel.installToHooksPct}
+            />
+            <FunnelCard
+              label={t("funnel.start")}
+              count={summary.funnel.start}
+              pct={summary.funnel.hooksToStartPct}
+            />
+            <FunnelCard
+              label={t("funnel.firstEvent")}
+              count={summary.funnel.firstEvent}
+              pct={summary.funnel.startToFirstPct}
+            />
+          </div>
+        </CardContent>
+      </Card>
     </section>
   );
 }
@@ -176,72 +233,17 @@ function StatCard({
   icon: React.ReactNode;
 }) {
   return (
-    <article className="rounded-3xl border border-border-base bg-surface/80 p-4 backdrop-blur">
-      <header className="flex items-center gap-1.5 font-mono text-[10px] tracking-[0.18em] text-muted-3 uppercase">
-        {icon}
-        {label}
-      </header>
-      <p className="mt-2 font-mono text-3xl font-semibold tracking-tight text-foreground">
-        {value.toLocaleString()}
-      </p>
-    </article>
-  );
-}
-
-function ChartCard({
-  title,
-  icon,
-  children,
-}: {
-  title: string;
-  icon: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <article className="rounded-3xl border border-border-base bg-surface/80 p-5 backdrop-blur">
-      <header className="mb-4 flex items-center gap-1.5 font-mono text-[10px] tracking-[0.18em] text-muted-3 uppercase">
-        {icon}
-        {title}
-      </header>
-      {children}
-    </article>
-  );
-}
-
-function AdoptionChart({ data }: { data: { date: string; count: number }[] }) {
-  const max = data.reduce((a, r) => Math.max(a, r.count), 0);
-  if (data.length === 0 || max === 0) {
-    return <p className="text-sm text-muted-3">No data yet.</p>;
-  }
-  return (
-    <div className="relative h-24 w-full">
-      <svg
-        role="img"
-        aria-label="Daily install counts over last 30 days"
-        viewBox={`0 0 ${data.length * 10} 40`}
-        preserveAspectRatio="none"
-        className="h-full w-full"
-      >
-        {data.map((d, i) => {
-          const h = max > 0 ? (d.count / max) * 36 : 0;
-          return (
-            <rect
-              key={d.date}
-              x={i * 10 + 1}
-              y={40 - h}
-              width={8}
-              height={h}
-              rx={1}
-              className="fill-brand/70"
-            />
-          );
-        })}
-      </svg>
-      <div className="mt-1 flex justify-between font-mono text-[9px] text-muted-3">
-        <span>{data[0]?.date?.slice(5) ?? ""}</span>
-        <span>{data[data.length - 1]?.date?.slice(5) ?? ""}</span>
-      </div>
-    </div>
+    <Card size="sm">
+      <CardHeader>
+        <p className="inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.18em] text-muted-3 uppercase">
+          {icon}
+          {label}
+        </p>
+        <CardTitle className="font-mono text-3xl tracking-tight">
+          {value.toLocaleString()}
+        </CardTitle>
+      </CardHeader>
+    </Card>
   );
 }
 
@@ -291,16 +293,22 @@ function FunnelCard({
   pct?: number;
 }) {
   return (
-    <div className="rounded-2xl border border-border-base bg-background/40 px-3 py-3">
-      <p className="font-mono text-[10px] tracking-[0.18em] text-muted-3 uppercase">
-        {label}
-      </p>
-      <p className="mt-1 font-mono text-2xl font-semibold tracking-tight text-foreground">
-        {count.toLocaleString()}
-      </p>
-      {pct !== undefined ? (
-        <p className="mt-0.5 font-mono text-xs text-brand">{pct}% from prev</p>
-      ) : null}
-    </div>
+    <Card size="sm">
+      <CardHeader>
+        <p className="font-mono text-[10px] tracking-[0.18em] text-muted-3 uppercase">
+          {label}
+        </p>
+        <CardTitle className="font-mono text-2xl tracking-tight">
+          {count.toLocaleString()}
+        </CardTitle>
+        {pct !== undefined ? (
+          <CardDescription>
+            <Badge variant="secondary" className="font-mono text-[10px]">
+              {pct}% from prev
+            </Badge>
+          </CardDescription>
+        ) : null}
+      </CardHeader>
+    </Card>
   );
 }

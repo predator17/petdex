@@ -2,6 +2,10 @@ import { desc, sql as dsql } from "drizzle-orm";
 
 import { db, schema } from "@/lib/db/client";
 
+import { AdminManifestByDayChart } from "@/components/admin-manifest-by-day-chart";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
 export const metadata = {
   title: "Petdex Admin · Manifest",
   robots: { index: false, follow: false },
@@ -99,15 +103,15 @@ export default async function AdminManifestPage() {
     .limit(15);
 
   return (
-    <section className="mx-auto flex w-full max-w-5xl flex-col gap-8 px-5 pb-12 md:px-8 md:pb-16">
+    <section className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 pb-12 md:px-8 md:pb-16">
       <header>
         <p className="font-mono text-xs tracking-[0.22em] text-brand uppercase">
           Telemetry
         </p>
-        <h1 className="mt-2 text-4xl font-medium tracking-tight md:text-5xl">
+        <h1 className="mt-2 text-balance text-3xl font-semibold tracking-tight text-foreground md:text-4xl">
           Manifest fetches
         </h1>
-        <p className="mt-3 text-sm text-muted-2">
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-muted-2">
           Who's pulling /api/manifest. IPs are SHA-256 hashed daily so they
           group within a day but can't be reversed.
         </p>
@@ -120,123 +124,134 @@ export default async function AdminManifestPage() {
         <Stat label="Distinct IPs (24h)" value={distinct24.toLocaleString()} />
       </div>
 
-      {/* By day */}
+      {/* By day chart */}
       {byDay.length > 0 ? (
-        <Card title="By day · last 14d">
-          <ul className="space-y-1.5">
-            {byDay.map((d) => {
-              const max = Math.max(...byDay.map((x) => x.count));
-              const pct = max > 0 ? Math.round((d.count / max) * 100) : 0;
-              return (
-                <li key={d.day} className="flex items-center gap-3">
-                  <span className="w-24 shrink-0 font-mono text-[11px] text-muted-3">
-                    {d.day}
-                  </span>
-                  <span className="flex-1">
-                    <span
-                      className="block h-1.5 rounded-full bg-brand/70"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </span>
-                  <span className="w-24 text-right font-mono text-[11px] text-muted-2">
-                    {d.count.toLocaleString()}{" "}
-                    <span className="text-muted-4">
-                      ({d.slim}s/{d.full}f)
-                    </span>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+        <Card>
+          <CardHeader>
+            <p className="font-mono text-[10px] tracking-[0.22em] text-brand uppercase">
+              By day · last 14d
+            </p>
+            <CardTitle className="text-xl md:text-2xl">
+              Daily manifest fetches
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AdminManifestByDayChart data={byDay} />
+          </CardContent>
         </Card>
       ) : null}
 
       {/* Top IPs (loudest) — likely scrapers if count is way out of band. */}
       {topIps.length > 0 ? (
-        <Card title="Loudest IPs · last 7d">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left font-mono text-[10px] tracking-[0.12em] text-muted-3 uppercase">
-                <th className="pb-2 font-normal">IP hash</th>
-                <th className="pb-2 font-normal">Country</th>
-                <th className="pb-2 font-normal">Last UA</th>
-                <th className="pb-2 pr-2 text-right font-normal">Fetches</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topIps.map((row) => (
-                <tr
-                  key={row.ipHash}
-                  className="border-t border-black/[0.06] align-top dark:border-white/[0.06]"
-                >
-                  <td className="py-2 pr-3 font-mono text-[11px] text-muted-2">
-                    {row.ipHash.slice(0, 12)}…
-                  </td>
-                  <td className="py-2 pr-3 font-mono text-[11px] text-muted-2">
-                    <span className="inline-flex items-center gap-1">
-                      <span className="text-sm leading-none">
-                        {countryFlag(row.lastCountry)}
-                      </span>
-                      {row.lastCountry ?? "—"}
-                    </span>
-                  </td>
-                  <td className="max-w-[24rem] truncate py-2 pr-3 text-xs text-muted-2">
-                    {row.lastUa ?? "—"}
-                  </td>
-                  <td className="py-2 pr-2 text-right font-mono text-xs font-semibold text-stone-900 dark:text-stone-100">
-                    {row.count.toLocaleString()}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <Card>
+          <CardHeader>
+            <p className="font-mono text-[10px] tracking-[0.22em] text-brand uppercase">
+              Loudest IPs · last 7d
+            </p>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left font-mono text-[10px] tracking-[0.12em] text-muted-3 uppercase">
+                    <th className="pb-2 font-normal">IP hash</th>
+                    <th className="pb-2 font-normal">Country</th>
+                    <th className="pb-2 font-normal">Last UA</th>
+                    <th className="pb-2 pr-2 text-right font-normal">
+                      Fetches
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {topIps.map((row) => (
+                    <tr
+                      key={row.ipHash}
+                      className="border-t border-black/[0.06] align-top dark:border-white/[0.06]"
+                    >
+                      <td className="py-2 pr-3 font-mono text-[11px] text-muted-2">
+                        {row.ipHash.slice(0, 12)}…
+                      </td>
+                      <td className="py-2 pr-3 font-mono text-[11px] text-muted-2">
+                        <span className="inline-flex items-center gap-1">
+                          <span className="text-sm leading-none">
+                            {countryFlag(row.lastCountry)}
+                          </span>
+                          {row.lastCountry ?? "—"}
+                        </span>
+                      </td>
+                      <td className="max-w-[24rem] truncate py-2 pr-3 text-xs text-muted-2">
+                        {row.lastUa ?? "—"}
+                      </td>
+                      <td className="py-2 pr-2 text-right font-mono text-xs font-semibold text-foreground">
+                        {row.count.toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
         </Card>
       ) : null}
 
       {/* Top UAs */}
       {topUserAgents.length > 0 ? (
-        <Card title="Top user-agents · last 7d">
-          <ul className="space-y-1.5">
-            {topUserAgents.map((u) => (
-              <li
-                key={u.userAgent ?? "none"}
-                className="flex items-baseline gap-3 border-t border-black/[0.04] pt-1.5 first:border-0 first:pt-0"
-              >
-                <span className="w-16 shrink-0 text-right font-mono text-[11px] font-semibold text-muted-2">
-                  {u.count.toLocaleString()}
-                </span>
-                <span className="truncate text-xs text-muted-2">
-                  {u.userAgent ?? <em className="text-muted-4">no UA</em>}
-                </span>
-              </li>
-            ))}
-          </ul>
+        <Card>
+          <CardHeader>
+            <p className="font-mono text-[10px] tracking-[0.22em] text-brand uppercase">
+              Top user-agents · last 7d
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-1.5">
+              {topUserAgents.map((u) => (
+                <li
+                  key={u.userAgent ?? "none"}
+                  className="flex items-baseline gap-3 border-t border-black/[0.04] pt-1.5 first:border-0 first:pt-0 dark:border-white/[0.04]"
+                >
+                  <span className="w-16 shrink-0 text-right font-mono text-[11px] font-semibold text-muted-2">
+                    {u.count.toLocaleString()}
+                  </span>
+                  <span className="truncate text-xs text-muted-2">
+                    {u.userAgent ?? <em className="text-muted-4">no UA</em>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
         </Card>
       ) : null}
 
       {/* By country */}
       {byCountry.length > 0 ? (
-        <Card title="By country · last 7d">
-          <ul className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
-            {byCountry.map((c) => (
-              <li
-                key={c.country ?? "none"}
-                className="flex items-center justify-between rounded-xl bg-surface-muted px-3 py-2 text-xs"
-              >
-                <span className="flex items-center gap-1.5">
-                  <span className="text-base leading-none">
-                    {countryFlag(c.country)}
+        <Card>
+          <CardHeader>
+            <p className="font-mono text-[10px] tracking-[0.22em] text-brand uppercase">
+              By country · last 7d
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {byCountry.map((c) => (
+                <li
+                  key={c.country ?? "none"}
+                  className="flex items-center justify-between rounded-xl bg-surface-muted px-3 py-2 text-xs"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <span className="text-base leading-none">
+                      {countryFlag(c.country)}
+                    </span>
+                    <span className="font-mono text-[11px] tracking-[0.1em] text-muted-2 uppercase">
+                      {c.country ?? "—"}
+                    </span>
                   </span>
-                  <span className="font-mono text-[11px] tracking-[0.1em] text-muted-2 uppercase">
-                    {c.country ?? "—"}
-                  </span>
-                </span>
-                <span className="font-mono text-[11px] font-semibold text-stone-900 dark:text-stone-100">
-                  {c.count.toLocaleString()}
-                </span>
-              </li>
-            ))}
-          </ul>
+                  <Badge variant="secondary" className="font-mono text-[10px]">
+                    {c.count.toLocaleString()}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
         </Card>
       ) : null}
     </section>
@@ -245,31 +260,16 @@ export default async function AdminManifestPage() {
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-border-base bg-surface/76 p-4 backdrop-blur">
-      <p className="font-mono text-[10px] tracking-[0.18em] text-muted-3 uppercase">
-        {label}
-      </p>
-      <p className="mt-2 font-mono text-2xl font-semibold tracking-tight text-foreground">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function Card({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-2xl border border-border-base bg-surface/76 p-5 backdrop-blur">
-      <h2 className="font-mono text-[11px] tracking-[0.22em] text-brand uppercase">
-        {title}
-      </h2>
-      <div className="mt-4">{children}</div>
-    </section>
+    <Card size="sm">
+      <CardHeader>
+        <p className="font-mono text-[10px] tracking-[0.18em] text-muted-3 uppercase">
+          {label}
+        </p>
+        <CardTitle className="font-mono text-2xl tracking-tight">
+          {value}
+        </CardTitle>
+      </CardHeader>
+    </Card>
   );
 }
 
