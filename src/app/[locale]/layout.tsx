@@ -18,6 +18,7 @@ import { ProfileAnnouncementModal } from "@/components/profile-announcement-moda
 import { AppProviders } from "@/components/theme-providers";
 import { FloatingActionCluster } from "@/components/zh/floating-action-cluster";
 import { TopPromoStrip } from "@/components/zh/top-promo-strip";
+import { ZhLayoutSpacer } from "@/components/zh/zh-layout-spacer";
 
 import { hasLocale, locales } from "@/i18n/config";
 
@@ -108,7 +109,7 @@ export default async function LocaleLayout({ children, params }: Props) {
           <AppProviders>
             {isZh && <TopPromoStrip />}
             <HeaderStateProvider>
-              <div className={isZh ? "pt-8" : undefined}>{children}</div>
+              {isZh ? <ZhLayoutSpacer>{children}</ZhLayoutSpacer> : children}
               <FeedbackWidget />
               {isZh && <FloatingActionCluster />}
               <AnnouncementQueue />

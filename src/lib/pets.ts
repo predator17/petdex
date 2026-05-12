@@ -91,12 +91,14 @@ export async function getAllApprovedPets(): Promise<PetdexPet[]> {
 }
 
 export async function getLatestApprovedPets(limit = 5): Promise<PetdexPet[]> {
+  // approved_at is nullable (older curated rows have NULL). NULLS LAST so
+  // freshly approved pets surface first; coalesce-on-tie via created_at.
   const rows = await db
     .select()
     .from(schema.submittedPets)
     .where(eq(schema.submittedPets.status, "approved"))
     .orderBy(
-      desc(schema.submittedPets.approvedAt),
+      sql`${schema.submittedPets.approvedAt} DESC NULLS LAST`,
       desc(schema.submittedPets.createdAt),
     )
     .limit(limit);

@@ -39,8 +39,11 @@ const COPY: Record<
   },
 };
 
+const SCROLL_THRESHOLD_PX = 16;
+
 export function TopPromoStripClient({ items, intervalMs = 8000 }: Props) {
   const [index, setIndex] = useState(0);
+  const [atTop, setAtTop] = useState(true);
 
   useEffect(() => {
     if (items.length <= 1) return;
@@ -50,8 +53,24 @@ export function TopPromoStripClient({ items, intervalMs = 8000 }: Props) {
     return () => clearInterval(id);
   }, [items.length, intervalMs]);
 
-  const baseClasses =
-    "fixed top-0 left-0 right-0 z-50 h-8 bg-[#0a0e1f] border-b border-amber-500/20 flex items-center justify-center";
+  useEffect(() => {
+    let ticking = false;
+    const onScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        setAtTop(window.scrollY <= SCROLL_THRESHOLD_PX);
+        ticking = false;
+      });
+    };
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  const baseClasses = `fixed top-0 left-0 right-0 z-50 h-8 bg-[#0a0e1f] border-b border-amber-500/20 flex items-center justify-center transition-transform duration-200 ease-out ${
+    atTop ? "translate-y-0" : "-translate-y-full"
+  }`;
 
   if (items.length === 0) {
     return (
