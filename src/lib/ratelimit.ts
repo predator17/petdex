@@ -60,6 +60,15 @@ export const trackZipRatelimit = createRatelimit({
   prefix: "petdex:track-zip",
 });
 
+// WhatsApp Sticker Pack generation. Each request fans out to 1 spritesheet
+// fetch + 9 animated WebP encodes + 1 ZIP — the heaviest unauthenticated
+// path in the app. Tighter ceiling so a loop can't burn CPU + R2 egress.
+export const wastickersRatelimit = createRatelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(8, "1 h"),
+  prefix: "petdex:wastickers",
+});
+
 // Likes — generous so legit users browsing the gallery never hit the cap,
 // but stops a 100-account brigade from inflating one pet to the top.
 export const likeRatelimit = createRatelimit({

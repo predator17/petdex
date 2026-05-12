@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
-import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 
 import { Analytics } from "@vercel/analytics/next";
@@ -49,12 +48,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     notFound();
   }
 
-  const requestHeaders = await headers();
-  const userAgent = requestHeaders.get("user-agent") ?? "";
-  const isWeChat = userAgent.includes("MicroMessenger");
-
   const t = await getTranslations({ locale, namespace: "metadata.root" });
 
+  // og:image points to /api/og which streams og.png by default and
+  // og-wechat.png (1:1) when the crawler UA contains MicroMessenger.
+  // Doing the UA check inside that route keeps this layout fully
+  // statically renderable and preserves ISR for the whole [locale] tree.
   return {
     title: {
       default: t("titleDefault"),
@@ -79,9 +78,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       siteName: "Petdex",
       type: "website",
       images: [
-        isWeChat
-          ? { url: "/og-wechat.png", width: 1200, height: 1200, alt: "Petdex" }
-          : { url: "/og.png", width: 1200, height: 630, alt: "Petdex" },
+        { url: `${SITE_URL}/api/og`, width: 1200, height: 630, alt: "Petdex" },
       ],
     },
     twitter: {

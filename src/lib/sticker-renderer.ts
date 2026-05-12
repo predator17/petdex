@@ -51,7 +51,9 @@ function getStateSpec(stateId?: PetStateId) {
   return petStates.find((s) => s.id === stateId) ?? defaultPetState;
 }
 
-async function fetchSpritesheet(spritesheetUrl: string): Promise<Buffer> {
+export async function fetchSpritesheet(
+  spritesheetUrl: string,
+): Promise<Buffer> {
   const res = await fetch(spritesheetUrl, { redirect: "error" });
   if (!res.ok) throw new Error(`upstream ${res.status}`);
   return Buffer.from(await res.arrayBuffer());
@@ -151,15 +153,21 @@ async function buildStaticPng(frame: Buffer, size: number): Promise<Buffer> {
     .toBuffer();
 }
 
+export type StickerInput = string | Buffer;
+
 export async function renderSticker(
-  spritesheetUrl: string,
+  input: StickerInput,
   options: StickerOptions = {},
 ): Promise<StickerOutput> {
   const state = getStateSpec(options.state);
   const size = options.size ?? OUT_DEFAULT;
   const format: StickerFormat = options.format ?? "webp";
 
-  const sheet = await fetchSpritesheet(spritesheetUrl);
+  // Accept either a URL (fetched once here) or a pre-fetched spritesheet
+  // buffer. The pack endpoint fetches once and feeds the same buffer to
+  // 9 calls + the tray icon, avoiding 10x egress on the spritesheet host.
+  const sheet =
+    typeof input === "string" ? await fetchSpritesheet(input) : input;
   const frames = await extractRowFrames(sheet, state.row, state.frames);
 
   // PNG path: always single-frame static. Caller asked for png explicitly

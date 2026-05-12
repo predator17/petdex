@@ -22,7 +22,12 @@ import sharp from "sharp";
 
 import { db, schema } from "@/lib/db/client";
 import { petStates } from "@/lib/pet-states";
-import { renderSticker, STICKER_SIZES } from "@/lib/sticker-renderer";
+import { wastickersRatelimit } from "@/lib/ratelimit";
+import {
+  fetchSpritesheet,
+  renderSticker,
+  STICKER_SIZES,
+} from "@/lib/sticker-renderer";
 import { isAllowedAssetUrl } from "@/lib/url-allowlist";
 
 export const runtime = "nodejs";
@@ -31,6 +36,7 @@ const CACHE_HEADER = "public, max-age=86400, s-maxage=604800";
 const PUBLISHER = "Petdex";
 const PUBLISHER_WEBSITE = "https://petdex.crafter.run";
 const PUBLISHER_EMAIL = "hello@crafter.run";
+
 // Apple iMessage / WhatsApp iOS share the same identifier namespace.
 // We prefix with 'petdex.' to avoid collisions with other apps using
 // the same pet slug.
@@ -38,12 +44,15 @@ function packIdentifier(slug: string) {
   return `petdex.${slug}`;
 }
 
-async function buildTrayIcon(spritesheetUrl: string): Promise<Buffer> {
-  // 96x96 PNG, ≤50KB. We use the first idle frame, downscale with
-  // nearest-neighbor to preserve pixel art crispness.
-  const res = await fetch(spritesheetUrl, { redirect: "error" });
-  if (!res.ok) throw new Error("upstream");
-  const sheet = Buffer.from(await res.arrayBuffer());
+function clientKey(req: Request): string {
+  const xff = req.headers.get("x-forwarded-for") ?? "";
+  return xff.split(",")[0]?.trim() || "anon";
+}
+
+// Tray icon: 96x96 PNG, ≤50KB. First idle frame, nearest-neighbor downscale
+// to preserve pixel art. Takes a pre-fetched spritesheet buffer so the pack
+// route doesn't re-download upstream once for tray + 9 times for stickers.
+async function buildTrayIcon(sheet: Buffer): Promise<Buffer> {
   return await sharp(sheet)
     .extract({ left: 0, top: 0, width: 192, height: 208 })
     .resize(96, 96, {
@@ -56,10 +65,23 @@ async function buildTrayIcon(spritesheetUrl: string): Promise<Buffer> {
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   ctx: { params: Promise<{ slug: string }> },
 ): Promise<Response> {
+  // Rate limit FIRST — pack generation is the heaviest unauthenticated path
+  // (1 fetch + 9 animated WebP encodes + 1 ZIP). Cap aggressively.
+  const { success } = await wastickersRatelimit.limit(clientKey(req));
+  if (!success) {
+    return new NextResponse("rate_limited", {
+      status: 429,
+      headers: { "retry-after": "3600" },
+    });
+  }
+
   const { slug } = await ctx.params;
+  if (!/^[a-z0-9-]{1,60}$/.test(slug)) {
+    return new NextResponse("invalid_slug", { status: 400 });
+  }
 
   const pet = await db.query.submittedPets.findFirst({
     where: eq(schema.submittedPets.slug, slug),
@@ -82,10 +104,14 @@ export async function GET(
   let trayBuf: Buffer;
   let stickerBufs: Array<{ id: string; label: string; buf: Buffer }>;
   try {
-    trayBuf = await buildTrayIcon(pet.spritesheetUrl);
+    // Single fetch of the spritesheet, reused for tray + every state render.
+    // Previously this route hit the upstream image host 10 times per pack
+    // download, burning R2 / UploadThing egress.
+    const sheetBuf = await fetchSpritesheet(pet.spritesheetUrl);
+    trayBuf = await buildTrayIcon(sheetBuf);
     stickerBufs = await Promise.all(
       petStates.map(async (state) => {
-        const out = await renderSticker(pet.spritesheetUrl, {
+        const out = await renderSticker(sheetBuf, {
           state: state.id,
           size: STICKER_SIZES.whatsappPack,
         });
