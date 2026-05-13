@@ -8,7 +8,7 @@ import {
 import { getAllApprovedPets } from "@/lib/pets";
 import { PET_KINDS, PET_VIBES } from "@/lib/types";
 
-export const revalidate = 3600;
+export const revalidate = 86400;
 
 type EntryInput = {
   pathname: string;

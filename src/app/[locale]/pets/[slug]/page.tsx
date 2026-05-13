@@ -5,12 +5,9 @@ import { Layers, Shuffle, Sparkles } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 
 import { getCollectionsContainingPet } from "@/lib/collections";
-import { getMetricsForSlug, getMetricsSummary } from "@/lib/db/metrics";
 import { formatDexNumber, getDexEntryMap } from "@/lib/dex";
-import { formatLocalizedNumber } from "@/lib/format-number";
 import { buildLocaleAlternates } from "@/lib/locale-routing";
 import { resolveStoredOwnerCreditForSlug } from "@/lib/owner-credit";
-import { computeStatsFromSummary } from "@/lib/pet-stats";
 import { getPet, getStaticPetSlugs } from "@/lib/pets";
 import { getVariantsFor } from "@/lib/variants";
 
@@ -25,9 +22,10 @@ import {
   PetActionMenu,
   PetTakedownReportButton,
 } from "@/components/pet-action-menu";
+import { PetCountersBar } from "@/components/pet-counters-bar";
 import { PetFloater } from "@/components/pet-floater";
 import { PetKeyboardNav } from "@/components/pet-keyboard-nav";
-import { PetRadar } from "@/components/pet-radar";
+import { PetRadarClient } from "@/components/pet-radar-client";
 import { PetSoundButton } from "@/components/pet-sound-button";
 import { PetSprite } from "@/components/pet-sprite";
 import { PetStateViewer } from "@/components/pet-state-viewer";
@@ -50,7 +48,11 @@ type PageProps = {
 };
 
 export const dynamicParams = true;
-export const revalidate = 60;
+// Long ISR window — the shell is byte-stable (metrics fetched
+// client-side), so the page only needs to regenerate when its
+// editorial fields change. Write paths call revalidateTag('pet:${slug}')
+// to flush immediately on edit/withdraw/claim/feature.
+export const revalidate = 86400;
 
 type DexNavPet = {
   slug: string;
@@ -121,7 +123,7 @@ export async function generateMetadata({ params }: PageProps) {
 }
 
 export default async function PetPage({ params }: PageProps) {
-  const { slug, locale } = await params;
+  const { slug } = await params;
   const pet = await getPet(slug);
   const tPet = await getTranslations("pet");
 
@@ -160,27 +162,12 @@ export default async function PetPage({ params }: PageProps) {
         }
       : null;
 
-  const [
-    metrics,
-    metricsSummary,
-    ownerCreditResult,
-    variants,
-    memberOfCollections,
-  ] = await Promise.all([
-    getMetricsForSlug(slug),
-    getMetricsSummary(),
+  const [ownerCreditResult, variants, memberOfCollections] = await Promise.all([
     resolveStoredOwnerCreditForSlug(slug),
     getVariantsFor(slug),
     getCollectionsContainingPet(slug),
   ]);
   const ownerCredit = ownerCreditResult?.credit ?? null;
-  const stats = computeStatsFromSummary(
-    {
-      importedAt: pet.importedAt,
-      metrics,
-    },
-    metricsSummary,
-  );
 
   const url = `${SITE_URL}/pets/${pet.slug}`;
   const jsonLd = [
@@ -205,15 +192,6 @@ export default async function PetPage({ params }: PageProps) {
                 ? { url: ownerCredit.externals[0].url }
                 : {}),
               ...(ownerCredit.imageUrl ? { image: ownerCredit.imageUrl } : {}),
-            },
-          }
-        : {}),
-      ...(metrics.likeCount > 0
-        ? {
-            interactionStatistic: {
-              "@type": "InteractionCounter",
-              interactionType: "https://schema.org/LikeAction",
-              userInteractionCount: metrics.likeCount,
             },
           }
         : {}),
@@ -374,7 +352,7 @@ export default async function PetPage({ params }: PageProps) {
 
               {/* Quick actions row + stats. */}
               <div className="flex flex-wrap items-center gap-3 pt-1">
-                <LikeButton slug={pet.slug} initialCount={metrics.likeCount} />
+                <LikeButton slug={pet.slug} />
                 {pet.soundUrl ? (
                   <PetSoundButton
                     soundUrl={pet.soundUrl}
@@ -395,12 +373,7 @@ export default async function PetPage({ params }: PageProps) {
                 <PetTakedownReportButton
                   pet={{ slug: pet.slug, displayName: pet.displayName }}
                 />
-                <span className="font-mono text-[11px] tracking-[0.18em] text-muted-3 uppercase">
-                  {formatLocalizedNumber(metrics.installCount, locale)} installs
-                  {" · "}
-                  {formatLocalizedNumber(metrics.zipDownloadCount, locale)}{" "}
-                  downloads
-                </span>
+                <PetCountersBar slug={pet.slug} />
               </div>
 
               {/* Tags + collections collapsed into compact metadata. */}
@@ -513,8 +486,9 @@ export default async function PetPage({ params }: PageProps) {
             icon={<Sparkles className="size-4" />}
           >
             <div className="flex items-center justify-center py-2">
-              <PetRadar
-                {...stats}
+              <PetRadarClient
+                slug={pet.slug}
+                importedAt={pet.importedAt}
                 ariaLabel={tPet("stats.ariaLabel")}
                 labels={{
                   vibrance: tPet("stats.vibrance"),

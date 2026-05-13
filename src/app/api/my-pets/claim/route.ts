@@ -1,3 +1,4 @@
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 
 import { auth, clerkClient } from "@clerk/nextjs/server";
@@ -152,6 +153,11 @@ export async function POST(req: Request): Promise<Response> {
     .set(update)
     .where(eq(schema.submittedPets.id, id));
   await invalidatePetCaches(row.slug);
+
+  // Claim rewrites ownerId/ownerEmail which feed the SubmittedBy
+  // credit on /pets/[slug]. Flush so the new owner's name shows up.
+  revalidateTag(`pet:${row.slug}`, "max");
+  revalidateTag("pet:list", "max");
 
   return NextResponse.json({ ok: true, slug: row.slug });
 }

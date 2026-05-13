@@ -18,6 +18,7 @@ import {
   getMetricsForSlug,
   type Metrics,
 } from "@/lib/db/metrics";
+import { withNextDataCache } from "@/lib/next-data-cache";
 import type { PetdexPet, PetKind, PetVibe } from "@/lib/types";
 
 export type PetWithMetrics = PetdexPet & { metrics: Metrics };
@@ -80,22 +81,32 @@ const petColumns = {
   createdAt: true,
 } as const;
 
+// Two-layer cache: Upstash (cross-instance, 5min TTL, invalidated by
+// invalidatePetCaches) wrapped in Next's data cache so write paths can
+// also call revalidateTag('pet:${slug}', 'max') and flush the page-
+// level ISR copy without waiting on the 24h ceiling.
 export const getPet = cache(
   async (slug: string): Promise<PetdexPet | undefined> => {
-    const pet = await cachedAggregate<PetdexPet | null>(
-      { key: petCacheKey(slug), ttlSeconds: PET_CACHE_TTL_SECONDS },
+    return withNextDataCache(
       async () => {
-        const row = await db.query.submittedPets.findFirst({
-          columns: petColumns,
-          where: and(
-            eq(schema.submittedPets.slug, slug),
-            eq(schema.submittedPets.status, "approved"),
-          ),
-        });
-        return row ? rowToPet(row) : null;
+        const pet = await cachedAggregate<PetdexPet | null>(
+          { key: petCacheKey(slug), ttlSeconds: PET_CACHE_TTL_SECONDS },
+          async () => {
+            const row = await db.query.submittedPets.findFirst({
+              columns: petColumns,
+              where: and(
+                eq(schema.submittedPets.slug, slug),
+                eq(schema.submittedPets.status, "approved"),
+              ),
+            });
+            return row ? rowToPet(row) : null;
+          },
+        );
+        return pet ?? undefined;
       },
-    );
-    return pet ?? undefined;
+      ["petdex-pet", slug],
+      { tags: [`pet:${slug}`, "pet:list"], revalidate: 86400 },
+    )();
   },
 );
 
@@ -127,13 +138,19 @@ export async function getStaticPetSlugs(): Promise<string[]> {
 export async function getFeaturedPetsWithMetrics(
   limit = 6,
 ): Promise<PetWithMetrics[]> {
-  const pets = (await getFeaturedPets()).slice(0, limit);
-  if (pets.length === 0) return [];
-  const metrics = await getMetricsBySlugs(pets.map((pet) => pet.slug));
-  return pets.map((pet) => ({
-    ...pet,
-    metrics: metrics.get(pet.slug) ?? EMPTY_METRICS,
-  }));
+  return withNextDataCache(
+    async () => {
+      const pets = (await getFeaturedPets()).slice(0, limit);
+      if (pets.length === 0) return [];
+      const metrics = await getMetricsBySlugs(pets.map((pet) => pet.slug));
+      return pets.map((pet) => ({
+        ...pet,
+        metrics: metrics.get(pet.slug) ?? EMPTY_METRICS,
+      }));
+    },
+    ["petdex-featured-pets-with-metrics", String(limit)],
+    { tags: ["pet:list"], revalidate: 86400 },
+  )();
 }
 
 async function getFeaturedPets(): Promise<PetdexPet[]> {
@@ -158,19 +175,24 @@ async function getFeaturedPets(): Promise<PetdexPet[]> {
 }
 
 export async function getAllApprovedPets(): Promise<PetdexPet[]> {
-  return cachedAggregate(
-    {
-      key: AGGREGATE_KEYS.approvedCatalog,
-      ttlSeconds: APPROVED_CATALOG_TTL_SECONDS,
-    },
-    async () => {
-      const rows = await db
-        .select()
-        .from(schema.submittedPets)
-        .where(eq(schema.submittedPets.status, "approved"));
-      return rows.map(rowToPet);
-    },
-  );
+  return withNextDataCache(
+    async () =>
+      cachedAggregate(
+        {
+          key: AGGREGATE_KEYS.approvedCatalog,
+          ttlSeconds: APPROVED_CATALOG_TTL_SECONDS,
+        },
+        async () => {
+          const rows = await db
+            .select()
+            .from(schema.submittedPets)
+            .where(eq(schema.submittedPets.status, "approved"));
+          return rows.map(rowToPet);
+        },
+      ),
+    ["petdex-all-approved-pets"],
+    { tags: ["pet:list"], revalidate: 86400 },
+  )();
 }
 
 export type ApprovedPetSlim = {
@@ -245,13 +267,19 @@ async function queryLatestApprovedPets(limit: number): Promise<PetdexPet[]> {
 }
 
 export async function getApprovedPetsWithMetrics(): Promise<PetWithMetrics[]> {
-  const pets = await getAllApprovedPets();
-  if (pets.length === 0) return [];
-  const metrics = await getMetricsBySlugs(pets.map((p) => p.slug));
-  return pets.map((p) => ({
-    ...p,
-    metrics: metrics.get(p.slug) ?? EMPTY_METRICS,
-  }));
+  return withNextDataCache(
+    async () => {
+      const pets = await getAllApprovedPets();
+      if (pets.length === 0) return [];
+      const metrics = await getMetricsBySlugs(pets.map((p) => p.slug));
+      return pets.map((p) => ({
+        ...p,
+        metrics: metrics.get(p.slug) ?? EMPTY_METRICS,
+      }));
+    },
+    ["petdex-approved-pets-with-metrics"],
+    { tags: ["pet:list"], revalidate: 86400 },
+  )();
 }
 
 export async function getApprovedPetCount(): Promise<number> {

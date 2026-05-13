@@ -36,15 +36,14 @@ import {
 
 import { hasLocale, locales } from "@/i18n/config";
 
-// ISR. The home page used to be force-dynamic because it pulled the
-// visitor's shuffle seed cookie and caught-slug set. Both moved to
-// the client: PetGallery re-fetches /api/pets/search after hydration
-// (which picks up the cookie) and /api/me/caught-slugs feeds the
-// "caught" highlight. The server now renders an alpha-ordered, anon
-// shell that the edge can cache for 60s — enough to keep new pets
-// surfacing without waking a function on every visit.
+// ISR. The home page renders an alpha-ordered, anon shell — the
+// visitor's shuffle seed and caught-slug set are pulled client-side
+// (PetGallery re-fetches /api/pets/search; /api/me/caught-slugs feeds
+// the "caught" highlight). With a 24h ceiling and tag-based
+// invalidation on submit/feature/withdraw, the page stays fresh for
+// editorial changes without burning a function on every visit.
 export const dynamic = "force-static";
-export const revalidate = 60;
+export const revalidate = 86400;
 
 export async function generateMetadata({
   params,

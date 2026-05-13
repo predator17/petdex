@@ -1,3 +1,4 @@
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
@@ -77,6 +78,9 @@ export async function PATCH(
   } else {
     await invalidatePetCaches(row.slug);
   }
+
+  revalidateTag(`pet:${row.slug}`, "max");
+  revalidateTag("pet:list", "max");
 
   return NextResponse.json({ ok: true, featured: row.featured });
 }

@@ -1,3 +1,4 @@
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
@@ -325,6 +326,12 @@ export async function PATCH(
         .update(schema.submittedPets)
         .set(liveUpdate)
         .where(eq(schema.submittedPets.id, id));
+
+      // Auto-approve writes through to the live row — flush the
+      // pet's ISR caches so the new copy shows up immediately
+      // instead of waiting on the 24h ceiling.
+      revalidateTag(`pet:${row.slug}`, "max");
+      revalidateTag("pet:list", "max");
 
       void refreshSimilarityFor(id).catch(() => {});
       await invalidateAggregates(AGGREGATE_KEYS.variantIndex);

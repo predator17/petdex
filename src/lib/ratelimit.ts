@@ -69,6 +69,16 @@ export const wastickersRatelimit = createRatelimit({
   prefix: "petdex:wastickers",
 });
 
+// Public metrics reads — `/api/pets/[slug]/metrics`. Browser pages hit
+// this on every visit, and the CDN caches the response for 60s so the
+// hot path is free. The limit only kicks in for direct bot/script
+// hammering against an uncached slug. Keyed by IP.
+export const metricsReadRatelimit = createRatelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(240, "1 h"),
+  prefix: "petdex:metrics-read",
+});
+
 // Likes — generous so legit users browsing the gallery never hit the cap,
 // but stops a 100-account brigade from inflating one pet to the top.
 export const likeRatelimit = createRatelimit({

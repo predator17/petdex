@@ -15,6 +15,7 @@ import {
 } from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
 import { getMetricsBySlugs, type Metrics } from "@/lib/db/metrics";
+import { withNextDataCache } from "@/lib/next-data-cache";
 import { type PetWithMetrics, rowToPet } from "@/lib/pets";
 
 const EMPTY_METRICS: Metrics = {
@@ -58,36 +59,48 @@ export async function getCollectionsBySlugs(
   petsPerCollection = 6,
 ): Promise<PetCollectionWithPets[]> {
   if (slugs.length === 0) return [];
-  let rows: PetCollection[];
-  try {
-    rows = await db
-      .select()
-      .from(schema.petCollections)
-      .where(inArray(schema.petCollections.slug, slugs));
-  } catch (error) {
-    if (isMissingCollectionTableError(error)) return [];
-    throw error;
-  }
-  const order = new Map(slugs.map((s, i) => [s, i]));
-  rows = rows
-    .filter((r) => order.has(r.slug))
-    .sort((a, b) => (order.get(a.slug) ?? 0) - (order.get(b.slug) ?? 0));
-  return hydrateCollections(rows, petsPerCollection);
+  return withNextDataCache(
+    async () => {
+      let rows: PetCollection[];
+      try {
+        rows = await db
+          .select()
+          .from(schema.petCollections)
+          .where(inArray(schema.petCollections.slug, slugs));
+      } catch (error) {
+        if (isMissingCollectionTableError(error)) return [];
+        throw error;
+      }
+      const order = new Map(slugs.map((s, i) => [s, i]));
+      rows = rows
+        .filter((r) => order.has(r.slug))
+        .sort((a, b) => (order.get(a.slug) ?? 0) - (order.get(b.slug) ?? 0));
+      return hydrateCollections(rows, petsPerCollection);
+    },
+    ["petdex-collections-by-slugs", slugs.join(","), String(petsPerCollection)],
+    { tags: ["collection:list"], revalidate: 86400 },
+  )();
 }
 
 export async function getAllCollections(): Promise<PetCollectionWithPets[]> {
-  let rows: PetCollection[];
-  try {
-    rows = await db
-      .select()
-      .from(schema.petCollections)
-      .orderBy(asc(schema.petCollections.title));
-  } catch (error) {
-    if (isMissingCollectionTableError(error)) return [];
-    throw error;
-  }
+  return withNextDataCache(
+    async () => {
+      let rows: PetCollection[];
+      try {
+        rows = await db
+          .select()
+          .from(schema.petCollections)
+          .orderBy(asc(schema.petCollections.title));
+      } catch (error) {
+        if (isMissingCollectionTableError(error)) return [];
+        throw error;
+      }
 
-  return hydrateCollections(rows);
+      return hydrateCollections(rows);
+    },
+    ["petdex-all-collections"],
+    { tags: ["collection:list"], revalidate: 86400 },
+  )();
 }
 
 // Returns featured collections that have at least `minPets` approved
@@ -98,62 +111,84 @@ export async function getCollectionsForListing(
   minPets = 4,
   petsPerPreview = 6,
 ): Promise<(PetCollectionWithPets & { petCount: number })[]> {
-  let rows: (PetCollection & { petCount: number })[];
-  try {
-    const result = await db
-      .select({
-        ...getTableColumns(schema.petCollections),
-        petCount: dsql<number>`count(${schema.petCollectionItems.petSlug})`.as(
-          "pet_count",
-        ),
-      })
-      .from(schema.petCollections)
-      .leftJoin(
-        schema.petCollectionItems,
-        eq(schema.petCollectionItems.collectionId, schema.petCollections.id),
-      )
-      .where(eq(schema.petCollections.featured, true))
-      .groupBy(schema.petCollections.id)
-      .having(
-        gte(dsql<number>`count(${schema.petCollectionItems.petSlug})`, minPets),
-      )
-      .orderBy(
-        desc(dsql`count(${schema.petCollectionItems.petSlug})`),
-        asc(schema.petCollections.title),
-      );
-    rows = result.map((r) => ({
-      ...r,
-      petCount: Number(r.petCount),
-    }));
-  } catch (error) {
-    if (isMissingCollectionTableError(error)) return [];
-    throw error;
-  }
+  return withNextDataCache(
+    async () => {
+      let rows: (PetCollection & { petCount: number })[];
+      try {
+        const result = await db
+          .select({
+            ...getTableColumns(schema.petCollections),
+            petCount:
+              dsql<number>`count(${schema.petCollectionItems.petSlug})`.as(
+                "pet_count",
+              ),
+          })
+          .from(schema.petCollections)
+          .leftJoin(
+            schema.petCollectionItems,
+            eq(
+              schema.petCollectionItems.collectionId,
+              schema.petCollections.id,
+            ),
+          )
+          .where(eq(schema.petCollections.featured, true))
+          .groupBy(schema.petCollections.id)
+          .having(
+            gte(
+              dsql<number>`count(${schema.petCollectionItems.petSlug})`,
+              minPets,
+            ),
+          )
+          .orderBy(
+            desc(dsql`count(${schema.petCollectionItems.petSlug})`),
+            asc(schema.petCollections.title),
+          );
+        rows = result.map((r) => ({
+          ...r,
+          petCount: Number(r.petCount),
+        }));
+      } catch (error) {
+        if (isMissingCollectionTableError(error)) return [];
+        throw error;
+      }
 
-  const hydrated = await hydrateCollections(rows, petsPerPreview);
-  // Re-attach the pet count we computed (hydrate doesn't carry it).
-  const countBySlug = new Map(rows.map((r) => [r.slug, r.petCount]));
-  return hydrated.map((c) => ({
-    ...c,
-    petCount: countBySlug.get(c.slug) ?? c.pets.length,
-  }));
+      const hydrated = await hydrateCollections(rows, petsPerPreview);
+      // Re-attach the pet count we computed (hydrate doesn't carry it).
+      const countBySlug = new Map(rows.map((r) => [r.slug, r.petCount]));
+      return hydrated.map((c) => ({
+        ...c,
+        petCount: countBySlug.get(c.slug) ?? c.pets.length,
+      }));
+    },
+    ["petdex-collections-for-listing", String(minPets), String(petsPerPreview)],
+    { tags: ["collection:list"], revalidate: 86400 },
+  )();
 }
 
 export async function getCollection(
   slug: string,
 ): Promise<PetCollectionWithPets | null> {
-  let row: PetCollection | undefined;
-  try {
-    row = await db.query.petCollections.findFirst({
-      where: eq(schema.petCollections.slug, slug.toLowerCase()),
-    });
-  } catch (error) {
-    if (isMissingCollectionTableError(error)) return null;
-    throw error;
-  }
-  if (!row) return null;
-  const [collection] = await hydrateCollections([row]);
-  return collection ?? null;
+  return withNextDataCache(
+    async () => {
+      let row: PetCollection | undefined;
+      try {
+        row = await db.query.petCollections.findFirst({
+          where: eq(schema.petCollections.slug, slug.toLowerCase()),
+        });
+      } catch (error) {
+        if (isMissingCollectionTableError(error)) return null;
+        throw error;
+      }
+      if (!row) return null;
+      const [collection] = await hydrateCollections([row]);
+      return collection ?? null;
+    },
+    ["petdex-collection", slug],
+    {
+      tags: [`collection:${slug}`, "collection:list"],
+      revalidate: 86400,
+    },
+  )();
 }
 
 export async function getOwnerCollection(
