@@ -3,6 +3,10 @@ import "server-only";
 import { eq, sql } from "drizzle-orm";
 import { Resend } from "resend";
 
+import {
+  AGGREGATE_KEYS,
+  invalidateAggregates,
+} from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
 import { renderSubmissionTakedownEmail } from "@/lib/email-templates/submission-takedown";
 import { createNotification } from "@/lib/notifications";
@@ -93,6 +97,18 @@ export async function takedownPet(
   await db
     .delete(schema.submittedPets)
     .where(eq(schema.submittedPets.id, pet.id));
+
+  // 5b. If this was an approved pet, the cached aggregates (facets,
+  //     counts, metrics summary, batches) all just moved. Fire-and-
+  //     forget — TTL covers any missed invalidation.
+  if (pet.status === "approved") {
+    void invalidateAggregates(
+      AGGREGATE_KEYS.facets,
+      AGGREGATE_KEYS.approvedCount,
+      AGGREGATE_KEYS.metricsSummary,
+      AGGREGATE_KEYS.batches,
+    );
+  }
 
   // 6. Best-effort R2 cleanup. We derive keys from the URLs the
   //    submission stored; anything off-host (legacy or external credit
