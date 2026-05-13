@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { and, eq } from "drizzle-orm";
 
 import { canManageCreatorCollections } from "@/lib/collection-access";
+import { revalidateCollectionTags } from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
 import { requireSameOrigin } from "@/lib/same-origin";
 
@@ -149,6 +150,8 @@ export async function PATCH(
     .set(patch)
     .where(eq(schema.petCollections.id, id));
 
+  await revalidateCollectionTags(collection.slug);
+
   return NextResponse.json({ ok: true });
 }
 
@@ -179,7 +182,11 @@ export async function DELETE(
     );
   }
 
-  await db.delete(schema.petCollections).where(eq(schema.petCollections.id, id));
+  await db
+    .delete(schema.petCollections)
+    .where(eq(schema.petCollections.id, id));
+
+  await revalidateCollectionTags(collection.slug);
 
   return NextResponse.json({ ok: true });
 }

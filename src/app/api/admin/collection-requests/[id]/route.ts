@@ -9,7 +9,10 @@ import { auth } from "@clerk/nextjs/server";
 import { and, desc, eq } from "drizzle-orm";
 
 import { isAdmin } from "@/lib/admin";
-import { invalidateCollectionBacklinks } from "@/lib/db/cached-aggregates";
+import {
+  invalidateCollectionBacklinks,
+  revalidateCollectionTags,
+} from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
 import { requireSameOrigin } from "@/lib/same-origin";
 
@@ -127,6 +130,17 @@ export async function PATCH(
     })
     .where(eq(schema.petCollectionRequests.id, id));
   await invalidateCollectionBacklinks(request.petSlug);
+
+  // Flush the affected collection's ISR caches so the public detail
+  // page picks up the new pet in its grid without waiting on the 24h
+  // revalidate ceiling.
+  const collection = await db.query.petCollections.findFirst({
+    where: eq(schema.petCollections.id, request.collectionId),
+    columns: { slug: true },
+  });
+  if (collection) {
+    await revalidateCollectionTags(collection.slug);
+  }
 
   return NextResponse.json({ ok: true });
 }

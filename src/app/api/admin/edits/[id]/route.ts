@@ -1,4 +1,3 @@
-import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 
 import { auth, clerkClient } from "@clerk/nextjs/server";
@@ -111,12 +110,6 @@ export async function PATCH(
       .where(eq(schema.submittedPets.id, id))
       .returning();
 
-    // Flush ISR caches for this pet's detail page and any list that
-    // contains it. Approving an edit changes user-visible fields
-    // (displayName/description/tags/sprite).
-    revalidateTag(`pet:${updated.slug}`, "max");
-    revalidateTag("pet:list", "max");
-
     // GC old R2 keys after the DB is updated (best-effort, non-fatal).
     const keysToDelete = [oldSpritesheetKey, oldPetJsonKey, oldZipKey].filter(
       (k): k is string => k !== null,
@@ -127,6 +120,9 @@ export async function PATCH(
 
     void refreshSimilarityFor(id).catch(() => {});
     await invalidateAggregates(AGGREGATE_KEYS.variantIndex);
+    // Flushes both Upstash + Next page tags (pet:${slug}, pet:list)
+    // so the public detail page picks up the new copy without
+    // waiting on the 24h revalidate ceiling.
     await invalidatePetCaches(updated.slug);
 
     void createNotification({

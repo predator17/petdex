@@ -94,6 +94,43 @@ export async function invalidatePetCaches(...slugs: string[]): Promise<void> {
     );
   }
   await invalidateAggregates(...keys);
+  await revalidatePetTags(...slugs);
+}
+
+// Page-level ISR invalidation for the pet detail + listing pages. Paired
+// with invalidatePetCaches so any caller that flushes Upstash also flushes
+// the Next data cache tags (`pet:${slug}`, `pet:list`) used to wrap getPet,
+// getApprovedPetsWithMetrics, getFeaturedPetsWithMetrics, getAllApprovedPets
+// in src/lib/pets.ts. Without this the 24h revalidate ceiling held stale
+// shells even after the Upstash layer was cleared.
+export async function revalidatePetTags(...slugs: string[]): Promise<void> {
+  const cleanSlugs = slugs.filter(Boolean);
+  if (cleanSlugs.length === 0) return;
+  try {
+    const { revalidateTag } = await import("next/cache");
+    for (const slug of cleanSlugs) revalidateTag(`pet:${slug}`, "max");
+    revalidateTag("pet:list", "max");
+  } catch {
+    /* next/cache unavailable in some runtime contexts (tests, scripts) */
+  }
+}
+
+// Page-level ISR invalidation for the collections list + detail pages.
+// Pair with any pet_collections / pet_collection_items write path that
+// changes user-visible content. Without this the same 24h ceiling
+// problem applies to /collections and /collections/[slug].
+export async function revalidateCollectionTags(
+  ...slugs: string[]
+): Promise<void> {
+  try {
+    const { revalidateTag } = await import("next/cache");
+    for (const slug of slugs.filter(Boolean)) {
+      revalidateTag(`collection:${slug}`, "max");
+    }
+    revalidateTag("collection:list", "max");
+  } catch {
+    /* next/cache unavailable in some runtime contexts (tests, scripts) */
+  }
 }
 
 export async function invalidateMetricCaches(

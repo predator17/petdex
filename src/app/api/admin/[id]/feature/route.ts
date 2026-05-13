@@ -1,4 +1,3 @@
-import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 
 import { auth } from "@clerk/nextjs/server";
@@ -75,12 +74,10 @@ export async function PATCH(
       featured: row.featured,
       by: userId,
     });
-  } else {
-    await invalidatePetCaches(row.slug);
   }
 
-  revalidateTag(`pet:${row.slug}`, "max");
-  revalidateTag("pet:list", "max");
+  // Flushes both Upstash + Next page tags (pet:${slug}, pet:list).
+  await invalidatePetCaches(row.slug);
 
   return NextResponse.json({ ok: true, featured: row.featured });
 }

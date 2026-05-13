@@ -4,7 +4,10 @@ import { auth } from "@clerk/nextjs/server";
 import { and, eq } from "drizzle-orm";
 
 import { canManageCreatorCollections } from "@/lib/collection-access";
-import { invalidateCollectionBacklinks } from "@/lib/db/cached-aggregates";
+import {
+  invalidateCollectionBacklinks,
+  revalidateCollectionTags,
+} from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
 import { validateProfileHandle } from "@/lib/profiles";
 import { requireSameOrigin } from "@/lib/same-origin";
@@ -152,6 +155,8 @@ export async function PATCH(req: Request): Promise<Response> {
   if (shouldInvalidateCollectionBacklinks) {
     await invalidateCollectionBacklinks(...oldFeaturedPetSlugs, ...petSlugs);
   }
+
+  await revalidateCollectionTags(collection.slug);
 
   return NextResponse.json({
     ok: true,
