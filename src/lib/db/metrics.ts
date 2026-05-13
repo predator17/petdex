@@ -24,7 +24,7 @@ export async function incrementInstallCount(slug: string): Promise<void> {
       },
     });
   // maxInstallCount in the cached summary may have moved.
-  void invalidateAggregates(AGGREGATE_KEYS.metricsSummary);
+  await invalidateAggregates(AGGREGATE_KEYS.metricsSummary);
 }
 
 export async function incrementZipDownloadCount(slug: string): Promise<void> {
@@ -52,7 +52,7 @@ export async function setLikeCount(slug: string, count: number): Promise<void> {
       set: { likeCount: count, updatedAt: new Date() },
     });
   // maxLikeCount in the cached summary may have moved.
-  void invalidateAggregates(AGGREGATE_KEYS.metricsSummary);
+  await invalidateAggregates(AGGREGATE_KEYS.metricsSummary);
 }
 
 export type Metrics = {

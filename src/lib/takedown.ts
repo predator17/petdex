@@ -100,17 +100,16 @@ export async function takedownPet(
     .where(eq(schema.submittedPets.id, pet.id));
 
   // 5b. If this was an approved pet, the cached aggregates (facets,
-  //     counts, metrics summary, batches) all just moved. Fire-and-
-  //     forget — TTL covers any missed invalidation.
+  //     counts, metrics summary, batches) all just moved.
   if (pet.status === "approved") {
-    void invalidateAggregates(
+    await invalidateAggregates(
       AGGREGATE_KEYS.facets,
       AGGREGATE_KEYS.approvedCount,
       AGGREGATE_KEYS.metricsSummary,
       AGGREGATE_KEYS.batches,
       AGGREGATE_KEYS.variantIndex,
     );
-    void invalidatePetCaches(pet.slug);
+    await invalidatePetCaches(pet.slug);
   }
 
   // 6. Best-effort R2 cleanup. We derive keys from the URLs the

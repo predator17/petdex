@@ -119,8 +119,8 @@ export async function PATCH(
     }
 
     void refreshSimilarityFor(id).catch(() => {});
-    void invalidateAggregates(AGGREGATE_KEYS.variantIndex);
-    void invalidatePetCaches(updated.slug);
+    await invalidateAggregates(AGGREGATE_KEYS.variantIndex);
+    await invalidatePetCaches(updated.slug);
 
     void createNotification({
       userId: updated.ownerId,

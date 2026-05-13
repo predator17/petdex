@@ -102,6 +102,17 @@ export async function applySubmissionAction(
     return { ok: false, status: 400, body: { error: "nothing_to_update" } };
   }
 
+  const current = await db.query.submittedPets.findFirst({
+    columns: {
+      slug: true,
+      status: true,
+    },
+    where: eq(schema.submittedPets.id, id),
+  });
+  if (!current) {
+    return { ok: false, status: 404, body: { error: "not_found" } };
+  }
+
   const [updated] = await db
     .update(schema.submittedPets)
     .set(update)
@@ -125,21 +136,23 @@ export async function applySubmissionAction(
   }
 
   // Any status flip changes the set of approved pets, so the cached
-  // facets / counts / metrics summary become stale. Fire-and-forget;
-  // a missed invalidation will be corrected by the 60-300s TTL.
+  // facets / counts / metrics summary become stale.
   if (
     body.action === "approve" ||
     body.action === "reject" ||
     body.action === "pending"
   ) {
-    void invalidateAggregates(
+    await invalidateAggregates(
       AGGREGATE_KEYS.facets,
       AGGREGATE_KEYS.approvedCount,
       AGGREGATE_KEYS.metricsSummary,
       AGGREGATE_KEYS.batches,
       AGGREGATE_KEYS.variantIndex,
     );
-    void invalidatePetCaches(row.slug);
+    await invalidatePetCaches(current.slug, row.slug);
+  } else if (current.status === "approved" && body.action === "edit") {
+    await invalidateAggregates(AGGREGATE_KEYS.variantIndex);
+    await invalidatePetCaches(current.slug, row.slug);
   }
 
   return { ok: true, row };
