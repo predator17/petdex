@@ -4,6 +4,7 @@ import { auth } from "@clerk/nextjs/server";
 import { eq } from "drizzle-orm";
 
 import { isAdmin } from "@/lib/admin";
+import { invalidatePetCaches } from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
 import { requireSameOrigin } from "@/lib/same-origin";
 
@@ -73,6 +74,8 @@ export async function PATCH(
       featured: row.featured,
       by: userId,
     });
+  } else {
+    await invalidatePetCaches(row.slug);
   }
 
   return NextResponse.json({ ok: true, featured: row.featured });
