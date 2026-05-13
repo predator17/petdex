@@ -8,6 +8,7 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { generateText } from "ai";
 import { and, eq, isNull, ne } from "drizzle-orm";
 
+import { invalidatePetCaches } from "@/lib/db/cached-aggregates";
 import { runtimeDb as db, schema } from "@/lib/db/runtime";
 import { R2_BUCKET, R2_PUBLIC_BASE, r2 } from "@/lib/r2";
 
@@ -280,6 +281,7 @@ export async function processPetSound(
       .update(schema.submittedPets)
       .set({ soundUrl })
       .where(eq(schema.submittedPets.slug, pet.slug));
+    await invalidatePetCaches(pet.slug);
 
     return {
       slug: pet.slug,

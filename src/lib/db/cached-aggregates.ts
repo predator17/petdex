@@ -43,6 +43,16 @@ export const AGGREGATE_KEYS = {
   variantIndex: "petdex:agg:variant-index:v1",
 } as const;
 
+export function petCacheKey(slug: string): string {
+  return `petdex:pet:${slug}:v1`;
+}
+
+export async function invalidatePetCaches(...slugs: string[]): Promise<void> {
+  await invalidateAggregates(
+    ...slugs.filter(Boolean).map((slug) => petCacheKey(slug)),
+  );
+}
+
 // Next per-instance cache tags paired with each Upstash key. Both
 // layers must be invalidated together: Upstash is cross-instance and
 // authoritative, but the inner withNextDataCache layer can still serve

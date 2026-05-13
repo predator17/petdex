@@ -6,6 +6,7 @@ import { and, eq, gte, sql } from "drizzle-orm";
 import {
   AGGREGATE_KEYS,
   invalidateAggregates,
+  invalidatePetCaches,
 } from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
 import { decideAutoAccept } from "@/lib/edit-policy";
@@ -14,7 +15,6 @@ import {
   containsBlockedKeyword,
 } from "@/lib/keyword-blocklist";
 import { createNotification } from "@/lib/notifications";
-import { invalidatePetCaches } from "@/lib/pets";
 import { editRatelimit } from "@/lib/ratelimit";
 import { requireSameOrigin } from "@/lib/same-origin";
 import { refreshSimilarityFor } from "@/lib/similarity";

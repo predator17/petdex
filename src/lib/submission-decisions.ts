@@ -4,12 +4,12 @@ import { Resend } from "resend";
 import {
   AGGREGATE_KEYS,
   invalidateAggregates,
+  invalidatePetCaches,
 } from "@/lib/db/cached-aggregates";
 import type { SubmittedPet } from "@/lib/db/schema";
 import * as schema from "@/lib/db/schema";
 import { renderSubmissionApprovedEmail } from "@/lib/email-templates/submission-approved";
 import { renderSubmissionRejectedEmail } from "@/lib/email-templates/submission-rejected";
-import { invalidatePetCaches } from "@/lib/pets";
 
 export type SubmissionAdminAction = "approve" | "reject" | "edit" | "pending";
 
@@ -199,6 +199,8 @@ async function runPostApprovalEffects(
             colorFamily: classifyColorFamily(dominantColor),
           })
           .where(eq(schema.submittedPets.id, row.id));
+        await invalidateAggregates(AGGREGATE_KEYS.facets);
+        await invalidatePetCaches(row.slug);
       } catch (e) {
         console.error("color extract failed", e);
       }

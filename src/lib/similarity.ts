@@ -9,6 +9,11 @@
 import { eq } from "drizzle-orm";
 import sharp from "sharp";
 
+import {
+  AGGREGATE_KEYS,
+  invalidateAggregates,
+  invalidatePetCaches,
+} from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
 import {
   buildPetEmbeddingText,
@@ -104,6 +109,8 @@ export async function refreshSimilarityFor(petId: string): Promise<void> {
       .update(schema.submittedPets)
       .set({ dhash: hash })
       .where(eq(schema.submittedPets.id, petId));
+    await invalidateAggregates(AGGREGATE_KEYS.variantIndex);
+    await invalidatePetCaches(row.slug);
   }
   if (vec) {
     await persistPetEmbedding(petId, vec);

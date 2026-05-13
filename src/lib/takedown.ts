@@ -6,11 +6,11 @@ import { Resend } from "resend";
 import {
   AGGREGATE_KEYS,
   invalidateAggregates,
+  invalidatePetCaches,
 } from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
 import { renderSubmissionTakedownEmail } from "@/lib/email-templates/submission-takedown";
 import { createNotification } from "@/lib/notifications";
-import { invalidatePetCaches } from "@/lib/pets";
 import { deleteR2Objects, keyFromR2Url } from "@/lib/r2";
 import { getPreferredLocaleForUser } from "@/lib/user-locale";
 

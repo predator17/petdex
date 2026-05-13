@@ -10,7 +10,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import {
   AGGREGATE_KEYS,
   cachedAggregate,
-  invalidateAggregates,
+  petCacheKey,
 } from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
 import {
@@ -76,16 +76,6 @@ const petColumns = {
   approvedAt: true,
   createdAt: true,
 } as const;
-
-export function petCacheKey(slug: string): string {
-  return `petdex:pet:${slug}:v1`;
-}
-
-export async function invalidatePetCaches(...slugs: string[]): Promise<void> {
-  await invalidateAggregates(
-    ...slugs.filter(Boolean).map((slug) => petCacheKey(slug)),
-  );
-}
 
 export const getPet = cache(
   async (slug: string): Promise<PetdexPet | undefined> => {
