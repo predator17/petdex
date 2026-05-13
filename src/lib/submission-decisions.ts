@@ -1,6 +1,10 @@
 import { eq } from "drizzle-orm";
 import { Resend } from "resend";
 
+import {
+  AGGREGATE_KEYS,
+  invalidateAggregates,
+} from "@/lib/db/cached-aggregates";
 import type { SubmittedPet } from "@/lib/db/schema";
 import * as schema from "@/lib/db/schema";
 import { renderSubmissionApprovedEmail } from "@/lib/email-templates/submission-approved";
@@ -117,6 +121,22 @@ export async function applySubmissionAction(
     (body.action === "approve" || body.action === "reject")
   ) {
     await notifySubmissionOwner(row);
+  }
+
+  // Any status flip changes the set of approved pets, so the cached
+  // facets / counts / metrics summary become stale. Fire-and-forget;
+  // a missed invalidation will be corrected by the 60-300s TTL.
+  if (
+    body.action === "approve" ||
+    body.action === "reject" ||
+    body.action === "pending"
+  ) {
+    void invalidateAggregates(
+      AGGREGATE_KEYS.facets,
+      AGGREGATE_KEYS.approvedCount,
+      AGGREGATE_KEYS.metricsSummary,
+      AGGREGATE_KEYS.batches,
+    );
   }
 
   return { ok: true, row };

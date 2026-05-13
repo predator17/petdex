@@ -1,5 +1,6 @@
 import { eq, inArray, sql } from "drizzle-orm";
 
+import { AGGREGATE_KEYS, cachedAggregate } from "./cached-aggregates";
 import { db, schema } from "./client";
 
 export async function incrementInstallCount(slug: string): Promise<void> {
@@ -106,20 +107,25 @@ export async function getMetricsForSlug(slug: string): Promise<Metrics> {
 }
 
 export async function getMetricsSummary(): Promise<MetricsSummary> {
-  const [row] = await db
-    .select({
-      maxInstallCount: sql<number>`coalesce(max(${schema.petMetrics.installCount}), 0)::int`,
-      maxLikeCount: sql<number>`coalesce(max(${schema.petMetrics.likeCount}), 0)::int`,
-    })
-    .from(schema.petMetrics)
-    .innerJoin(
-      schema.submittedPets,
-      eq(schema.petMetrics.petSlug, schema.submittedPets.slug),
-    )
-    .where(eq(schema.submittedPets.status, "approved"));
+  return cachedAggregate(
+    { key: AGGREGATE_KEYS.metricsSummary, ttlSeconds: 60 },
+    async () => {
+      const [row] = await db
+        .select({
+          maxInstallCount: sql<number>`coalesce(max(${schema.petMetrics.installCount}), 0)::int`,
+          maxLikeCount: sql<number>`coalesce(max(${schema.petMetrics.likeCount}), 0)::int`,
+        })
+        .from(schema.petMetrics)
+        .innerJoin(
+          schema.submittedPets,
+          eq(schema.petMetrics.petSlug, schema.submittedPets.slug),
+        )
+        .where(eq(schema.submittedPets.status, "approved"));
 
-  return {
-    maxInstallCount: row?.maxInstallCount ?? 0,
-    maxLikeCount: row?.maxLikeCount ?? 0,
-  };
+      return {
+        maxInstallCount: row?.maxInstallCount ?? 0,
+        maxLikeCount: row?.maxLikeCount ?? 0,
+      };
+    },
+  );
 }

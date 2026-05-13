@@ -7,6 +7,7 @@ import { cache } from "react";
 
 import { and, desc, eq, sql } from "drizzle-orm";
 
+import { AGGREGATE_KEYS, cachedAggregate } from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
 import {
   getMetricsBySlugs,
@@ -154,11 +155,16 @@ export async function getApprovedPetsWithMetrics(): Promise<PetWithMetrics[]> {
 }
 
 export async function getApprovedPetCount(): Promise<number> {
-  const row = await db
-    .select({ n: sql<number>`count(*)::int` })
-    .from(schema.submittedPets)
-    .where(eq(schema.submittedPets.status, "approved"));
-  return row[0]?.n ?? 0;
+  return cachedAggregate(
+    { key: AGGREGATE_KEYS.approvedCount, ttlSeconds: 60 },
+    async () => {
+      const row = await db
+        .select({ n: sql<number>`count(*)::int` })
+        .from(schema.submittedPets)
+        .where(eq(schema.submittedPets.status, "approved"));
+      return row[0]?.n ?? 0;
+    },
+  );
 }
 
 export function rowToPet(
