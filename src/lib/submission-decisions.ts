@@ -151,7 +151,11 @@ export async function applySubmissionAction(
     );
     await invalidatePetCaches(current.slug, row.slug);
   } else if (current.status === "approved" && body.action === "edit") {
-    await invalidateAggregates(AGGREGATE_KEYS.variantIndex);
+    const aggregateKeys: string[] = [AGGREGATE_KEYS.variantIndex];
+    if (current.slug !== row.slug) {
+      aggregateKeys.push(AGGREGATE_KEYS.metricsSummary);
+    }
+    await invalidateAggregates(...aggregateKeys);
     await invalidatePetCaches(current.slug, row.slug);
   }
 
