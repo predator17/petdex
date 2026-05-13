@@ -5,10 +5,15 @@ import { eq } from "drizzle-orm";
 import { Resend } from "resend";
 
 import { isAdmin } from "@/lib/admin";
+import {
+  AGGREGATE_KEYS,
+  invalidateAggregates,
+} from "@/lib/db/cached-aggregates";
 import { db, schema } from "@/lib/db/client";
 import { renderEditApprovedEmail } from "@/lib/email-templates/edit-approved";
 import { renderEditRejectedEmail } from "@/lib/email-templates/edit-rejected";
 import { createNotification } from "@/lib/notifications";
+import { invalidatePetCaches } from "@/lib/pets";
 import { deleteR2Objects, keyFromR2Url } from "@/lib/r2";
 import { requireSameOrigin } from "@/lib/same-origin";
 import { refreshSimilarityFor } from "@/lib/similarity";
@@ -114,6 +119,8 @@ export async function PATCH(
     }
 
     void refreshSimilarityFor(id).catch(() => {});
+    void invalidateAggregates(AGGREGATE_KEYS.variantIndex);
+    void invalidatePetCaches(updated.slug);
 
     void createNotification({
       userId: updated.ownerId,

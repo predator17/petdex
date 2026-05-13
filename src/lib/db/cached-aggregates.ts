@@ -1,13 +1,5 @@
-// Upstash-backed cache for cross-instance aggregate queries.
-//
-// Why Upstash and not unstable_cache: Next's per-instance in-memory cache
-// resets on cold start and isn't shared across the serverless fan-out.
-// For aggregate queries that run on every render (facets, counts,
-// metrics summary), an external KV is the only thing that turns
-// N_instances × N_requests into ~1 hit per TTL.
-//
-// Reads gracefully degrade to a direct DB call when Redis isn't
-// configured (local dev, missing env). Writes are best-effort.
+// Upstash-backed cache for shared hot reads. Reads gracefully degrade to
+// a direct DB call when Redis isn't configured. Writes are best-effort.
 
 import { Redis } from "@upstash/redis";
 
@@ -48,6 +40,7 @@ export const AGGREGATE_KEYS = {
   approvedCount: "petdex:agg:approved-count:v1",
   metricsSummary: "petdex:agg:metrics-summary:v1",
   batches: "petdex:agg:batches:v1",
+  variantIndex: "petdex:agg:variant-index:v1",
 } as const;
 
 // Next per-instance cache tags paired with each Upstash key. Both

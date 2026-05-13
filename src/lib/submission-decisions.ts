@@ -9,6 +9,7 @@ import type { SubmittedPet } from "@/lib/db/schema";
 import * as schema from "@/lib/db/schema";
 import { renderSubmissionApprovedEmail } from "@/lib/email-templates/submission-approved";
 import { renderSubmissionRejectedEmail } from "@/lib/email-templates/submission-rejected";
+import { invalidatePetCaches } from "@/lib/pets";
 
 export type SubmissionAdminAction = "approve" | "reject" | "edit" | "pending";
 
@@ -136,7 +137,9 @@ export async function applySubmissionAction(
       AGGREGATE_KEYS.approvedCount,
       AGGREGATE_KEYS.metricsSummary,
       AGGREGATE_KEYS.batches,
+      AGGREGATE_KEYS.variantIndex,
     );
+    void invalidatePetCaches(row.slug);
   }
 
   return { ok: true, row };

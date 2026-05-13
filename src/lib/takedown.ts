@@ -10,6 +10,7 @@ import {
 import { db, schema } from "@/lib/db/client";
 import { renderSubmissionTakedownEmail } from "@/lib/email-templates/submission-takedown";
 import { createNotification } from "@/lib/notifications";
+import { invalidatePetCaches } from "@/lib/pets";
 import { deleteR2Objects, keyFromR2Url } from "@/lib/r2";
 import { getPreferredLocaleForUser } from "@/lib/user-locale";
 
@@ -107,7 +108,9 @@ export async function takedownPet(
       AGGREGATE_KEYS.approvedCount,
       AGGREGATE_KEYS.metricsSummary,
       AGGREGATE_KEYS.batches,
+      AGGREGATE_KEYS.variantIndex,
     );
+    void invalidatePetCaches(pet.slug);
   }
 
   // 6. Best-effort R2 cleanup. We derive keys from the URLs the

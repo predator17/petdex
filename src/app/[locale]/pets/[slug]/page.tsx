@@ -183,6 +183,13 @@ export default async function PetPage({ params }: PageProps) {
       getMetricsForSlug(slug),
       getMetricsSummary(),
       db.query.submittedPets.findFirst({
+        columns: {
+          ownerId: true,
+          creditName: true,
+          creditUrl: true,
+          creditImage: true,
+          source: true,
+        },
         where: eq(schema.submittedPets.slug, slug),
       }),
       getVariantsFor(slug),
