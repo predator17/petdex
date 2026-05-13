@@ -9,7 +9,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 
 import { db, schema } from "@/lib/db/client";
 import {
-  getAllMetrics,
+  getMetricsBySlugs,
   getMetricsForSlug,
   type Metrics,
 } from "@/lib/db/metrics";
@@ -75,7 +75,7 @@ export async function getFeaturedPetsWithMetrics(
     .limit(limit);
 
   if (rows.length === 0) return [];
-  const metrics = await getAllMetrics();
+  const metrics = await getMetricsBySlugs(rows.map((row) => row.slug));
   return rows.map((row) => ({
     ...rowToPet(row),
     metrics: metrics.get(row.slug) ?? EMPTY_METRICS,
@@ -88,6 +88,44 @@ export async function getAllApprovedPets(): Promise<PetdexPet[]> {
     .from(schema.submittedPets)
     .where(eq(schema.submittedPets.status, "approved"));
   return rows.map(rowToPet);
+}
+
+export type ApprovedPetSlim = {
+  slug: string;
+  displayName: string;
+  kind: PetKind;
+  spritesheetUrl: string;
+  petJsonUrl: string;
+  zipUrl: string | null;
+  creditName: string | null;
+};
+
+// Slim projection for `/api/manifest` (and any CLI consumer that only
+// reads the install metadata). The full-fat row is ~700 bytes serialized;
+// this shape is ~200 bytes, which compounds across the CLI traffic that
+// hits the slim manifest on every `petdex list` / `petdex install`.
+export async function getApprovedPetsForManifest(): Promise<ApprovedPetSlim[]> {
+  const rows = await db
+    .select({
+      slug: schema.submittedPets.slug,
+      displayName: schema.submittedPets.displayName,
+      kind: schema.submittedPets.kind,
+      spritesheetUrl: schema.submittedPets.spritesheetUrl,
+      petJsonUrl: schema.submittedPets.petJsonUrl,
+      zipUrl: schema.submittedPets.zipUrl,
+      creditName: schema.submittedPets.creditName,
+    })
+    .from(schema.submittedPets)
+    .where(eq(schema.submittedPets.status, "approved"));
+  return rows.map((row) => ({
+    slug: row.slug,
+    displayName: row.displayName,
+    kind: row.kind as PetKind,
+    spritesheetUrl: row.spritesheetUrl,
+    petJsonUrl: row.petJsonUrl,
+    zipUrl: row.zipUrl,
+    creditName: row.creditName,
+  }));
 }
 
 export async function getLatestApprovedPets(limit = 5): Promise<PetdexPet[]> {
@@ -108,7 +146,7 @@ export async function getLatestApprovedPets(limit = 5): Promise<PetdexPet[]> {
 export async function getApprovedPetsWithMetrics(): Promise<PetWithMetrics[]> {
   const pets = await getAllApprovedPets();
   if (pets.length === 0) return [];
-  const metrics = await getAllMetrics();
+  const metrics = await getMetricsBySlugs(pets.map((p) => p.slug));
   return pets.map((p) => ({
     ...p,
     metrics: metrics.get(p.slug) ?? EMPTY_METRICS,

@@ -57,6 +57,11 @@ export type MetricsSummary = {
   maxLikeCount: number;
 };
 
+/**
+ * @deprecated Reads the entire pet_metrics table — drove ~20 GB/month of
+ * Neon egress when called per-request. Prefer `getMetricsBySlugs(slugs)`,
+ * which only loads the rows you actually need.
+ */
 export async function getAllMetrics(): Promise<Map<string, Metrics>> {
   const rows = await db.select().from(schema.petMetrics);
   const map = new Map<string, Metrics>();

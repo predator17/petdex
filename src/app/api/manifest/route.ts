@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { logManifestFetch } from "@/lib/manifest-telemetry";
-import { getAllApprovedPets } from "@/lib/pets";
+import { getApprovedPetsForManifest } from "@/lib/pets";
 
 export const runtime = "nodejs";
 // Cache the slim manifest at the edge for 5 minutes with a 1h
@@ -22,15 +22,15 @@ export const revalidate = 300;
 // versions keep working — they just won't see fields they never read.
 export async function GET(req: Request): Promise<Response> {
   void logManifestFetch(req, "slim");
-  const pets = await getAllApprovedPets();
+  const pets = await getApprovedPetsForManifest();
 
   const items = pets.map((pet) => ({
     slug: pet.slug,
     displayName: pet.displayName,
     kind: pet.kind,
-    submittedBy: pet.submittedBy?.name ?? null,
-    spritesheetUrl: pet.spritesheetPath,
-    petJsonUrl: pet.petJsonPath,
+    submittedBy: pet.creditName,
+    spritesheetUrl: pet.spritesheetUrl,
+    petJsonUrl: pet.petJsonUrl,
     zipUrl: pet.zipUrl ?? null,
   }));
 
