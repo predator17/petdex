@@ -82,9 +82,14 @@ export async function invalidateAggregates(...keys: string[]): Promise<void> {
 
   try {
     const { revalidateTag } = await import("next/cache");
-    // Next 16 requires a cacheLife profile as the second arg. "max"
-    // means: invalidate aggressively, the next read recomputes.
-    for (const tag of tags) revalidateTag(tag, "max");
+    // Next 16's `revalidateTag(tag, "max")` is stale-while-revalidate —
+    // it marks the entry stale and serves the old value while refreshing
+    // in the background. That's the wrong semantics here: after we've
+    // already deleted the Upstash value, a background refresh from the
+    // inner Next cache would re-seed Upstash with the stale data.
+    // `{ expire: 0 }` forces immediate eviction so the next read is a
+    // real miss that hits the DB.
+    for (const tag of tags) revalidateTag(tag, { expire: 0 });
   } catch {
     /* next/cache unavailable in some runtime contexts (tests, scripts) */
   }
