@@ -43,20 +43,49 @@ export async function cachedAggregate<T>(
   return fresh;
 }
 
-// Invalidate keys after writes that change the aggregate (approve,
-// reject, install bump). Safe no-op when Redis isn't configured.
-export async function invalidateAggregates(...keys: string[]): Promise<void> {
-  if (!redis || keys.length === 0) return;
-  try {
-    await redis.del(...keys);
-  } catch {
-    /* best-effort */
-  }
-}
-
 export const AGGREGATE_KEYS = {
   facets: "petdex:agg:facets:v1",
   approvedCount: "petdex:agg:approved-count:v1",
   metricsSummary: "petdex:agg:metrics-summary:v1",
   batches: "petdex:agg:batches:v1",
 } as const;
+
+// Next per-instance cache tags paired with each Upstash key. Both
+// layers must be invalidated together: Upstash is cross-instance and
+// authoritative, but the inner withNextDataCache layer can still serve
+// a stale value on a hot lambda and repopulate Upstash with it.
+const NEXT_TAGS_FOR_KEY: Record<string, string[]> = {
+  [AGGREGATE_KEYS.facets]: ["petdex:facets"],
+};
+
+// Invalidate keys after writes that change the aggregate (approve,
+// reject, install bump). Clears Upstash + any paired Next cache tag.
+// Safe no-op when Redis isn't configured.
+export async function invalidateAggregates(...keys: string[]): Promise<void> {
+  if (keys.length === 0) return;
+
+  if (redis) {
+    try {
+      await redis.del(...keys);
+    } catch {
+      /* best-effort */
+    }
+  }
+
+  // Clear paired Next cache tags so the inner LRU doesn't re-seed
+  // Upstash with a stale value on the next request.
+  const tags = new Set<string>();
+  for (const key of keys) {
+    for (const tag of NEXT_TAGS_FOR_KEY[key] ?? []) tags.add(tag);
+  }
+  if (tags.size === 0) return;
+
+  try {
+    const { revalidateTag } = await import("next/cache");
+    // Next 16 requires a cacheLife profile as the second arg. "max"
+    // means: invalidate aggressively, the next read recomputes.
+    for (const tag of tags) revalidateTag(tag, "max");
+  } catch {
+    /* next/cache unavailable in some runtime contexts (tests, scripts) */
+  }
+}
