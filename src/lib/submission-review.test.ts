@@ -5,7 +5,10 @@ import sharp from "sharp";
 
 import { validatePolicyResponse } from "@/lib/submission-review";
 import { decideAutomatedReview } from "@/lib/submission-review-decision";
-import { policyReviewImageDataUrl } from "@/lib/submission-review-image";
+import {
+  policyReviewImageDataUrl,
+  preparePolicyReviewImage,
+} from "@/lib/submission-review-image";
 import {
   buildPolicyPrompt,
   REVIEW_POLICY_CATEGORIES,
@@ -408,7 +411,7 @@ describe("submission policy contact sheet", () => {
     await expect(policyReviewImageDataUrl(sprite)).resolves.toBeNull();
   });
 
-  it("rejects non-ideal spritesheet dimensions instead of sampling shifted pixels", async () => {
+  it("holds non-ideal spritesheet dimensions with a specific OCR reason", async () => {
     const sprite = await sharp({
       create: {
         width: 2048,
@@ -420,10 +423,13 @@ describe("submission policy contact sheet", () => {
       .png()
       .toBuffer();
 
-    await expect(policyReviewImageDataUrl(sprite)).resolves.toBeNull();
+    await expect(preparePolicyReviewImage(sprite)).resolves.toEqual({
+      ok: false,
+      reason: "Spritesheet must be 1536x1872 for policy OCR review.",
+    });
   });
 
-  it("rejects contact sheets that exceed the model payload budget", async () => {
+  it("holds contact sheets that exceed the model payload budget with a specific reason", async () => {
     const width = 8 * 192;
     const height = 9 * 208;
     const sprite = await sharp(randomBytes(width * height * 3), {
@@ -432,6 +438,9 @@ describe("submission policy contact sheet", () => {
       .png()
       .toBuffer();
 
-    await expect(policyReviewImageDataUrl(sprite)).resolves.toBeNull();
+    await expect(preparePolicyReviewImage(sprite)).resolves.toEqual({
+      ok: false,
+      reason: "Policy review contact sheet exceeds model payload budget.",
+    });
   });
 });

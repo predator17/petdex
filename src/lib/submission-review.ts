@@ -13,7 +13,7 @@ import {
   PETDEX_EMBEDDING_MODEL,
 } from "@/lib/embeddings";
 import { decideAutomatedReview } from "@/lib/submission-review-decision";
-import { policyReviewImageDataUrl } from "@/lib/submission-review-image";
+import { preparePolicyReviewImage } from "@/lib/submission-review-image";
 import {
   buildPolicyPrompt,
   REVIEW_POLICY_CATEGORIES,
@@ -410,12 +410,12 @@ async function analyzePolicy(
     };
   }
 
-  const imageUrl = await policyReviewImageDataUrl(assets.spriteBuffer);
-  if (!imageUrl) {
+  const image = await preparePolicyReviewImage(assets.spriteBuffer);
+  if (!image.ok) {
     return {
       decision: "hold",
       confidence: 0,
-      reasons: ["Sprite frames could not be prepared for policy review."],
+      reasons: [image.reason],
       flags: [],
     };
   }
@@ -429,7 +429,7 @@ async function analyzePolicy(
           role: "user",
           content: [
             { type: "text", text: buildPolicyUserPrompt(row, assets.petJson) },
-            { type: "image", image: imageUrl },
+            { type: "image", image: image.dataUrl },
           ],
         },
       ],
