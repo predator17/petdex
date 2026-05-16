@@ -211,6 +211,14 @@ describe("submission policy prompt", () => {
     expect(prompt).toContain("visualSignals");
   });
 
+  it("supports text-only moderation without visual OCR instructions", () => {
+    const prompt = buildPolicyPrompt({ imageReview: false });
+    expect(prompt).toContain("No image is attached");
+    expect(prompt).toContain("submitted text diff");
+    expect(prompt).not.toContain("Perform OCR");
+    expect(prompt).not.toContain("sampled animation frames");
+  });
+
   it("covers legal and cultural visual risk categories", () => {
     const ids = REVIEW_POLICY_CATEGORIES.map((category) => category.id);
     expect(ids).toContain("portrait_likeness_rights");

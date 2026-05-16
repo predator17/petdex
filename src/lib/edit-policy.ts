@@ -79,7 +79,7 @@ async function runAiModeration(diffText: string): Promise<boolean> {
   const { buildPolicyPrompt } = await import("@/lib/submission-review-policy");
   const { generateText } = await import("ai");
 
-  const systemPrompt = buildPolicyPrompt();
+  const systemPrompt = buildPolicyPrompt({ imageReview: false });
   const userPrompt = [
     "Review the following pending text diff for a user-submitted pet entry.",
     "The diff shows what the owner wants to change.",

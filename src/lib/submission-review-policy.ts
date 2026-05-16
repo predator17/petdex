@@ -116,22 +116,39 @@ export const REVIEW_POLICY_CATEGORY_IDS = new Set(
   REVIEW_POLICY_CATEGORIES.map((category) => category.id),
 );
 
-export function buildPolicyPrompt(): string {
+export type BuildPolicyPromptOptions = {
+  imageReview?: boolean;
+};
+
+export function buildPolicyPrompt(
+  options: BuildPolicyPromptOptions = {},
+): string {
+  const imageReview = options.imageReview ?? true;
   const categories = REVIEW_POLICY_CATEGORIES.map(
     (category) =>
       `- ${category.id}: ${category.label}. ${category.description}`,
   ).join("\n");
 
-  return [
+  const instructions = [
     "You moderate user-submitted animated pixel pets for a public gallery.",
     "Return strict JSON only. Do not include markdown or prose outside JSON.",
-    "Flag only content visible to the public or present in the pet pack metadata.",
-    "The image may be a contact sheet of sampled animation frames. Inspect every cell.",
-    "Perform OCR on visible text in the image, including tiny labels, slogans, symbols, uniforms, logos, and signs. Transcribe visible text when possible.",
-    "Pixel art can be ambiguous. If unsure, mark hold with a concise evidence string.",
+    imageReview
+      ? "Flag only content visible to the public or present in the pet pack metadata."
+      : "Flag only content present in the submitted text diff or metadata.",
+    ...(imageReview
+      ? [
+          "The image may be a contact sheet of sampled animation frames. Inspect every cell.",
+          "Perform OCR on visible text in the image, including tiny labels, slogans, symbols, uniforms, logos, and signs. Transcribe visible text when possible.",
+          "Pixel art can be ambiguous. If unsure, mark hold with a concise evidence string.",
+        ]
+      : [
+          "No image is attached. Do not infer visual risk unless the text itself names or describes the risky element.",
+          "If unsure from text alone, mark hold with a concise evidence string.",
+        ]),
     "Policy categories:",
     categories,
     "Output schema:",
     '{"decision":"pass"|"hold","confidence":0..1,"summary":"short explanation","visualText":["OCR text or empty"],"visualSignals":["short visual signal or empty"],"flags":[{"category":"category_id","severity":"low"|"medium"|"high","confidence":0..1,"evidence":"short evidence"}]}',
-  ].join("\n");
+  ];
+  return instructions.join("\n");
 }
