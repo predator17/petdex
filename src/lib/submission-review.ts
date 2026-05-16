@@ -43,6 +43,8 @@ const FRAME_H = 208;
 const REVIEW_MODEL = "openai/gpt-5-mini";
 const VISUAL_MATCH_CHUNK_SIZE = 250;
 const VISUAL_MATCH_SCAN_LIMIT = 2000;
+const REVIEW_FETCH_TIMEOUT_MS = 10_000;
+const POLICY_MODEL_TIMEOUT_MS = 15_000;
 
 type DbModule = typeof import("@/lib/db/client");
 
@@ -433,6 +435,7 @@ async function analyzePolicy(
           ],
         },
       ],
+      abortSignal: AbortSignal.timeout(POLICY_MODEL_TIMEOUT_MS),
     });
     return validatePolicyResponse(result.text);
   } catch (err) {
@@ -845,7 +848,9 @@ async function fetchAllowedBuffer(
     return { ok: false, reason: `${label} URL is not on the asset allowlist.` };
   }
   try {
-    const res = await fetch(url);
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(REVIEW_FETCH_TIMEOUT_MS),
+    });
     if (!res.ok) {
       return {
         ok: false,
