@@ -882,7 +882,7 @@ async function fetchAllowedBuffer(
 
 export function validatePolicyResponse(raw: string): ReviewChecks["policy"] {
   try {
-    const parsed = JSON.parse(raw) as {
+    const parsed = parsePolicyJson(raw) as {
       decision?: unknown;
       confidence?: unknown;
       summary?: unknown;
@@ -943,6 +943,17 @@ export function validatePolicyResponse(raw: string): ReviewChecks["policy"] {
       reasons: ["Policy classifier returned invalid JSON."],
       flags: [],
     };
+  }
+}
+
+function parsePolicyJson(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start === -1 || end === -1 || end <= start) throw new Error("no JSON");
+    return JSON.parse(raw.slice(start, end + 1));
   }
 }
 

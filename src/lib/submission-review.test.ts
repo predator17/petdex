@@ -293,6 +293,28 @@ describe("submission policy prompt", () => {
 });
 
 describe("submission policy response", () => {
+  it("accepts a valid policy JSON object wrapped in model prose", () => {
+    const result = validatePolicyResponse(
+      [
+        "Here is the review:",
+        JSON.stringify({
+          decision: "pass",
+          confidence: 0.93,
+          flags: [],
+          visualText: [],
+          visualSignals: [],
+        }),
+      ].join("\n"),
+    );
+
+    expect(result).toMatchObject({
+      decision: "pass",
+      confidence: 0.93,
+      reasons: [],
+      flags: [],
+    });
+  });
+
   it("normalizes OCR evidence without leaking malformed model values", () => {
     const result = validatePolicyResponse(
       JSON.stringify({
