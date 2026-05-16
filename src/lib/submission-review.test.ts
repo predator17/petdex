@@ -283,6 +283,28 @@ describe("submission policy response", () => {
     ]);
   });
 
+  it("holds unknown policy categories instead of assuming they are safe", () => {
+    const result = validatePolicyResponse(
+      JSON.stringify({
+        decision: "pass",
+        confidence: 0.97,
+        flags: [
+          {
+            category: "new_policy_risk",
+            severity: "medium",
+            confidence: 0.91,
+            evidence: "model detected a risk category the app does not know",
+          },
+        ],
+      }),
+    );
+
+    expect(result.decision).toBe("hold");
+    expect(result.reasons).toEqual([
+      "new_policy_risk: model detected a risk category the app does not know",
+    ]);
+  });
+
   it("holds non-array policy flags instead of treating them as absent", () => {
     const result = validatePolicyResponse(
       JSON.stringify({
