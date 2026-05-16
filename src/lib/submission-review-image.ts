@@ -1,11 +1,13 @@
 import sharp from "sharp";
 
+import { petStates } from "@/lib/pet-states";
+
 const SPRITESHEET_COLUMNS = 8;
 const SPRITESHEET_ROWS = 9;
-const POLICY_SAMPLE_COLUMNS = SPRITESHEET_COLUMNS;
-const POLICY_SAMPLE_MAX_ROWS = 9;
 const POLICY_CELL_W = 192;
 const POLICY_CELL_H = 208;
+const EXPECTED_SPRITESHEET_W = SPRITESHEET_COLUMNS * POLICY_CELL_W;
+const EXPECTED_SPRITESHEET_H = SPRITESHEET_ROWS * POLICY_CELL_H;
 const POLICY_BACKGROUND = { r: 120, g: 120, b: 120 };
 const MAX_POLICY_SOURCE_DIMENSION = 4096;
 const MAX_POLICY_SOURCE_PIXELS = 16_777_216;
@@ -25,36 +27,29 @@ export async function policyReviewImageDataUrl(
       return null;
     }
 
-    const sourceFrameW = Math.max(
-      1,
-      Math.floor(metadata.width / SPRITESHEET_COLUMNS),
-    );
-    const sourceFrameH = Math.max(
-      1,
-      Math.floor(metadata.height / SPRITESHEET_ROWS),
-    );
-    const rows = Math.max(
-      1,
-      Math.min(POLICY_SAMPLE_MAX_ROWS, SPRITESHEET_ROWS),
-    );
-    const columns = Math.max(1, SPRITESHEET_COLUMNS);
-    const sampledColumns = sampleFrameColumns(columns, POLICY_SAMPLE_COLUMNS);
+    if (
+      metadata.width !== EXPECTED_SPRITESHEET_W ||
+      metadata.height !== EXPECTED_SPRITESHEET_H
+    ) {
+      return null;
+    }
+
+    const source = await sharp(spriteBuffer).ensureAlpha().raw().toBuffer();
     const extracted: sharp.OverlayOptions[] = [];
-    for (let row = 0; row < rows; row++) {
-      for (const [columnIndex, column] of sampledColumns.entries()) {
-        const cell = await sharp(spriteBuffer)
-          .ensureAlpha()
+    for (const state of petStates) {
+      for (let column = 0; column < state.frames; column++) {
+        const cell = await sharp(source, {
+          raw: {
+            width: EXPECTED_SPRITESHEET_W,
+            height: EXPECTED_SPRITESHEET_H,
+            channels: 4,
+          },
+        })
           .extract({
-            left: Math.min(column * sourceFrameW, metadata.width - 1),
-            top: Math.min(row * sourceFrameH, metadata.height - 1),
-            width: Math.min(
-              sourceFrameW,
-              metadata.width - column * sourceFrameW,
-            ),
-            height: Math.min(
-              sourceFrameH,
-              metadata.height - row * sourceFrameH,
-            ),
+            left: column * POLICY_CELL_W,
+            top: state.row * POLICY_CELL_H,
+            width: POLICY_CELL_W,
+            height: POLICY_CELL_H,
           })
           .resize({
             width: POLICY_CELL_W,
@@ -77,15 +72,15 @@ export async function policyReviewImageDataUrl(
             .composite([{ input: cell }])
             .png()
             .toBuffer(),
-          left: columnIndex * POLICY_CELL_W,
-          top: row * POLICY_CELL_H,
+          left: column * POLICY_CELL_W,
+          top: state.row * POLICY_CELL_H,
         });
       }
     }
     const sheet = await sharp({
       create: {
-        width: sampledColumns.length * POLICY_CELL_W,
-        height: rows * POLICY_CELL_H,
+        width: EXPECTED_SPRITESHEET_W,
+        height: EXPECTED_SPRITESHEET_H,
         channels: 4,
         background: { ...POLICY_BACKGROUND, alpha: 1 },
       },
@@ -99,14 +94,4 @@ export async function policyReviewImageDataUrl(
   } catch {
     return null;
   }
-}
-
-function sampleFrameColumns(columns: number, count: number): number[] {
-  if (columns <= count) {
-    return Array.from({ length: columns }, (_, index) => index);
-  }
-  return [...new Set([0, Math.floor((columns - 1) / 2), columns - 1])].slice(
-    0,
-    count,
-  );
 }

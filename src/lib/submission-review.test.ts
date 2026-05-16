@@ -326,15 +326,45 @@ describe("submission policy response", () => {
 });
 
 describe("submission policy contact sheet", () => {
-  it("includes every sprite column on a neutral background", async () => {
+  it("includes visible sprite frames on a neutral background", async () => {
     const sprite = await sharp({
       create: {
-        width: 80,
-        height: 90,
+        width: 8 * 192,
+        height: 9 * 208,
         channels: 4,
         background: { r: 0, g: 0, b: 0, alpha: 0 },
       },
     })
+      .composite([
+        {
+          input: await sharp({
+            create: {
+              width: 192,
+              height: 208,
+              channels: 4,
+              background: { r: 210, g: 20, b: 30, alpha: 1 },
+            },
+          })
+            .png()
+            .toBuffer(),
+          left: 5 * 192,
+          top: 0,
+        },
+        {
+          input: await sharp({
+            create: {
+              width: 192,
+              height: 208,
+              channels: 4,
+              background: { r: 20, g: 30, b: 220, alpha: 1 },
+            },
+          })
+            .png()
+            .toBuffer(),
+          left: 7 * 192,
+          top: 0,
+        },
+      ])
       .png()
       .toBuffer();
 
@@ -351,6 +381,16 @@ describe("submission policy contact sheet", () => {
       .raw()
       .toBuffer({ resolveWithObject: true });
     expect(Array.from(data.slice(0, 4))).toEqual([120, 120, 120, 255]);
+
+    const visibleOffset = (104 * 8 * 192 + 5 * 192 + 96) * 4;
+    expect(Array.from(data.slice(visibleOffset, visibleOffset + 4))).toEqual([
+      210, 20, 30, 255,
+    ]);
+
+    const unusedOffset = (104 * 8 * 192 + 7 * 192 + 96) * 4;
+    expect(Array.from(data.slice(unusedOffset, unusedOffset + 4))).toEqual([
+      120, 120, 120, 255,
+    ]);
   });
 
   it("rejects oversized sources before extracting review frames", async () => {
@@ -368,13 +408,28 @@ describe("submission policy contact sheet", () => {
     await expect(policyReviewImageDataUrl(sprite)).resolves.toBeNull();
   });
 
+  it("rejects non-ideal spritesheet dimensions instead of sampling shifted pixels", async () => {
+    const sprite = await sharp({
+      create: {
+        width: 2048,
+        height: 2048,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    })
+      .png()
+      .toBuffer();
+
+    await expect(policyReviewImageDataUrl(sprite)).resolves.toBeNull();
+  });
+
   it("rejects contact sheets that exceed the model payload budget", async () => {
-    const width = 512;
-    const height = 512;
+    const width = 8 * 192;
+    const height = 9 * 208;
     const sprite = await sharp(randomBytes(width * height * 3), {
       raw: { width, height, channels: 3 },
     })
-      .webp({ quality: 60 })
+      .png()
       .toBuffer();
 
     await expect(policyReviewImageDataUrl(sprite)).resolves.toBeNull();
