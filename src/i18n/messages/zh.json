@@ -1885,7 +1885,9 @@
     "descriptionPlaceholder": "描述",
     "editAria": "编辑宠物",
     "evidenceAssets": "素材",
-    "evidencePolicy": "政策"
+    "evidencePolicy": "政策",
+    "evidenceVisualText": "图中文字",
+    "evidenceVisualSignals": "视觉信号"
   },
   "sticker": {
     "ctaWeChat": "保存为微信表情",

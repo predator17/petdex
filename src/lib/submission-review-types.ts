@@ -43,6 +43,8 @@ export type ReviewChecks = {
     confidence: number;
     reasons: string[];
     flags: PolicyFlag[];
+    visualText?: string[];
+    visualSignals?: string[];
   };
   duplicates: {
     decision: ReviewCheckDecision;

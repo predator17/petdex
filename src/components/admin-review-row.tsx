@@ -613,6 +613,18 @@ function AutomationEvidence({ review }: { review: SubmissionReview | null }) {
             items={checks.policy.reasons}
           />
         ) : null}
+        {checks.policy?.visualText?.length ? (
+          <EvidenceGroup
+            title={t("evidenceVisualText")}
+            items={checks.policy.visualText}
+          />
+        ) : null}
+        {checks.policy?.visualSignals?.length ? (
+          <EvidenceGroup
+            title={t("evidenceVisualSignals")}
+            items={checks.policy.visualSignals}
+          />
+        ) : null}
         {duplicateMatches.length > 0 ? (
           <DuplicateEvidenceGroup matches={duplicateMatches} />
         ) : null}

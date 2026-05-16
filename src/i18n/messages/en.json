@@ -1648,7 +1648,9 @@
     "descriptionPlaceholder": "Description",
     "editAria": "Edit pet",
     "evidenceAssets": "Assets",
-    "evidencePolicy": "Policy"
+    "evidencePolicy": "Policy",
+    "evidenceVisualText": "Visual text",
+    "evidenceVisualSignals": "Visual signals"
   },
   "sticker": {
     "ctaWeChat": "Save for WeChat",

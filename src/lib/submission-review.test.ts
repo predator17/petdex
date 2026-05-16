@@ -1,6 +1,15 @@
 import { describe, expect, it } from "bun:test";
+import { randomBytes } from "node:crypto";
 
+import sharp from "sharp";
+
+import { validatePolicyResponse } from "@/lib/submission-review";
 import { decideAutomatedReview } from "@/lib/submission-review-decision";
+import { policyReviewImageDataUrl } from "@/lib/submission-review-image";
+import {
+  buildPolicyPrompt,
+  REVIEW_POLICY_CATEGORIES,
+} from "@/lib/submission-review-policy";
 import type { ReviewChecks } from "@/lib/submission-review-types";
 
 function cleanChecks(): ReviewChecks {
@@ -159,5 +168,193 @@ describe("decideAutomatedReview", () => {
     const result = decideAutomatedReview(checks);
     expect(result.decision).toBe("hold");
     expect(result.reasonCode).toBe("policy_review_hold");
+  });
+
+  it("holds visual OCR and likeness policy risks for manual review", () => {
+    const checks = cleanChecks();
+    checks.policy = {
+      decision: "hold",
+      confidence: 0.86,
+      reasons: ["embedded_text_sensitive_symbol: visible slogan in sprite"],
+      visualText: ["visible slogan"],
+      visualSignals: ["uniform logo"],
+      flags: [
+        {
+          category: "embedded_text_sensitive_symbol",
+          severity: "medium",
+          confidence: 0.86,
+          evidence: "visible slogan in sprite",
+        },
+        {
+          category: "portrait_likeness_rights",
+          severity: "medium",
+          confidence: 0.63,
+          evidence: "resembles a contemporary celebrity",
+        },
+      ],
+    };
+    const result = decideAutomatedReview(checks);
+    expect(result.decision).toBe("hold");
+    expect(result.reasonCode).toBe("policy_review_hold");
+  });
+});
+
+describe("submission policy prompt", () => {
+  it("requires OCR review across sampled animation frames", () => {
+    const prompt = buildPolicyPrompt();
+    expect(prompt).toContain("Perform OCR");
+    expect(prompt).toContain("sampled animation frames");
+    expect(prompt).toContain("visualText");
+    expect(prompt).toContain("visualSignals");
+  });
+
+  it("covers legal and cultural visual risk categories", () => {
+    const ids = REVIEW_POLICY_CATEGORIES.map((category) => category.id);
+    expect(ids).toContain("portrait_likeness_rights");
+    expect(ids).toContain("historical_religious_figure");
+    expect(ids).toContain("embedded_text_sensitive_symbol");
+  });
+});
+
+describe("submission policy response", () => {
+  it("normalizes OCR evidence without leaking malformed model values", () => {
+    const result = validatePolicyResponse(
+      JSON.stringify({
+        decision: "hold",
+        confidence: 0.7,
+        summary: "manual review",
+        visualText: ["  KIMI  ", { text: "bad" }, "", "x".repeat(140)],
+        visualSignals: ["  badge  ", 123, null, "y".repeat(180)],
+        flags: [
+          {
+            category: "embedded_text_sensitive_symbol",
+            severity: "medium",
+            confidence: 0.7,
+            evidence: "visible slogan",
+          },
+        ],
+      }),
+    );
+
+    expect(result.visualText).toEqual(["KIMI", "x".repeat(120)]);
+    expect(result.visualSignals).toEqual(["badge", "y".repeat(160)]);
+    expect(result.reasons).toEqual([
+      "embedded_text_sensitive_symbol: visible slogan",
+    ]);
+  });
+
+  it("holds malformed policy flags instead of silently dropping risk", () => {
+    const result = validatePolicyResponse(
+      JSON.stringify({
+        decision: "pass",
+        confidence: 0.92,
+        flags: [
+          {
+            category: "embedded_text_sensitive_symbol",
+            confidence: 0.9,
+          },
+        ],
+      }),
+    );
+
+    expect(result.decision).toBe("hold");
+    expect(result.reasons).toEqual([
+      "Policy classifier returned malformed flag evidence.",
+    ]);
+  });
+
+  it("holds flags with missing confidence instead of defaulting to zero", () => {
+    const result = validatePolicyResponse(
+      JSON.stringify({
+        decision: "pass",
+        confidence: 0.96,
+        flags: [
+          {
+            category: "sexual_minors",
+            evidence: "childlike sexualized text",
+          },
+        ],
+      }),
+    );
+
+    expect(result.decision).toBe("hold");
+    expect(result.reasons).toEqual([
+      "Policy classifier returned malformed flag evidence.",
+    ]);
+  });
+
+  it("holds non-array policy flags instead of treating them as absent", () => {
+    const result = validatePolicyResponse(
+      JSON.stringify({
+        decision: "pass",
+        confidence: 0.99,
+        flags: {
+          category: "sexual_minors",
+          confidence: 0.99,
+          evidence: "risky visible content",
+        },
+      }),
+    );
+
+    expect(result.decision).toBe("hold");
+    expect(result.reasons).toEqual([
+      "Policy classifier returned malformed flag evidence.",
+    ]);
+  });
+});
+
+describe("submission policy contact sheet", () => {
+  it("includes every sprite column on a neutral background", async () => {
+    const sprite = await sharp({
+      create: {
+        width: 80,
+        height: 90,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    })
+      .png()
+      .toBuffer();
+
+    const dataUrl = await policyReviewImageDataUrl(sprite);
+    expect(dataUrl?.startsWith("data:image/png;base64,")).toBe(true);
+
+    const image = Buffer.from(dataUrl?.split(",")[1] ?? "", "base64");
+    const metadata = await sharp(image).metadata();
+    expect(metadata.width).toBe(8 * 192);
+    expect(metadata.height).toBe(9 * 208);
+
+    const { data } = await sharp(image)
+      .ensureAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    expect(Array.from(data.slice(0, 4))).toEqual([120, 120, 120, 255]);
+  });
+
+  it("rejects oversized sources before extracting review frames", async () => {
+    const sprite = await sharp({
+      create: {
+        width: 4097,
+        height: 90,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    })
+      .png()
+      .toBuffer();
+
+    await expect(policyReviewImageDataUrl(sprite)).resolves.toBeNull();
+  });
+
+  it("rejects contact sheets that exceed the model payload budget", async () => {
+    const width = 512;
+    const height = 512;
+    const sprite = await sharp(randomBytes(width * height * 3), {
+      raw: { width, height, channels: 3 },
+    })
+      .webp({ quality: 60 })
+      .toBuffer();
+
+    await expect(policyReviewImageDataUrl(sprite)).resolves.toBeNull();
   });
 });

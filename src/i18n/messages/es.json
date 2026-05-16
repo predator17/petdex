@@ -1648,7 +1648,9 @@
     "descriptionPlaceholder": "Descripción",
     "editAria": "Editar mascota",
     "evidenceAssets": "Archivos",
-    "evidencePolicy": "Política"
+    "evidencePolicy": "Política",
+    "evidenceVisualText": "Texto visual",
+    "evidenceVisualSignals": "Señales visuales"
   },
   "sticker": {
     "ctaWeChat": "Guardar para WeChat",

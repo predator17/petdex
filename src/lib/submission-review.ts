@@ -13,6 +13,7 @@ import {
   PETDEX_EMBEDDING_MODEL,
 } from "@/lib/embeddings";
 import { decideAutomatedReview } from "@/lib/submission-review-decision";
+import { policyReviewImageDataUrl } from "@/lib/submission-review-image";
 import {
   buildPolicyPrompt,
   REVIEW_POLICY_CATEGORIES,
@@ -409,12 +410,12 @@ async function analyzePolicy(
     };
   }
 
-  const imageUrl = await firstFrameDataUrl(assets.spriteBuffer);
+  const imageUrl = await policyReviewImageDataUrl(assets.spriteBuffer);
   if (!imageUrl) {
     return {
       decision: "hold",
       confidence: 0,
-      reasons: ["Sprite image could not be prepared for policy review."],
+      reasons: ["Sprite frames could not be prepared for policy review."],
       flags: [],
     };
   }
@@ -871,24 +872,50 @@ async function fetchAllowedBuffer(
   }
 }
 
-function validatePolicyResponse(raw: string): ReviewChecks["policy"] {
+export function validatePolicyResponse(raw: string): ReviewChecks["policy"] {
   try {
     const parsed = JSON.parse(raw) as {
       decision?: unknown;
       confidence?: unknown;
       summary?: unknown;
       flags?: unknown;
+      visualText?: unknown;
+      visualSignals?: unknown;
     };
     const flags = normalizePolicyFlags(parsed.flags);
     const holdFlags = flags.filter(shouldHoldForPolicyFlag);
+    const malformedFlagCount =
+      parsed.flags === undefined
+        ? 0
+        : Array.isArray(parsed.flags)
+          ? Math.max(0, parsed.flags.length - flags.length)
+          : 1;
     const confidence = clamp01(Number(parsed.confidence ?? 0));
     const summary =
       typeof parsed.summary === "string" ? parsed.summary.trim() : "";
-    const reasons = holdFlags.map((flag) =>
-      `${flag.category}: ${flag.evidence}`.slice(0, 220),
-    );
-    if (parsed.decision === "pass" && holdFlags.length === 0) {
-      return { decision: "pass", confidence, reasons: [], flags };
+    const visualText = normalizeStringList(parsed.visualText, 12, 120);
+    const visualSignals = normalizeStringList(parsed.visualSignals, 12, 160);
+    const reasons = [
+      ...holdFlags.map((flag) =>
+        `${flag.category}: ${flag.evidence}`.slice(0, 220),
+      ),
+      ...(malformedFlagCount > 0
+        ? ["Policy classifier returned malformed flag evidence."]
+        : []),
+    ];
+    if (
+      parsed.decision === "pass" &&
+      holdFlags.length === 0 &&
+      malformedFlagCount === 0
+    ) {
+      return {
+        decision: "pass",
+        confidence,
+        reasons: [],
+        flags,
+        visualText,
+        visualSignals,
+      };
     }
     return {
       decision: "hold",
@@ -898,6 +925,8 @@ function validatePolicyResponse(raw: string): ReviewChecks["policy"] {
           ? reasons
           : [summary || "Policy model requested review."],
       flags,
+      visualText,
+      visualSignals,
     };
   } catch {
     return {
@@ -909,24 +938,44 @@ function validatePolicyResponse(raw: string): ReviewChecks["policy"] {
   }
 }
 
+function normalizeStringList(
+  value: unknown,
+  maxItems: number,
+  maxLength: number,
+): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter(Boolean)
+    .map((item) => item.slice(0, maxLength))
+    .slice(0, maxItems);
+}
+
 function normalizePolicyFlags(flags: unknown): PolicyFlag[] {
   if (!Array.isArray(flags)) return [];
   return flags
     .map((flag) => {
       const item = flag as Record<string, unknown>;
-      const category = String(item.category ?? "unknown").trim();
+      const category =
+        typeof item.category === "string" ? item.category.trim() : "";
+      const evidence =
+        typeof item.evidence === "string" ? item.evidence.trim() : "";
+      const confidence =
+        typeof item.confidence === "number" && Number.isFinite(item.confidence)
+          ? clamp01(item.confidence)
+          : null;
+      if (!category || !evidence || confidence === null) return null;
       const severity = String(item.severity ?? "low").trim();
       return {
         category,
         severity:
           severity === "medium" || severity === "high" ? severity : "low",
-        confidence: clamp01(Number(item.confidence ?? 0)),
-        evidence: String(item.evidence ?? "")
-          .trim()
-          .slice(0, 240),
+        confidence,
+        evidence: evidence.slice(0, 240),
       } satisfies PolicyFlag;
     })
-    .filter((flag) => flag.category && flag.evidence);
+    .filter((flag): flag is PolicyFlag => flag !== null);
 }
 
 function shouldHoldForPolicyFlag(flag: PolicyFlag): boolean {
@@ -937,21 +986,10 @@ function shouldHoldForPolicyFlag(flag: PolicyFlag): boolean {
   return flag.confidence >= category.holdAboveConfidence;
 }
 
-async function firstFrameDataUrl(spriteBuffer: Buffer): Promise<string | null> {
-  try {
-    const frame = await sharp(spriteBuffer)
-      .extract({ left: 0, top: 0, width: 192, height: 208 })
-      .png()
-      .toBuffer();
-    return `data:image/png;base64,${frame.toString("base64")}`;
-  } catch {
-    return null;
-  }
-}
-
 function buildPolicyUserPrompt(row: SubmittedPet, petJson: unknown): string {
   return [
     "Review this submitted pet pack.",
+    "The attached image is a contact sheet sampled from multiple animation states and frames. Check the visible art and OCR any embedded text.",
     `Display name: ${row.displayName}`,
     `Description: ${row.description}`,
     `Kind: ${row.kind}`,
