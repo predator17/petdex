@@ -45,6 +45,9 @@ const VISUAL_MATCH_CHUNK_SIZE = 250;
 const VISUAL_MATCH_SCAN_LIMIT = 2000;
 const REVIEW_FETCH_TIMEOUT_MS = 10_000;
 const POLICY_MODEL_TIMEOUT_MS = 15_000;
+const POLICY_PET_JSON_TEXT_LIMIT = 240;
+const POLICY_PET_JSON_LIST_LIMIT = 16;
+const POLICY_PET_JSON_STATE_LIMIT = 12;
 
 type DbModule = typeof import("@/lib/db/client");
 
@@ -991,6 +994,103 @@ function shouldHoldForPolicyFlag(flag: PolicyFlag): boolean {
   return flag.confidence >= category.holdAboveConfidence;
 }
 
+export function policyPetJsonExcerpt(
+  petJson: unknown,
+): Record<string, unknown> {
+  if (!isPlainRecord(petJson)) return {};
+
+  const excerpt: Record<string, unknown> = {};
+  addTextField(excerpt, petJson, "name");
+  addTextField(excerpt, petJson, "displayName");
+  addTextField(excerpt, petJson, "description");
+  addTextField(excerpt, petJson, "kind");
+  addNumberField(excerpt, petJson, "frameWidth");
+  addNumberField(excerpt, petJson, "frameHeight");
+
+  const tags = normalizeStringList(
+    petJson.tags,
+    POLICY_PET_JSON_LIST_LIMIT,
+    POLICY_PET_JSON_TEXT_LIMIT,
+  );
+  if (tags.length > 0) excerpt.tags = tags;
+
+  const vibes = normalizeStringList(
+    petJson.vibes,
+    POLICY_PET_JSON_LIST_LIMIT,
+    POLICY_PET_JSON_TEXT_LIMIT,
+  );
+  if (vibes.length > 0) excerpt.vibes = vibes;
+
+  const states = summarizePetJsonStates(petJson.states);
+  if (Object.keys(states).length > 0) excerpt.states = states;
+
+  const animations = summarizePetJsonStates(petJson.animations);
+  if (Object.keys(animations).length > 0) excerpt.animations = animations;
+
+  return excerpt;
+}
+
+function addTextField(
+  target: Record<string, unknown>,
+  source: Record<string, unknown>,
+  key: string,
+): void {
+  const value = source[key];
+  if (typeof value !== "string") return;
+  const text = value.trim().slice(0, POLICY_PET_JSON_TEXT_LIMIT);
+  if (text) target[key] = text;
+}
+
+function addNumberField(
+  target: Record<string, unknown>,
+  source: Record<string, unknown>,
+  key: string,
+): void {
+  const value = source[key];
+  if (typeof value === "number" && Number.isFinite(value)) {
+    target[key] = value;
+  }
+}
+
+function summarizePetJsonStates(value: unknown): Record<string, unknown> {
+  if (!isPlainRecord(value)) return {};
+
+  return Object.fromEntries(
+    Object.entries(value)
+      .slice(0, POLICY_PET_JSON_STATE_LIMIT)
+      .map(([state, metadata]) => [
+        state.slice(0, 48),
+        summarizeState(metadata),
+      ])
+      .filter((entry): entry is [string, Record<string, unknown>] => {
+        const [, metadata] = entry;
+        return Object.keys(metadata).length > 0;
+      }),
+  );
+}
+
+function summarizeState(value: unknown): Record<string, unknown> {
+  if (!isPlainRecord(value)) return {};
+
+  const state: Record<string, unknown> = {};
+  addTextField(state, value, "label");
+  addTextField(state, value, "purpose");
+  addNumberField(state, value, "row");
+  addNumberField(state, value, "frames");
+  addNumberField(state, value, "frameCount");
+  addNumberField(state, value, "durationMs");
+  return state;
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    !Array.isArray(value) &&
+    Object.getPrototypeOf(value) === Object.prototype
+  );
+}
+
 function buildPolicyUserPrompt(row: SubmittedPet, petJson: unknown): string {
   return [
     "Review this submitted pet pack.",
@@ -1002,7 +1102,7 @@ function buildPolicyUserPrompt(row: SubmittedPet, petJson: unknown): string {
     `Vibes: ${JSON.stringify(row.vibes ?? [])}`,
     `Credit name: ${row.creditName ?? ""}`,
     `Credit URL: ${row.creditUrl ?? ""}`,
-    `pet.json excerpt: ${JSON.stringify(petJson).slice(0, 4000)}`,
+    `pet.json excerpt: ${JSON.stringify(policyPetJsonExcerpt(petJson))}`,
   ].join("\n");
 }
 

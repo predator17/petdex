@@ -3,7 +3,10 @@ import { randomBytes } from "node:crypto";
 
 import sharp from "sharp";
 
-import { validatePolicyResponse } from "@/lib/submission-review";
+import {
+  policyPetJsonExcerpt,
+  validatePolicyResponse,
+} from "@/lib/submission-review";
 import { decideAutomatedReview } from "@/lib/submission-review-decision";
 import {
   policyReviewImageDataUrl,
@@ -224,6 +227,68 @@ describe("submission policy prompt", () => {
     expect(ids).toContain("portrait_likeness_rights");
     expect(ids).toContain("historical_religious_figure");
     expect(ids).toContain("embedded_text_sensitive_symbol");
+  });
+
+  it("redacts arbitrary pet.json metadata before policy review", () => {
+    const excerpt = policyPetJsonExcerpt({
+      name: "merchant",
+      displayName: "Merchant Pet",
+      description: "A shopkeeper with readable signage",
+      kind: "cat",
+      tags: ["shop", "pixel", "x".repeat(300)],
+      vibes: ["cozy"],
+      apiKey: "sk_live_secret",
+      notes: "private notes".repeat(100),
+      nested: {
+        token: "secret",
+      },
+      states: {
+        idle: {
+          row: 0,
+          frames: 6,
+          durationMs: 900,
+          purpose: "standing near the shop sign",
+          secret: "do-not-send",
+        },
+      },
+    });
+
+    expect(JSON.stringify(excerpt)).not.toContain("sk_live_secret");
+    expect(JSON.stringify(excerpt)).not.toContain("private notes");
+    expect(JSON.stringify(excerpt)).not.toContain("do-not-send");
+    expect(excerpt).toMatchObject({
+      name: "merchant",
+      displayName: "Merchant Pet",
+      description: "A shopkeeper with readable signage",
+      kind: "cat",
+      tags: ["shop", "pixel", "x".repeat(240)],
+      vibes: ["cozy"],
+      states: {
+        idle: {
+          row: 0,
+          frames: 6,
+          durationMs: 900,
+          purpose: "standing near the shop sign",
+        },
+      },
+    });
+  });
+
+  it("caps pet.json state and list metadata sent to the policy model", () => {
+    const excerpt = policyPetJsonExcerpt({
+      tags: Array.from({ length: 20 }, (_, index) => `tag-${index}`),
+      states: Object.fromEntries(
+        Array.from({ length: 20 }, (_, index) => [
+          `state-${index}`,
+          { row: index, frames: 8 },
+        ]),
+      ),
+    });
+
+    expect(excerpt.tags).toHaveLength(16);
+    expect(Object.keys(excerpt.states as Record<string, unknown>)).toHaveLength(
+      12,
+    );
   });
 });
 
