@@ -310,6 +310,39 @@ fn base64_encode(input: &[u8]) -> String {
     out
 }
 
+// ── Tauri commands — runtime file reads ──────────────────────────────────────
+
+/// Read the sidecar state from ~/.petdex/runtime/state.json.
+///
+/// The sidecar writes this file on every state change (not on a timer), so
+/// reading it directly is both lower-latency and CORS-free compared to
+/// fetching from the sidecar's HTTP server from inside the WebView.
+/// Returns None if the file is absent, unreadable, or not valid JSON.
+#[tauri::command]
+fn read_runtime_state() -> Option<serde_json::Value> {
+    let path = dirs::home_dir()?
+        .join(".petdex")
+        .join("runtime")
+        .join("state.json");
+    let raw = fs::read_to_string(&path).ok()?;
+    serde_json::from_str(&raw).ok()
+}
+
+/// Read the sidecar bubble from ~/.petdex/runtime/bubble.json.
+///
+/// Same rationale as read_runtime_state: file-based reads sidestep
+/// the CORS issue that blocks cross-origin fetch() inside WebView2.
+/// Returns None if the file is absent, unreadable, or not valid JSON.
+#[tauri::command]
+fn read_runtime_bubble() -> Option<serde_json::Value> {
+    let path = dirs::home_dir()?
+        .join(".petdex")
+        .join("runtime")
+        .join("bubble.json");
+    let raw = fs::read_to_string(&path).ok()?;
+    serde_json::from_str(&raw).ok()
+}
+
 // ── Tauri commands — sidecar ──────────────────────────────────────────────────
 
 /// Spawn the sidecar server; kill any stale instance first. Returns the port (default 7777).
@@ -392,6 +425,8 @@ pub fn run() {
             get_pet,
             get_active_pet,
             read_file_as_base64,
+            read_runtime_state,
+            read_runtime_bubble,
             quit_app,
             spawn_sidecar,
             get_sidecar_port,

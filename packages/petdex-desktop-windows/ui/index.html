@@ -129,7 +129,6 @@ const PET_STATES = {
 
 const DEFAULT_STATE = "idle";
 
-let sidecarPort = 0;
 let lastStateCounter = 0;
 let lastBubbleCounter = 0;
 let bubbleTimer = null;
@@ -164,26 +163,30 @@ async function boot() {
   }
 }
 
+// Polling reads runtime files written by the sidecar to ~/.petdex/runtime/.
+// File-based reads are CORS-free: the sidecar's HTTP server does not set
+// CORS headers, so Chromium (WebView2) blocks all cross-origin fetch() from
+// the WebView. Using Tauri invoke() calls instead sidesteps this entirely.
+function startPolling() {
+  setInterval(pollState, 3000);
+  setInterval(pollBubble, 2000);
+}
+
 async function bootSidecar() {
+  // Start polling immediately — file reads work whenever the sidecar has
+  // written its files, even from a previous session that left them on disk.
+  startPolling();
   try {
-    sidecarPort = await invoke("spawn_sidecar");
-    dbg(`${document.getElementById("debug").textContent.split(" ")[0]} :${sidecarPort}`);
-    setInterval(pollState, 3000);
-    setInterval(pollBubble, 2000);
+    await invoke("spawn_sidecar");
   } catch (e) {
-    console.warn("sidecar unavailable:", e);
+    console.warn("sidecar spawn failed:", e);
   }
 }
 
 async function pollState() {
-  if (!sidecarPort) return;
   try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 3000);
-    const r = await fetch(`http://127.0.0.1:${sidecarPort}/state`, { signal: ctrl.signal });
-    clearTimeout(t);
-    if (!r.ok) return;
-    const data = await r.json();
+    const data = await invoke("read_runtime_state");
+    if (!data) return;
     if (data.counter === lastStateCounter) return;
     lastStateCounter = data.counter;
     applyState(data.state ?? DEFAULT_STATE);
@@ -191,15 +194,10 @@ async function pollState() {
 }
 
 async function pollBubble() {
-  if (!sidecarPort) return;
   try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), 3000);
-    const r = await fetch(`http://127.0.0.1:${sidecarPort}/bubble`, { signal: ctrl.signal });
-    clearTimeout(t);
-    if (!r.ok) return;
-    const data = await r.json();
-    if (data.counter === lastBubbleCounter || !data.text) return;
+    const data = await invoke("read_runtime_bubble");
+    if (!data || !data.text) return;
+    if (data.counter === lastBubbleCounter) return;
     lastBubbleCounter = data.counter;
     showBubble(data.text);
   } catch {}

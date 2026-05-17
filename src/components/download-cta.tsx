@@ -13,7 +13,6 @@ import { CommandLine } from "@/components/command-line";
 
 const MACOS_ARM64_URL = "/api/desktop/latest-release?asset=darwin-arm64";
 const MACOS_X64_URL = "/api/desktop/latest-release?asset=darwin-x64";
-const WINDOWS_X64_URL = "/api/desktop/latest-release?asset=win32-x64";
 
 /**
  * The hero-row "Download for macOS" + CLI install CTA, rendered
@@ -21,9 +20,9 @@ const WINDOWS_X64_URL = "/api/desktop/latest-release?asset=win32-x64";
  * dead-ends in a binary the user can't run.
  *
  *   macOS         → primary download button (direct binary)
- *   windows       → primary download button (petdex-desktop-win32-x64.exe)
- *   linux         → disabled "Coming soon" pill + still-works CLI note
- *                   (CLI itself runs on Linux too, even if the GUI binary doesn't)
+ *   linux/win     → disabled "Coming soon" pill + still-works CLI note
+ *                   (CLI itself runs on those platforms too, even if the
+ *                   GUI binary isn't self-contained yet)
  *   ios/ipados    → "macOS-only desktop" coming-soon, no CTA at all
  *   android       → same as iOS
  *   unknown/other → neutral placeholder (SSR + first paint, or a
@@ -125,29 +124,18 @@ function PrimaryButton({
     );
   }
 
-  // Windows — petdex-desktop-win32-x64.exe released via the CI workflow.
-  if (platform === "windows") {
-    return (
-      <a
-        href={WINDOWS_X64_URL}
-        rel="noreferrer"
-        className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-inverse px-6 text-sm font-medium text-on-inverse transition hover:bg-inverse-hover"
-      >
-        {primaryLabel}
-        <ArrowRight className="size-4" />
-      </a>
-    );
-  }
-
-  // Linux — binary not yet available.
-  if (platform === "linux") {
+  // Linux / Windows — binary not yet self-contained (sidecar bundling pending).
+  if (platform === "linux" || platform === "windows") {
     return (
       <span
         aria-disabled="true"
         className="inline-flex h-12 cursor-not-allowed items-center justify-center gap-2 rounded-full border border-border-base bg-surface-muted px-6 text-sm font-medium text-muted-2"
       >
         <Clock className="size-4" />
-        {comingSoonLabel.replace("{os}", "Linux")}
+        {comingSoonLabel.replace(
+          "{os}",
+          platform === "windows" ? "Windows" : "Linux",
+        )}
       </span>
     );
   }
