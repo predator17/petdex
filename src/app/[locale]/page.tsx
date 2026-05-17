@@ -163,7 +163,7 @@ export default async function Home({
             <p className="mt-5 max-w-xl text-balance text-base leading-7 text-muted-1 md:text-lg">
               {t.rich("tagline", {
                 totalPets,
-                brand: () => <strong>Codex</strong>,
+                brand: (chunks) => <strong>{chunks}</strong>,
               })}
             </p>
             <div className="mt-5 flex w-full flex-col items-stretch justify-center gap-2 sm:flex-row sm:items-center">
