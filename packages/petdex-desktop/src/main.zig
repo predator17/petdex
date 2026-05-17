@@ -591,7 +591,11 @@ const html_tail =
     \\        await sleep(MIN_INSTALL_BUBBLE_MS - installElapsed);
     \\      }
     \\      if (r && r.ok) {
-    \\        const issues = (r.issue_note || '');
+    \\        let rep = r.install_report;
+    \\        if (typeof rep === 'string') {
+    \\          try { rep = JSON.parse(rep); } catch (_) { rep = null; }
+    \\        }
+    \\        const issues = (r.issue_note || installReportNote(rep) || '');
     \\        const n = typeof r.installed_count === 'number' ? r.installed_count : slugs.length;
     \\        if (n === 0) {
     \\          await holdLocalBubble(1000, issues + 'No pets installed.');
@@ -1882,6 +1886,22 @@ fn jsonStringArrayLength(json: []const u8, key: []const u8) ?usize {
     return count;
 }
 
+// Counts object elements in a JSON array field (e.g. `"failed":[{"slug":"a"},…]`).
+fn jsonObjectArrayLength(json: []const u8, key: []const u8) ?usize {
+    var key_buf: [48]u8 = undefined;
+    const needle = std.fmt.bufPrint(&key_buf, "\"{s}\":[", .{key}) catch return null;
+    const start = std.mem.indexOf(u8, json, needle) orelse return null;
+    var i = start + needle.len;
+    while (i < json.len and std.ascii.isWhitespace(json[i])) i += 1;
+    if (i >= json.len or json[i] == ']') return 0;
+    var count: usize = 0;
+    while (i < json.len and json[i] != ']') {
+        if (json[i] == '{') count += 1;
+        i += 1;
+    }
+    return count;
+}
+
 fn countRequestedSlugsOnDisk(io: std.Io, roots: []const []u8, slugs: []const []const u8) usize {
     var count: usize = 0;
     for (slugs) |slug| {
@@ -1927,44 +1947,47 @@ fn readOptionalInstallMachineReport(allocator: std.mem.Allocator, io: std.Io, pa
     return owned;
 }
 
-fn resolveInstallOutcome(
+fn resolveInstalledCount(
     report: ?[]const u8,
-    requested_count: usize,
     disk_installed_count: usize,
-) struct { installed: usize, skip: usize } {
-    const installed: usize = blk: {
-        if (report) |r| {
-            if (jsonUintField(r, "installed_count")) |n| break :blk n;
-        }
-        break :blk disk_installed_count;
-    };
-    const skip: usize = blk: {
-        if (report) |r| {
-            if (jsonStringArrayLength(r, "missing")) |m| {
-                if (m > 0) break :blk m;
-            }
-        }
-        if (installed < requested_count) break :blk requested_count - installed;
-        if (disk_installed_count < requested_count) break :blk requested_count - disk_installed_count;
-        break :blk 0;
-    };
-    return .{ .installed = installed, .skip = skip };
+) usize {
+    if (report) |r| {
+        if (jsonUintField(r, "installed_count")) |n| return n;
+    }
+    return disk_installed_count;
 }
 
 fn tryAppendInstallIssueNote(
     buf: *std.ArrayList(u8),
     allocator: std.mem.Allocator,
-    skip: usize,
+    report: ?[]const u8,
+    requested_count: usize,
+    installed: usize,
 ) !void {
-    if (skip == 0) return;
-    var msg_buf: [64]u8 = undefined;
-    const msg = try std.fmt.bufPrint(
-        &msg_buf,
-        "{d} skipped (not found). ",
-        .{skip},
-    );
+    const missing: usize = if (report) |r| jsonStringArrayLength(r, "missing") orelse 0 else 0;
+    const failed: usize = if (report) |r| jsonObjectArrayLength(r, "failed") orelse 0 else 0;
+    const gap: usize = if (installed < requested_count) requested_count - installed else 0;
+    const other: usize = if (gap > missing + failed) gap - missing - failed else 0;
+
+    var msg: std.ArrayList(u8) = .empty;
+    defer msg.deinit(allocator);
+    var part_buf: [64]u8 = undefined;
+    if (missing > 0) {
+        const part = try std.fmt.bufPrint(&part_buf, "{d} skipped (not found). ", .{missing});
+        try msg.appendSlice(allocator, part);
+    }
+    if (failed > 0) {
+        const part = try std.fmt.bufPrint(&part_buf, "{d} failed to download. ", .{failed});
+        try msg.appendSlice(allocator, part);
+    }
+    if (other > 0) {
+        const part = try std.fmt.bufPrint(&part_buf, "{d} not installed. ", .{other});
+        try msg.appendSlice(allocator, part);
+    }
+    if (msg.items.len == 0) return;
+
     try buf.appendSlice(allocator, ",\"issue_note\":\"");
-    try appendJsonEscaped(buf, allocator, msg);
+    try appendJsonEscaped(buf, allocator, msg.items);
     try buf.appendSlice(allocator, "\"");
 }
 
@@ -1980,7 +2003,7 @@ fn formatInstallPetBridgeJson(
     var buf: std.ArrayList(u8) = .empty;
     defer buf.deinit(allocator);
     var num_buf: [24]u8 = undefined;
-    const outcome = resolveInstallOutcome(report, requested_count, disk_installed_count);
+    const installed = resolveInstalledCount(report, disk_installed_count);
     try buf.appendSlice(allocator, "{\"ok\":");
     try buf.appendSlice(allocator, if (ok) "true" else "false");
     if (err_opt) |e| {
@@ -1996,17 +2019,17 @@ fn formatInstallPetBridgeJson(
         try buf.appendSlice(allocator, r);
     }
     if (ok) {
-        const inst_str = try std.fmt.bufPrint(&num_buf, "{d}", .{outcome.installed});
+        const inst_str = try std.fmt.bufPrint(&num_buf, "{d}", .{installed});
         try buf.appendSlice(allocator, ",\"installed_count\":");
         try buf.appendSlice(allocator, inst_str);
     } else if (report) |r| {
-        if (jsonUintField(r, "installed_count")) |installed| {
-            const inst_str = try std.fmt.bufPrint(&num_buf, "{d}", .{installed});
+        if (jsonUintField(r, "installed_count")) |installed_from_report| {
+            const inst_str = try std.fmt.bufPrint(&num_buf, "{d}", .{installed_from_report});
             try buf.appendSlice(allocator, ",\"installed_count\":");
             try buf.appendSlice(allocator, inst_str);
         }
     }
-    try tryAppendInstallIssueNote(&buf, allocator, outcome.skip);
+    try tryAppendInstallIssueNote(&buf, allocator, report, requested_count, installed);
     try buf.appendSlice(allocator, "}");
     if (buf.items.len > output.len) return error.BufferTooSmall;
     @memcpy(output[0..buf.items.len], buf.items);
