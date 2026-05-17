@@ -16,8 +16,10 @@ const MENU_H: u32 = 420;
 const MAX_PET_BYTES: usize = 16 * 1024 * 1024;
 const MAX_ACTIVE_BYTES: usize = 4 * 1024;
 const MAX_SLUG_LEN: usize = 64;
+// Matches web `MAX_SLUGS_IN_COMMAND` — caps deeplink and bridge batch installs.
+const MAX_INSTALL_SLUGS: usize = 24;
 // Room for `slugs=a,b,c` query values (24 slugs × ~65 chars, matches web cap).
-const MAX_SLUGS_QUERY_BYTES: usize = 24 * (MAX_SLUG_LEN + 1);
+const MAX_SLUGS_QUERY_BYTES: usize = MAX_INSTALL_SLUGS * (MAX_SLUG_LEN + 1);
 
 const DeepLink = union(enum) {
     none,
@@ -2287,6 +2289,7 @@ fn parseInstallSlugsFromQuery(allocator: std.mem.Allocator, query: []const u8) !
 }
 
 fn appendInstallSlug(allocator: std.mem.Allocator, slugs: *std.ArrayList([]const u8), slug: []const u8) !void {
+    if (slugs.items.len >= MAX_INSTALL_SLUGS) return;
     if (!isValidSlug(slug)) return;
     for (slugs.items) |existing| {
         if (std.mem.eql(u8, existing, slug)) return;
@@ -3377,4 +3380,23 @@ test "parseDeepLinkFromUrl: rejects path with slash" {
     const dl = try parseDeepLinkFromUrl(a, "petdex://foo/bar");
     defer freeDeepLink(a, dl);
     try std.testing.expect(dl == .none);
+}
+
+test "parseDeepLinkFromUrl: caps batch install at MAX_INSTALL_SLUGS" {
+    const a = std.testing.allocator;
+    var url: std.ArrayList(u8) = .empty;
+    defer url.deinit(a);
+    try url.appendSlice(a, "petdex://install?");
+    var param_buf: [32]u8 = undefined;
+    for (0..30) |i| {
+        if (i > 0) try url.appendSlice(a, "&");
+        const param = try std.fmt.bufPrint(&param_buf, "slug=p{d}", .{i});
+        try url.appendSlice(a, param);
+    }
+    const dl = try parseDeepLinkFromUrl(a, url.items);
+    defer freeDeepLink(a, dl);
+    try std.testing.expect(dl == .install);
+    try std.testing.expectEqual(MAX_INSTALL_SLUGS, dl.install.items.len);
+    try std.testing.expectEqualStrings("p0", dl.install.items[0]);
+    try std.testing.expectEqualStrings("p23", dl.install.items[MAX_INSTALL_SLUGS - 1]);
 }
