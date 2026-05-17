@@ -180,7 +180,7 @@ async function pollState() {
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 3000);
-    const r = await fetch(`http://localhost:${sidecarPort}/state`, { signal: ctrl.signal });
+    const r = await fetch(`http://127.0.0.1:${sidecarPort}/state`, { signal: ctrl.signal });
     clearTimeout(t);
     if (!r.ok) return;
     const data = await r.json();
@@ -195,7 +195,7 @@ async function pollBubble() {
   try {
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), 3000);
-    const r = await fetch(`http://localhost:${sidecarPort}/bubble`, { signal: ctrl.signal });
+    const r = await fetch(`http://127.0.0.1:${sidecarPort}/bubble`, { signal: ctrl.signal });
     clearTimeout(t);
     if (!r.ok) return;
     const data = await r.json();
