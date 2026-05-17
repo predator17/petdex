@@ -96,6 +96,7 @@ export function CollectionActionMenu({ collection }: Props) {
         total: slugs.length,
       })
     : t("installHint", { count: slugs.length });
+  const openInPetdexDesc = truncated ? installHint : t("openInPetdexDesc");
 
   const copyText = async (text: string, kind: Exclude<Copied, null>) => {
     try {
@@ -196,7 +197,7 @@ export function CollectionActionMenu({ collection }: Props) {
                   <span className="flex flex-col">
                     <span>{t("openInPetdex")}</span>
                     <span className="font-mono text-[10px] tracking-tight text-muted-4">
-                      {t("openInPetdexDesc")}
+                      {openInPetdexDesc}
                     </span>
                   </span>
                 </a>
