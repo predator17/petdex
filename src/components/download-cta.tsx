@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, Clock } from "lucide-react";
+import { Apple, ArrowDownToLine, Clock, Terminal } from "lucide-react";
 
 import {
   type MacArch,
@@ -38,12 +38,16 @@ export function DownloadCTA({
   primaryLabel,
   cliCommand,
   cliSubtext,
+  manualLabel,
+  manualSubtext,
   comingSoonLabel,
   desktopOnlyLabel,
 }: {
   primaryLabel: string;
   cliCommand: string;
   cliSubtext: string;
+  manualLabel: string;
+  manualSubtext: string;
   comingSoonLabel: string;
   desktopOnlyLabel: string;
 }) {
@@ -51,36 +55,53 @@ export function DownloadCTA({
   const arch = useMacArch();
 
   return (
-    <div className="mt-10 flex w-full flex-col items-center gap-3">
-      <div className="flex w-full flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
-        <PrimaryButton
+    <div className="mt-8 grid w-full min-w-0 gap-3">
+      <div className="min-w-0 overflow-hidden rounded-lg border border-brand/20 bg-surface p-3 shadow-[0_18px_48px_-38px_rgba(15,23,42,0.55)]">
+        <div className="mb-3 flex items-center gap-2 px-1">
+          <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-brand text-on-inverse">
+            <Terminal className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground">
+              {primaryLabel}
+            </p>
+            <p className="text-xs text-muted-2">{cliSubtext}</p>
+          </div>
+        </div>
+        <CommandLine
+          command={cliCommand}
+          source="download-hero-primary"
+          wrap
+          className="min-h-14 w-full min-w-0 max-w-full !rounded-lg !border-brand/20 !bg-surface-muted/60 !px-4 !py-3 !text-[12px] sm:!text-sm"
+        />
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <ManualDownloadButton
           platform={platform}
           arch={arch}
-          primaryLabel={primaryLabel}
+          manualLabel={manualLabel}
           comingSoonLabel={comingSoonLabel}
           desktopOnlyLabel={desktopOnlyLabel}
         />
-        <CommandLine
-          command={cliCommand}
-          source="download-hero"
-          className="!h-12 w-full !rounded-full !px-5 !text-[13px] sm:w-auto sm:min-w-[280px]"
-        />
+        <p className="text-xs leading-5 text-muted-3 sm:max-w-[260px]">
+          {manualSubtext}
+        </p>
       </div>
-      <p className="text-xs text-muted-3">{cliSubtext}</p>
     </div>
   );
 }
 
-function PrimaryButton({
+function ManualDownloadButton({
   platform,
   arch,
-  primaryLabel,
+  manualLabel,
   comingSoonLabel,
   desktopOnlyLabel,
 }: {
   platform: Platform;
   arch: MacArch;
-  primaryLabel: string;
+  manualLabel: string;
   comingSoonLabel: string;
   desktopOnlyLabel: string;
 }) {
@@ -91,7 +112,7 @@ function PrimaryButton({
     return (
       <span
         aria-hidden="true"
-        className="inline-flex h-12 w-[180px] animate-pulse items-center justify-center rounded-full bg-surface-muted text-sm text-muted-3"
+        className="inline-flex h-11 w-full animate-pulse items-center justify-center rounded-lg bg-surface-muted text-sm text-muted-3 sm:w-[220px]"
       />
     );
   }
@@ -113,13 +134,13 @@ function PrimaryButton({
       <a
         href={href}
         rel="noreferrer"
-        className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-inverse px-6 text-sm font-medium text-on-inverse transition hover:bg-inverse-hover"
+        className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg border border-border-base bg-surface px-4 text-sm font-medium text-foreground transition hover:border-border-strong hover:bg-surface-muted sm:w-auto sm:min-w-[220px]"
       >
-        {primaryLabel}
+        <ArrowDownToLine className="size-4" />
+        {manualLabel}
         {labelSuffix ? (
           <span className="ml-1 text-xs opacity-75">{labelSuffix}</span>
         ) : null}
-        <ArrowRight className="size-4" />
       </a>
     );
   }
@@ -129,7 +150,7 @@ function PrimaryButton({
     return (
       <span
         aria-disabled="true"
-        className="inline-flex h-12 cursor-not-allowed items-center justify-center gap-2 rounded-full border border-border-base bg-surface-muted px-6 text-sm font-medium text-muted-2"
+        className="inline-flex h-11 w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-border-base bg-surface-muted px-4 text-sm font-medium text-muted-2 sm:w-auto sm:min-w-[220px]"
       >
         <Clock className="size-4" />
         {comingSoonLabel.replace(
@@ -144,9 +165,9 @@ function PrimaryButton({
   return (
     <span
       aria-disabled="true"
-      className="inline-flex h-12 cursor-not-allowed items-center justify-center gap-2 rounded-full border border-border-base bg-surface-muted px-6 text-sm font-medium text-muted-2"
+      className="inline-flex h-11 w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg border border-border-base bg-surface-muted px-4 text-sm font-medium text-muted-2 sm:w-auto sm:min-w-[220px]"
     >
-      <Clock className="size-4" />
+      <Apple className="size-4" />
       {desktopOnlyLabel}
     </span>
   );

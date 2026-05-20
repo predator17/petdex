@@ -22,6 +22,7 @@ type CommandLineProps = {
    * runs the install without the user needing a terminal.
    */
   codexPrompt?: string;
+  wrap?: boolean;
 };
 
 /**
@@ -134,6 +135,7 @@ export function CommandLine({
   source,
   className = "",
   codexPrompt,
+  wrap = false,
 }: CommandLineProps) {
   const t = useTranslations("commandLine");
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">(
@@ -141,6 +143,10 @@ export function CommandLine({
   );
   const copied = copyState === "copied";
   const failed = copyState === "failed";
+  const rootLayoutClass = wrap ? "items-start" : "items-center";
+  const commandClass = wrap
+    ? "flex-1 whitespace-normal break-words leading-5"
+    : "flex-1 truncate";
 
   async function handleCopy() {
     // Display the natural `npx petdex` form, but copy the
@@ -171,7 +177,7 @@ export function CommandLine({
         style={{
           fontFamily: "var(--font-geist-mono), ui-monospace, monospace",
         }}
-        className={`group inline-flex items-center gap-2 rounded-xl border border-border-base bg-surface/80 px-3 py-2 text-left text-[12px] text-foreground backdrop-blur transition hover:border-brand-light/40 hover:bg-surface ${className}`}
+        className={`group inline-flex ${rootLayoutClass} gap-2 rounded-xl border border-border-base bg-surface/80 px-3 py-2 text-left text-[12px] text-foreground backdrop-blur transition hover:border-brand-light/40 hover:bg-surface ${className}`}
       >
         <button
           type="button"
@@ -179,10 +185,10 @@ export function CommandLine({
           aria-label={
             copied ? t("copiedAria") : failed ? t("failedAria") : t("copyAria")
           }
-          className="flex flex-1 items-center gap-2 truncate text-left"
+          className={`flex flex-1 ${rootLayoutClass} gap-2 text-left`}
         >
           <span className="select-none text-brand">{prefix}</span>
-          <span className="flex-1 truncate">{tokenize(command)}</span>
+          <span className={commandClass}>{tokenize(command)}</span>
           <span className="grid size-6 shrink-0 place-items-center rounded-md text-muted-3 transition group-hover:bg-brand-tint group-hover:text-brand-deep">
             {copied ? (
               <Check className="size-3.5 text-brand-deep" />
@@ -218,10 +224,10 @@ export function CommandLine({
         copied ? t("copiedAria") : failed ? t("failedAria") : t("copyAria")
       }
       style={{ fontFamily: "var(--font-geist-mono), ui-monospace, monospace" }}
-      className={`group inline-flex items-center gap-2 rounded-xl border border-border-base bg-surface/80 px-3 py-2 text-left text-[12px] text-foreground backdrop-blur transition hover:border-brand-light/40 hover:bg-surface ${className}`}
+      className={`group inline-flex ${rootLayoutClass} gap-2 rounded-xl border border-border-base bg-surface/80 px-3 py-2 text-left text-[12px] text-foreground backdrop-blur transition hover:border-brand-light/40 hover:bg-surface ${className}`}
     >
       <span className="select-none text-brand">{prefix}</span>
-      <span className="flex-1 truncate">{tokenize(command)}</span>
+      <span className={commandClass}>{tokenize(command)}</span>
       <span className="grid size-6 shrink-0 place-items-center rounded-md text-muted-3 transition group-hover:bg-brand-tint group-hover:text-brand-deep">
         {copied ? (
           <Check className="size-3.5 text-brand-deep" />

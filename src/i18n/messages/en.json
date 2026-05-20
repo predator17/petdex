@@ -1465,14 +1465,32 @@
     "backToCollections": "← All collections"
   },
   "download": {
-    "eyebrow": "Desktop app",
-    "title": "Petdex Desktop",
-    "subtitle": "Your pet, floating beside every coding agent.",
+    "eyebrow": "Terminal-first setup",
+    "title": "Run one command. Petdex does the rest.",
+    "subtitle": "Install the desktop app, wire your coding agents, and wake your pet from the terminal.",
     "hero": {
       "downloadCta": "Download for macOS",
-      "cliSubtext": "Then run this to wire up your agents",
-      "comingSoon": "Coming to {os}",
+      "primaryTitle": "Install & Wire Petdex",
+      "cliSubtext": "Copies the recommended terminal setup",
+      "manualLabel": "Download .dmg",
+      "manualSubtext": "For blocked terminals, manual macOS installs, or keeping the installer locally.",
+      "comingSoon": "Coming soon",
       "desktopOnly": "Desktop only. Visit on a Mac"
+    },
+    "activation": {
+      "items": {
+        "hooks": "Agent hooks",
+        "desktop": "Desktop app",
+        "pet": "Pet wake-up"
+      }
+    },
+    "preview": {
+      "title": "Petdex Desktop",
+      "status": "A floating pet stays beside Codex, Claude, Gemini, and OpenCode.",
+      "terminalLabel": "Terminal",
+      "agentLabel": "Agent hooks installed",
+      "defaultPet": "Mascot awake",
+      "pendingPet": "{slug} queued"
     },
     "features": {
       "eyebrow": "What it does",
@@ -1532,8 +1550,8 @@
     "docsLink": "Read the docs",
     "pendingPet": {
       "eyebrow": "Almost there.",
-      "messageBefore": "Install Petdex Desktop to test",
-      "messageAfter": "in 1 click.",
+      "messageBefore": "Queued pet:",
+      "messageAfter": "after setup.",
       "hint": "macOS only for now"
     }
   },

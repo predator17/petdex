@@ -1661,20 +1661,50 @@
     "backToCollections": "← 返回全部合集"
   },
   "download": {
-    "eyebrow": "桌面应用",
+    "eyebrow": "终端优先安装",
     "eyebrow__fixme": true,
-    "title": "Petdex Desktop",
-    "subtitle": "你的宠物，漂浮在每个 Agent 身旁。",
+    "title": "运行一个命令，Petdex 完成剩下的事。",
+    "subtitle": "从终端安装桌面应用、连接你的 Agent，并唤醒宠物。",
     "subtitle__fixme": true,
     "hero": {
       "downloadCta": "下载 macOS 版本",
       "downloadCta__fixme": true,
-      "cliSubtext": "然后运行这个命令连接你的 AI Agent",
+      "primaryTitle": "安装并连接 Petdex",
+      "primaryTitle__fixme": true,
+      "cliSubtext": "复制推荐的终端安装命令",
       "cliSubtext__fixme": true,
-      "comingSoon": "即将支持 {os}",
+      "manualLabel": "下载 .dmg",
+      "manualLabel__fixme": true,
+      "manualSubtext": "适用于终端受限、手动安装 macOS 应用，或需要本地保存安装包的场景。",
+      "manualSubtext__fixme": true,
+      "comingSoon": "即将支持",
       "comingSoon__fixme": true,
       "desktopOnly": "仅桌面版，请用 Mac 访问",
       "desktopOnly__fixme": true
+    },
+    "activation": {
+      "items": {
+        "hooks": "Agent hooks",
+        "hooks__fixme": true,
+        "desktop": "桌面应用",
+        "desktop__fixme": true,
+        "pet": "唤醒宠物",
+        "pet__fixme": true
+      }
+    },
+    "preview": {
+      "title": "Petdex Desktop",
+      "title__fixme": true,
+      "status": "一只漂浮宠物会陪在 Codex、Claude、Gemini 和 OpenCode 旁边。",
+      "status__fixme": true,
+      "terminalLabel": "终端",
+      "terminalLabel__fixme": true,
+      "agentLabel": "Agent hooks 已安装",
+      "agentLabel__fixme": true,
+      "defaultPet": "宠物已唤醒",
+      "defaultPet__fixme": true,
+      "pendingPet": "{slug} 已排队",
+      "pendingPet__fixme": true
     },
     "features": {
       "eyebrow": "功能介绍",
@@ -1762,9 +1792,9 @@
     "pendingPet": {
       "eyebrow": "马上就好。",
       "eyebrow__fixme": true,
-      "messageBefore": "安装 Petdex Desktop 即可一键测试",
+      "messageBefore": "待安装宠物：",
       "messageBefore__fixme": true,
-      "messageAfter": "。",
+      "messageAfter": "会在设置后安装。",
       "messageAfter__fixme": true,
       "hint": "目前仅支持 macOS",
       "hint__fixme": true
