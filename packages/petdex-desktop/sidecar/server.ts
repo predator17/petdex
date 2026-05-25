@@ -16,15 +16,13 @@
  */
 
 import { spawn } from "node:child_process";
-import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes, timingSafeEqual } from "node:crypto";
 import {
   appendFileSync,
   chmodSync,
-  createWriteStream,
   existsSync,
   mkdirSync,
   readFileSync,
-  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -38,8 +36,10 @@ import {
   DEFAULT_DESKTOP_PREFERENCES,
   type DesktopPreferences,
   type DesktopRelease,
+  downloadToFile,
   findDmgAsset,
   findEnclosingAppBundle,
+  installStagedAppBundle,
   parseDesktopPreferences,
   parseHdiutilMount,
 } from "./update-utils";
@@ -699,94 +699,6 @@ function requiredSha256Digest(asset: {
   return asset.digest.slice("sha256:".length).toLowerCase();
 }
 
-function waitForFileEvent(
-  file: ReturnType<typeof createWriteStream>,
-  event: "drain" | "finish",
-): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const onEvent = () => {
-      cleanup();
-      resolve();
-    };
-    const onError = (err: Error) => {
-      cleanup();
-      reject(err);
-    };
-    const cleanup = () => {
-      file.off(event, onEvent);
-      file.off("error", onError);
-    };
-    file.once(event, onEvent);
-    file.once("error", onError);
-  });
-}
-
-async function downloadToFile(
-  url: string,
-  destPath: string,
-  expectedSha256: string,
-  expectedSize: number,
-): Promise<void> {
-  if (!Number.isSafeInteger(expectedSize) || expectedSize <= 0) {
-    throw new Error(`release asset has invalid size: ${expectedSize}`);
-  }
-  const tmpPath = `${destPath}.tmp`;
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(120_000) });
-    if (!res.ok) throw new Error(`download ${res.status}`);
-    if (!res.body) throw new Error("download response has no body");
-    const file = createWriteStream(tmpPath);
-    const reader = res.body.getReader();
-    const hash = createHash("sha256");
-    let bytes = 0;
-    let fileError: Error | null = null;
-    file.on("error", (err) => {
-      fileError = err;
-    });
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = Buffer.from(value);
-        bytes += chunk.byteLength;
-        if (bytes > expectedSize) {
-          throw new Error(
-            `download size mismatch: expected ${expectedSize}, got more than ${bytes}`,
-          );
-        }
-        hash.update(chunk);
-        if (!file.write(chunk)) {
-          await waitForFileEvent(file, "drain");
-        }
-        if (fileError) throw fileError;
-      }
-      const finished = waitForFileEvent(file, "finish");
-      file.end();
-      await finished;
-    } catch (err) {
-      file.destroy();
-      throw err;
-    } finally {
-      reader.releaseLock();
-    }
-    if (bytes !== expectedSize) {
-      throw new Error(
-        `download size mismatch: expected ${expectedSize}, got ${bytes}`,
-      );
-    }
-    const actual = hash.digest("hex");
-    if (actual !== expectedSha256) {
-      throw new Error(
-        `download digest mismatch: expected ${expectedSha256}, got ${actual}`,
-      );
-    }
-    renameSync(tmpPath, destPath);
-  } catch (err) {
-    rmSync(tmpPath, { force: true });
-    throw err;
-  }
-}
-
 async function stopParentForUpdate(): Promise<void> {
   const parent = Number(process.env.PETDEX_PARENT_PID);
   if (!Number.isFinite(parent) || parent <= 0) return;
@@ -888,31 +800,6 @@ function updateStagingPaths(appBundleRoot: string): {
     stagedApp: join(parent, `.${appName}.update-${token}`),
     backupApp: join(parent, `.${appName}.previous-${token}`),
   };
-}
-
-async function installStagedAppBundle(
-  appBundleRoot: string,
-  stagedApp: string,
-  backupApp: string,
-  verifyInstalled: () => Promise<void>,
-): Promise<void> {
-  rmSync(backupApp, { recursive: true, force: true });
-  renameSync(appBundleRoot, backupApp);
-  let installed = false;
-  try {
-    renameSync(stagedApp, appBundleRoot);
-    installed = true;
-    await verifyInstalled();
-    rmSync(backupApp, { recursive: true, force: true });
-  } catch (err) {
-    if (installed) {
-      rmSync(appBundleRoot, { recursive: true, force: true });
-    }
-    if (existsSync(backupApp)) {
-      renameSync(backupApp, appBundleRoot);
-    }
-    throw err;
-  }
 }
 
 async function applyBundledUpdate(): Promise<void> {

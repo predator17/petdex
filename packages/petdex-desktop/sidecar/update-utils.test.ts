@@ -1,12 +1,33 @@
 import { describe, expect, test } from "bun:test";
+import { createHash } from "node:crypto";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
 import {
   DEFAULT_DESKTOP_PREFERENCES,
+  downloadToFile,
   findDmgAsset,
   findEnclosingAppBundle,
+  installStagedAppBundle,
   parseDesktopPreferences,
   parseHdiutilMount,
 } from "./update-utils";
+
+function dataUrl(bytes: Uint8Array): string {
+  return `data:application/octet-stream;base64,${Buffer.from(bytes).toString("base64")}`;
+}
+
+function sha256(bytes: Uint8Array): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
 
 describe("desktop update utils", () => {
   test("parses desktop preferences with safe defaults", () => {
@@ -56,5 +77,60 @@ describe("desktop update utils", () => {
       parseHdiutilMount("/dev/disk4s1\tApple_HFS\t/Volumes/Petdex 0.2.2\n"),
     ).toBe("/Volumes/Petdex 0.2.2");
     expect(parseHdiutilMount("no mounted volume")).toBeNull();
+  });
+
+  test("downloadToFile rejects digest mismatches and removes temp files", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "petdex-update-"));
+    try {
+      const bytes = new TextEncoder().encode("petdex");
+      const dest = join(dir, "Petdex-arm64.dmg");
+      await expect(
+        downloadToFile(dataUrl(bytes), dest, "0".repeat(64), bytes.length),
+      ).rejects.toThrow("download digest mismatch");
+      expect(existsSync(dest)).toBe(false);
+      expect(existsSync(`${dest}.tmp`)).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("downloadToFile rejects size mismatches and removes temp files", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "petdex-update-"));
+    try {
+      const bytes = new TextEncoder().encode("petdex");
+      const dest = join(dir, "Petdex-arm64.dmg");
+      await expect(
+        downloadToFile(dataUrl(bytes), dest, sha256(bytes), bytes.length - 1),
+      ).rejects.toThrow("download size mismatch");
+      expect(existsSync(dest)).toBe(false);
+      expect(existsSync(`${dest}.tmp`)).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test("installStagedAppBundle rolls back when installed verification fails", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "petdex-app-"));
+    try {
+      const app = join(dir, "Petdex.app");
+      const staged = join(dir, ".Petdex.app.update");
+      const backup = join(dir, ".Petdex.app.previous");
+      mkdirSync(app, { recursive: true });
+      mkdirSync(staged, { recursive: true });
+      writeFileSync(join(app, "marker"), "old");
+      writeFileSync(join(staged, "marker"), "new");
+
+      await expect(
+        installStagedAppBundle(app, staged, backup, async () => {
+          throw new Error("bad signature");
+        }),
+      ).rejects.toThrow("bad signature");
+
+      expect(readFileSync(join(app, "marker"), "utf8")).toBe("old");
+      expect(existsSync(staged)).toBe(false);
+      expect(existsSync(backup)).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
