@@ -399,9 +399,23 @@ type CodeSignatureInfo = {
 };
 
 function readCurrentVersion(): string | null {
-  if (!existsSync(VERSION_FILE)) return null;
+  if (existsSync(VERSION_FILE)) {
+    try {
+      const version = readFileSync(VERSION_FILE, "utf8").trim();
+      if (version) return version;
+    } catch {}
+  }
+  const appBundleRoot = appBundleRootPath();
+  if (!appBundleRoot) return null;
   try {
-    return readFileSync(VERSION_FILE, "utf8").trim() || null;
+    const plist = readFileSync(
+      join(appBundleRoot, "Contents", "Info.plist"),
+      "utf8",
+    );
+    const match = plist.match(
+      /<key>CFBundleShortVersionString<\/key>\s*<string>([^<]+)<\/string>/,
+    );
+    return match?.[1] ? `desktop-v${match[1].trim()}` : null;
   } catch {
     return null;
   }
@@ -573,7 +587,15 @@ function logUpdate(line: string) {
 
 let currentUpdateChild: ReturnType<typeof spawn> | null = null;
 let updateInProgress = false;
+let updatePromise: Promise<void> | null = null;
 let handoffRequested = false;
+
+function appBundleRootPath(): string | null {
+  return (
+    process.env.PETDEX_APP_BUNDLE ??
+    findEnclosingAppBundle(process.argv[1] ?? "")
+  );
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -767,10 +789,7 @@ async function applyBundledUpdate(): Promise<void> {
   if (!dmgAsset) {
     throw new Error(`No DMG asset for ${nodeArch()} in ${release.tag_name}.`);
   }
-  const appBundleRoot =
-    process.env.PETDEX_APP_BUNDLE ??
-    findEnclosingAppBundle(process.argv[1] ?? "") ??
-    findEnclosingAppBundle(__filename);
+  const appBundleRoot = appBundleRootPath();
   if (!appBundleRoot) {
     throw new Error("Petdex.app bundle not found for in-app update.");
   }
@@ -873,7 +892,7 @@ async function applyBundledUpdate(): Promise<void> {
 function spawnUpdate(): void {
   if (updateInProgress) return;
   updateInProgress = true;
-  void applyBundledUpdate()
+  updatePromise = applyBundledUpdate()
     .catch((err) => {
       const message = (err as Error).message;
       log(`spawnUpdate: ${message}`);
@@ -888,7 +907,9 @@ function spawnUpdate(): void {
     .finally(() => {
       updateInProgress = false;
       currentUpdateChild = null;
+      updatePromise = null;
     });
+  void updatePromise;
 }
 
 const server = http.createServer(async (req, res) => {
@@ -1339,10 +1360,6 @@ async function waitForPortFree(
 
 attemptListen();
 
-// Hard cap on how long we'll wait for the updater child to finish
-// before the sidecar gives up and exits anyway. npm install + a
-// fresh download usually finishes well under this; if it doesn't,
-// the user can re-trigger the update next launch.
 const UPDATE_CHILD_GRACE_MS = 60_000;
 
 function shutdown(signal: string) {
@@ -1354,12 +1371,7 @@ function shutdown(signal: string) {
     log(`shutdown(${signal}) ignored: handoff in progress`);
     return;
   }
-  // If we're mid-update, give the child a chance to write its
-  // terminal status to update.json. Without this the sidecar's
-  // own death (triggered by the desktop dying inside `petdex update
-  // --silent`) can kill the npm child before it commits the rename,
-  // and update.json stays stuck on "running" forever.
-  if (updateInProgress || currentUpdateChild) {
+  if (updateInProgress) {
     log(`sidecar received ${signal}; update in progress`);
     const start = Date.now();
     const giveUp = setTimeout(() => {
@@ -1380,13 +1392,14 @@ function shutdown(signal: string) {
       server.close(() => process.exit(0));
       setTimeout(() => process.exit(0), 1000).unref();
     }, UPDATE_CHILD_GRACE_MS);
-    if (!currentUpdateChild) {
+    if (!updatePromise) {
       giveUp.unref();
       return;
     }
-    currentUpdateChild.on("exit", () => {
+    updatePromise.finally(() => {
       clearTimeout(giveUp);
-      log(`update command exited after ${Date.now() - start}ms; shutting down`);
+      if (handoffRequested) return;
+      log(`update settled after ${Date.now() - start}ms; shutting down`);
       server.close(() => process.exit(0));
       setTimeout(() => process.exit(0), 1000).unref();
     });
@@ -1420,8 +1433,7 @@ initialUpdateTimer.unref();
 // crash. While an update is in flight we deliberately ignore the
 // parent-gone signal: the updater itself stops the desktop (so the
 // new binary can be renamed into place), so the parent-gone signal is
-// expected and shutting down here would orphan the npm install
-// before it writes its terminal status.
+// expected.
 const parentPid = Number(process.env.PETDEX_PARENT_PID);
 if (Number.isFinite(parentPid) && parentPid > 0) {
   log(`sidecar watching parent pid ${parentPid}`);
