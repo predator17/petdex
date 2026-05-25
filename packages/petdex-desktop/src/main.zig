@@ -166,8 +166,18 @@ const html_head =
     \\    border-top: 1px solid rgba(255, 255, 255, 0.08);
     \\    padding-top: 6px;
     \\    display: flex;
-    \\    justify-content: flex-end;
+    \\    justify-content: space-between;
+    \\    align-items: center;
     \\  }
+    \\  .menu .settings-link {
+    \\    color: rgba(255,255,255,0.65);
+    \\    cursor: pointer;
+    \\    padding: 2px 6px;
+    \\    border-radius: 3px;
+    \\    font-size: 9px;
+    \\    transition: background 120ms ease;
+    \\  }
+    \\  .menu .settings-link:hover { background: rgba(255, 255, 255, 0.08); }
     \\  .menu .quit {
     \\    color: rgba(255, 136, 136, 0.85);
     \\    cursor: pointer;
@@ -200,6 +210,26 @@ const html_head =
     \\    color: rgba(255,255,255,0.6);
     \\  }
     \\  .menu .quit-confirm button.cancel:hover { background: rgba(255, 255, 255, 0.06); }
+    \\  body.settings-body { background: #f7f7f4; color: #171717; overflow: auto; pointer-events: auto; }
+    \\  .settings-root { box-sizing: border-box; min-height: 100%; padding: 22px 24px 24px; font-size: 13px; }
+    \\  .settings-header { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding-bottom: 18px; border-bottom: 1px solid rgba(0,0,0,0.10); }
+    \\  .settings-header h1 { margin: 0; font-size: 20px; font-weight: 700; letter-spacing: 0; }
+    \\  .settings-version { color: #666; font-size: 12px; white-space: nowrap; }
+    \\  .settings-section { padding: 18px 0; border-bottom: 1px solid rgba(0,0,0,0.10); }
+    \\  .settings-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 34px; }
+    \\  .settings-label { display: flex; flex-direction: column; gap: 3px; font-weight: 650; }
+    \\  .settings-muted { color: #6b6b6b; font-size: 12px; line-height: 1.35; font-weight: 400; }
+    \\  .settings-toggle { width: 42px; height: 24px; appearance: none; border-radius: 999px; border: 1px solid rgba(0,0,0,0.14); background: #cfd3d8; position: relative; cursor: pointer; flex: 0 0 auto; }
+    \\  .settings-toggle::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.22); transition: transform 140ms ease; }
+    \\  .settings-toggle:checked { background: #1c7c54; border-color: #1c7c54; }
+    \\  .settings-toggle:checked::after { transform: translateX(18px); }
+    \\  .settings-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+    \\  .settings-button { border: 1px solid rgba(0,0,0,0.14); background: #ffffff; color: #171717; border-radius: 6px; padding: 7px 10px; font: 600 12px -apple-system, system-ui, sans-serif; cursor: pointer; }
+    \\  .settings-button:hover { background: #ececea; }
+    \\  .settings-button.primary { background: #0f4c81; border-color: #0f4c81; color: white; }
+    \\  .settings-status { margin-top: 10px; color: #4f4f4f; font-size: 12px; line-height: 1.4; }
+    \\  .settings-paths { display: grid; gap: 8px; margin-top: 10px; }
+    \\  .settings-path { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: #2c2c2c; background: rgba(0,0,0,0.045); border-radius: 6px; padding: 7px 8px; word-break: break-all; }
     \\</style>
     \\</head>
     \\<body>
@@ -224,6 +254,114 @@ const html_tail =
     \\    running:        { row: 7, count: 6, dur: 120, last: 220 },
     \\    review:         { row: 8, count: 6, dur: 150, last: 280 },
     \\  };
+    \\  function wantsSettingsWindow() {
+    \\    try {
+    \\      return localStorage.getItem('petdex-open-settings') === '1' && window.innerWidth >= 360;
+    \\    } catch (_) {
+    \\      return false;
+    \\    }
+    \\  }
+    \\  function clearSettingsIntent() {
+    \\    try { localStorage.removeItem('petdex-open-settings'); } catch (_) {}
+    \\  }
+    \\  function updateSummary(info) {
+    \\    if (!info || typeof info !== 'object') return 'No update check yet.';
+    \\    if (info.status === 'running') return info.message || 'Updating...';
+    \\    if (info.status === 'error') return info.message || 'Update failed.';
+    \\    if (info.status === 'done') return info.message || 'Update installed.';
+    \\    if (info.available) {
+    \\      if (info.installable === false) return info.message || 'Run petdex update in your terminal.';
+    \\      return 'Update ' + (info.latest || 'available') + ' available.';
+    \\    }
+    \\    return 'Current version is up to date.';
+    \\  }
+    \\  async function renderSettingsWindow() {
+    \\    document.body.className = 'settings-body';
+    \\    document.body.innerHTML = `<main class="settings-root">
+    \\      <header class="settings-header">
+    \\        <h1>Petdex Settings</h1>
+    \\        <div class="settings-version" id="settings-version">Loading</div>
+    \\      </header>
+    \\      <section class="settings-section">
+    \\        <div class="settings-row">
+    \\          <div class="settings-label">
+    \\            <span>Automatic updates</span>
+    \\            <span class="settings-muted">Install desktop releases in the background.</span>
+    \\          </div>
+    \\          <input class="settings-toggle" id="settings-auto" type="checkbox" aria-label="Automatic updates">
+    \\        </div>
+    \\        <div class="settings-status" id="settings-save-status"></div>
+    \\      </section>
+    \\      <section class="settings-section">
+    \\        <div class="settings-label">
+    \\          <span>Updates</span>
+    \\          <span class="settings-muted" id="settings-update-status">Loading update status</span>
+    \\        </div>
+    \\        <div class="settings-actions">
+    \\          <button class="settings-button primary" id="settings-install" type="button">Install now</button>
+    \\          <button class="settings-button" id="settings-refresh" type="button">Refresh</button>
+    \\        </div>
+    \\      </section>
+    \\      <section class="settings-section">
+    \\        <div class="settings-label">
+    \\          <span>Storage</span>
+    \\          <span class="settings-muted">Local runtime paths.</span>
+    \\        </div>
+    \\        <div class="settings-paths" id="settings-paths"></div>
+    \\      </section>
+    \\    </main>`;
+    \\    const versionEl = document.getElementById('settings-version');
+    \\    const autoEl = document.getElementById('settings-auto');
+    \\    const saveEl = document.getElementById('settings-save-status');
+    \\    const updateEl = document.getElementById('settings-update-status');
+    \\    const installEl = document.getElementById('settings-install');
+    \\    const refreshEl = document.getElementById('settings-refresh');
+    \\    const pathsEl = document.getElementById('settings-paths');
+    \\    async function load() {
+    \\      const settings = await window.zero.invoke('petdex.read_desktop_settings', {});
+    \\      const update = await window.zero.invoke('petdex.read_update_info', {});
+    \\      autoEl.checked = !!settings.autoInstallUpdates;
+    \\      versionEl.textContent = settings.version || 'No version file';
+    \\      updateEl.textContent = updateSummary(update);
+    \\      const canInstall = update && update.installable !== false && (update.available || update.status === 'error');
+    \\      installEl.disabled = !canInstall || update.status === 'running';
+    \\      pathsEl.innerHTML = '';
+    \\      const paths = [settings.configDir].concat(settings.petsRoots || []).filter(Boolean);
+    \\      for (const path of paths) {
+    \\        const item = document.createElement('div');
+    \\        item.className = 'settings-path';
+    \\        item.textContent = path;
+    \\        pathsEl.appendChild(item);
+    \\      }
+    \\    }
+    \\    autoEl.addEventListener('change', async () => {
+    \\      saveEl.textContent = 'Saving...';
+    \\      try {
+    \\        await window.zero.invoke('petdex.write_desktop_settings', { autoInstallUpdates: autoEl.checked });
+    \\        saveEl.textContent = 'Saved.';
+    \\      } catch (err) {
+    \\        saveEl.textContent = 'Could not save settings.';
+    \\      }
+    \\    });
+    \\    installEl.addEventListener('click', async () => {
+    \\      installEl.disabled = true;
+    \\      updateEl.textContent = 'Starting update...';
+    \\      try {
+    \\        await window.zero.invoke('petdex.trigger_update', {});
+    \\      } catch (err) {
+    \\        updateEl.textContent = 'Could not start update.';
+    \\      }
+    \\      setTimeout(() => { void load().catch(() => {}); }, 400);
+    \\    });
+    \\    refreshEl.addEventListener('click', () => { void load().catch(() => {}); });
+    \\    setInterval(() => { void load().catch(() => {}); }, 5000);
+    \\    try { await load(); } catch (err) { updateEl.textContent = 'Settings unavailable.'; }
+    \\  }
+    \\  if (wantsSettingsWindow()) {
+    \\    clearSettingsIntent();
+    \\    void renderSettingsWindow();
+    \\    return;
+    \\  }
     \\  function buildFrames(s) {
     \\    if (s.frames) { const slow = s.slow || 1; return s.frames.map(f => ({ c: f.c, r: s.row, d: f.d * slow })); }
     \\    return Array.from({length: s.count}, (_,i) => ({ c: i, r: s.row, d: i === s.count - 1 ? s.last : s.dur }));
@@ -654,9 +792,7 @@ const html_tail =
     \\
     \\  // Layer 1 autoupdate: read update.json (written by the sidecar's
     \\  // periodic GH releases poll) and render a notification card. A
-    \\  // single click POSTs to the sidecar's /update endpoint, which
-    \\  // spawns `npx petdex update --silent`. We keep this DOM lightweight
-    \\  // — a fixed-position card, no animations.
+    \\  // single click POSTs to the sidecar's /update endpoint.
     \\  let lastUpdateStatus = '';
     \\  let updateCard = null;
     \\  let needsInitFlag = false;
@@ -676,6 +812,7 @@ const html_tail =
     \\    updateCard.style.cssText = 'position:fixed;left:6px;right:6px;bottom:6px;padding:6px 9px;border-radius:9px;background:#ffffff;color:#111;font:600 11px system-ui,-apple-system,sans-serif;box-shadow:0 2px 6px rgba(0,0,0,0.30);display:none;cursor:pointer;pointer-events:auto;line-height:1.25;text-align:center;';
     \\    updateCard.addEventListener('click', async () => {
     \\      if (!(window.zero && window.zero.invoke)) return;
+    \\      if (updateCard && updateCard.dataset.installable === '0') return;
     \\      try {
     \\        const r = await window.zero.invoke('petdex.trigger_update', {});
     \\        // r is JSON-encoded: ok:true means curl POST returned 2xx.
@@ -683,22 +820,19 @@ const html_tail =
     \\        // curl_exit_7 (sidecar dead). The previous handler swallowed
     \\        // every failure and rendered "Updating..." while nothing
     \\        // was happening, leaving the user wondering why their pet
-    \\        // never restarted. Now we surface the situation with an
-    \\        // actionable terminal command.
+    \\        // never restarted. Now we surface the situation.
     \\        if (r && r.ok === false) {
     \\          const code = (r.error || '');
     \\          if (code.indexOf('curl_exit_') === 0 || code === 'no_token' || code === 'token_read' || code === 'empty_token') {
-    \\            renderUpdate({ status: 'error', message: 'Sidecar offline. Run: npx petdex@latest update' });
+    \\            renderUpdate({ status: 'error', message: 'Sidecar offline. Relaunch Petdex.' });
     \\            return;
     \\          }
-    \\          renderUpdate({ status: 'error', message: 'Update failed (' + code + '). Run: npx petdex@latest update' });
+    \\          renderUpdate({ status: 'error', message: 'Update failed (' + code + '). Open Settings.' });
     \\          return;
     \\        }
     \\        renderUpdate({ status: 'running', message: 'Updating...' });
     \\      } catch (e) {
-    \\        // Bridge crash. The invoke layer itself blew up — fall back
-    \\        // to terminal instructions rather than a silent dead button.
-    \\        renderUpdate({ status: 'error', message: 'Update failed. Run: npx petdex@latest update' });
+    \\        renderUpdate({ status: 'error', message: 'Update failed. Open Settings.' });
     \\      }
     \\    });
     \\    document.body.appendChild(updateCard);
@@ -711,9 +845,11 @@ const html_tail =
     \\      card.style.display = 'none';
     \\      return;
     \\    }
+    \\    card.dataset.installable = info.installable === false ? '0' : '1';
+    \\    card.style.cursor = info.installable === false ? 'default' : 'pointer';
     \\    let text = '';
     \\    if (info.status === 'available') {
-    \\      text = 'Update ' + (info.latest || 'available') + ' - click to install';
+    \\      text = info.installable === false ? (info.message || 'Run petdex update in your terminal.') : 'Update ' + (info.latest || 'available') + ' - click to install';
     \\    } else if (info.status === 'running') {
     \\      text = info.message || 'Updating...';
     \\    } else if (info.status === 'done') {
@@ -788,6 +924,29 @@ const html_tail =
     \\  }
     \\  setInterval(pollInitStatus, 5000);
     \\  pollInitStatus();
+    \\  async function openSettingsWindow() {
+    \\    if (!(window.zero && window.zero.windows)) return;
+    \\    try {
+    \\      const wins = await window.zero.windows.list();
+    \\      const existing = Array.isArray(wins) ? wins.find(w => w && typeof w.label === 'string' && w.label.indexOf('settings-') === 0 && w.open !== false) : null;
+    \\      if (existing) {
+    \\        await window.zero.windows.focus(existing.id);
+    \\        return;
+    \\      }
+    \\      try { localStorage.setItem('petdex-open-settings', '1'); } catch (_) {}
+    \\      await window.zero.windows.create({
+    \\        label: 'settings-' + Date.now(),
+    \\        title: 'Petdex Settings',
+    \\        width: 560,
+    \\        height: 620,
+    \\        x: 80,
+    \\        y: 80,
+    \\        restoreState: true,
+    \\      });
+    \\    } catch (err) {
+    \\      try { localStorage.removeItem('petdex-open-settings'); } catch (_) {}
+    \\    }
+    \\  }
     \\  // Sidecar watchdog. The sidecar dies via parent watchdog when
     \\  // we exit, but it can also crash mid-flight (Node OOM, an
     \\  // unhandled error in the HTTP handler) leaving us alive with
@@ -1093,6 +1252,14 @@ const html_tail =
     \\    }
     \\    const footer = document.createElement('div');
     \\    footer.className = 'footer';
+    \\    const settings = document.createElement('div');
+    \\    settings.className = 'settings-link';
+    \\    settings.textContent = 'settings';
+    \\    settings.addEventListener('click', (ev) => {
+    \\      ev.stopPropagation();
+    \\      closeMenu();
+    \\      void openSettingsWindow();
+    \\    });
     \\    const quit = document.createElement('div');
     \\    quit.className = 'quit';
     \\    quit.textContent = 'quit';
@@ -1120,6 +1287,7 @@ const html_tail =
     \\      confirmRow.appendChild(yes);
     \\      quit.replaceWith(confirmRow);
     \\    });
+    \\    footer.appendChild(settings);
     \\    footer.appendChild(quit);
     \\    menuEl.appendChild(input);
     \\    menuEl.appendChild(count);
@@ -1147,7 +1315,14 @@ const html_tail =
     \\  // Prevent the system's default contextmenu anywhere (selection helpers, etc.)
     \\  document.addEventListener('contextmenu', (e) => e.preventDefault());
     \\  window.addEventListener('blur', closeMenu);
-    \\  window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeMenu(); });
+    \\  window.addEventListener('keydown', (e) => {
+    \\    if ((e.metaKey || e.ctrlKey) && e.key === ',') {
+    \\      e.preventDefault();
+    \\      void openSettingsWindow();
+    \\      return;
+    \\    }
+    \\    if (e.key === 'Escape') closeMenu();
+    \\  });
     \\  document.addEventListener('click', (e) => {
     \\    if (menuEl && !menuEl.contains(e.target) && e.target !== pet) closeMenu();
     \\  }, true);
@@ -1259,9 +1434,9 @@ fn findExecutableOnPath(allocator: std.mem.Allocator, io: std.Io, env_map: *std.
     var explicit_buf: [16][]const u8 = undefined;
     var explicit_len: usize = 0;
     const candidates = [_][]const u8{
-        "/opt/homebrew/bin",   // Apple Silicon homebrew (default since 2020)
-        "/usr/local/bin",      // Intel homebrew, official Node installer
-        "/usr/bin",            // system, unlikely to have node but cheap to check
+        "/opt/homebrew/bin", // Apple Silicon homebrew (default since 2020)
+        "/usr/local/bin", // Intel homebrew, official Node installer
+        "/usr/bin", // system, unlikely to have node but cheap to check
     };
     for (candidates) |dir| {
         explicit_buf[explicit_len] = dir;
@@ -1284,11 +1459,11 @@ fn findExecutableOnPath(allocator: std.mem.Allocator, io: std.Io, env_map: *std.
     // each manager exposes.
     if (home.len > 0 and std.mem.eql(u8, name, "node")) {
         const manager_paths = [_][]const u8{
-            ".volta/bin/node",                // volta
-            ".fnm/aliases/default/bin/node",  // fnm with default alias
-            ".asdf/shims/node",               // asdf
-            ".n/bin/node",                    // tj/n
-            ".local/bin/node",                // user-local install
+            ".volta/bin/node", // volta
+            ".fnm/aliases/default/bin/node", // fnm with default alias
+            ".asdf/shims/node", // asdf
+            ".n/bin/node", // tj/n
+            ".local/bin/node", // user-local install
         };
         for (manager_paths) |rel| {
             const candidate = try std.fs.path.join(allocator, &.{ home, rel });
@@ -1354,7 +1529,7 @@ const PetdexState = struct {
     // having to re-resolve sidecar_dir or rebuild the env map.
     sidecar_dir: []u8,
     env_map: *std.process.Environ.Map,
-    bridge_handlers: [12]zero_native.BridgeHandler = undefined,
+    bridge_handlers: [14]zero_native.BridgeHandler = undefined,
 
     fn deinit(self: *PetdexState) void {
         self.allocator.free(self.config_dir);
@@ -1375,6 +1550,8 @@ const PetdexState = struct {
             .{ .name = "petdex.refresh_pets", .context = self, .invoke_fn = refreshPetsCmd },
             .{ .name = "petdex.read_update_info", .context = self, .invoke_fn = readUpdateInfoCmd },
             .{ .name = "petdex.read_init_status", .context = self, .invoke_fn = readInitStatusCmd },
+            .{ .name = "petdex.read_desktop_settings", .context = self, .invoke_fn = readDesktopSettingsCmd },
+            .{ .name = "petdex.write_desktop_settings", .context = self, .invoke_fn = writeDesktopSettingsCmd },
             .{ .name = "petdex.trigger_update", .context = self, .invoke_fn = triggerUpdateCmd },
             .{ .name = "petdex.respawn_sidecar", .context = self, .invoke_fn = respawnSidecarCmd },
             .{ .name = "petdex.set_mascot_state", .context = self, .invoke_fn = setMascotStateCmd },
@@ -1700,6 +1877,71 @@ const PetdexState = struct {
         return output[0..read];
     }
 
+    fn readDesktopSettingsCmd(context: *anyopaque, invocation: zero_native.bridge.Invocation, output: []u8) anyerror![]const u8 {
+        _ = invocation;
+        const self: *PetdexState = @ptrCast(@alignCast(context));
+        return try self.formatDesktopSettingsJson(output);
+    }
+
+    fn writeDesktopSettingsCmd(context: *anyopaque, invocation: zero_native.bridge.Invocation, output: []u8) anyerror![]const u8 {
+        const self: *PetdexState = @ptrCast(@alignCast(context));
+        const auto_updates = jsonBoolField(invocation.request.payload, "autoInstallUpdates") orelse return error.MissingAutoInstallUpdates;
+        const text = if (auto_updates) "{\"autoInstallUpdates\":true}\n" else "{\"autoInstallUpdates\":false}\n";
+        var dir = try std.Io.Dir.openDirAbsolute(self.io, self.config_dir, .{});
+        defer dir.close(self.io);
+        try writeFileAll(self.io, dir, "preferences.json", text);
+        return try self.formatDesktopSettingsJson(output);
+    }
+
+    fn readDesktopAutoInstallUpdates(self: *PetdexState) bool {
+        const path = std.fs.path.join(self.allocator, &.{ self.config_dir, "preferences.json" }) catch return true;
+        defer self.allocator.free(path);
+        var file = std.Io.Dir.openFileAbsolute(self.io, path, .{}) catch return true;
+        defer file.close(self.io);
+        var buf: [4096]u8 = undefined;
+        const read = file.readPositionalAll(self.io, &buf, 0) catch return true;
+        return jsonBoolField(buf[0..read], "autoInstallUpdates") orelse true;
+    }
+
+    fn formatDesktopSettingsJson(self: *PetdexState, output: []u8) ![]const u8 {
+        var buf: std.ArrayList(u8) = .empty;
+        defer buf.deinit(self.allocator);
+
+        try buf.appendSlice(self.allocator, "{\"autoInstallUpdates\":");
+        try buf.appendSlice(self.allocator, if (self.readDesktopAutoInstallUpdates()) "true" else "false");
+        try buf.appendSlice(self.allocator, ",\"version\":");
+
+        const version_path = try std.fs.path.join(self.allocator, &.{ self.config_dir, "version" });
+        defer self.allocator.free(version_path);
+        var version_buf: [128]u8 = undefined;
+        if (std.Io.Dir.openFileAbsolute(self.io, version_path, .{})) |version_file| {
+            var file = version_file;
+            defer file.close(self.io);
+            const read = file.readPositionalAll(self.io, &version_buf, 0) catch 0;
+            const version = std.mem.trim(u8, version_buf[0..read], " \t\r\n");
+            try buf.append(self.allocator, '"');
+            try appendJsonEscaped(&buf, self.allocator, version);
+            try buf.append(self.allocator, '"');
+        } else |_| {
+            try buf.appendSlice(self.allocator, "null");
+        }
+
+        try buf.appendSlice(self.allocator, ",\"configDir\":\"");
+        try appendJsonEscaped(&buf, self.allocator, self.config_dir);
+        try buf.appendSlice(self.allocator, "\",\"petsRoots\":[");
+        for (self.pets_roots, 0..) |root, i| {
+            if (i > 0) try buf.append(self.allocator, ',');
+            try buf.append(self.allocator, '"');
+            try appendJsonEscaped(&buf, self.allocator, root);
+            try buf.append(self.allocator, '"');
+        }
+        try buf.appendSlice(self.allocator, "]}");
+
+        if (buf.items.len > output.len) return error.BufferTooSmall;
+        @memcpy(output[0..buf.items.len], buf.items);
+        return output[0..buf.items.len];
+    }
+
     fn triggerUpdateCmd(context: *anyopaque, invocation: zero_native.bridge.Invocation, output: []u8) anyerror![]const u8 {
         _ = invocation;
         const self: *PetdexState = @ptrCast(@alignCast(context));
@@ -1864,6 +2106,8 @@ const petdex_command_policies = [_]zero_native.BridgeCommandPolicy{
     .{ .name = "petdex.refresh_pets", .origins = &petdex_origins },
     .{ .name = "petdex.read_update_info", .origins = &petdex_origins },
     .{ .name = "petdex.read_init_status", .origins = &petdex_origins },
+    .{ .name = "petdex.read_desktop_settings", .origins = &petdex_origins },
+    .{ .name = "petdex.write_desktop_settings", .origins = &petdex_origins },
     .{ .name = "petdex.trigger_update", .origins = &petdex_origins },
     .{ .name = "petdex.respawn_sidecar", .origins = &petdex_origins },
     .{ .name = "petdex.set_mascot_state", .origins = &petdex_origins },
@@ -1889,6 +2133,17 @@ fn jsonUintField(json: []const u8, key: []const u8) ?usize {
     while (end < json.len and std.ascii.isDigit(json[end])) end += 1;
     if (end == i) return null;
     return std.fmt.parseInt(usize, json[i..end], 10) catch null;
+}
+
+fn jsonBoolField(json: []const u8, key: []const u8) ?bool {
+    var key_buf: [64]u8 = undefined;
+    const needle = std.fmt.bufPrint(&key_buf, "\"{s}\":", .{key}) catch return null;
+    const start = std.mem.indexOf(u8, json, needle) orelse return null;
+    var i = start + needle.len;
+    while (i < json.len and std.ascii.isWhitespace(json[i])) i += 1;
+    if (std.mem.startsWith(u8, json[i..], "true")) return true;
+    if (std.mem.startsWith(u8, json[i..], "false")) return false;
+    return null;
 }
 
 // Counts string elements in a JSON array field (e.g. `"missing":["a","b"]`).
@@ -3421,4 +3676,10 @@ test "parseDeepLinkFromUrl: caps batch install at MAX_INSTALL_SLUGS" {
     try std.testing.expectEqual(MAX_INSTALL_SLUGS, dl.install.items.len);
     try std.testing.expectEqualStrings("p0", dl.install.items[0]);
     try std.testing.expectEqualStrings("p23", dl.install.items[MAX_INSTALL_SLUGS - 1]);
+}
+
+test "jsonBoolField parses boolean fields" {
+    try std.testing.expectEqual(true, jsonBoolField("{\"autoInstallUpdates\": true}", "autoInstallUpdates").?);
+    try std.testing.expectEqual(false, jsonBoolField("{\"autoInstallUpdates\":false}", "autoInstallUpdates").?);
+    try std.testing.expectEqual(@as(?bool, null), jsonBoolField("{\"autoInstallUpdates\":\"false\"}", "autoInstallUpdates"));
 }
