@@ -20,6 +20,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import {
   appendFileSync,
   chmodSync,
+  createWriteStream,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -29,7 +30,7 @@ import {
 } from "node:fs";
 import http from "node:http";
 import { homedir, arch as nodeArch, tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, join } from "node:path";
 
 import { nextRunningVariant } from "./running-variant";
 import { StateQueue } from "./state-queue";
@@ -668,23 +669,87 @@ function requiredSha256Digest(asset: {
   return asset.digest.slice("sha256:".length).toLowerCase();
 }
 
+function waitForFileEvent(
+  file: ReturnType<typeof createWriteStream>,
+  event: "drain" | "finish",
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const onEvent = () => {
+      cleanup();
+      resolve();
+    };
+    const onError = (err: Error) => {
+      cleanup();
+      reject(err);
+    };
+    const cleanup = () => {
+      file.off(event, onEvent);
+      file.off("error", onError);
+    };
+    file.once(event, onEvent);
+    file.once("error", onError);
+  });
+}
+
 async function downloadToFile(
   url: string,
   destPath: string,
   expectedSha256: string,
+  expectedSize: number,
 ): Promise<void> {
+  if (!Number.isSafeInteger(expectedSize) || expectedSize <= 0) {
+    throw new Error(`release asset has invalid size: ${expectedSize}`);
+  }
   const tmpPath = `${destPath}.tmp`;
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(120_000) });
     if (!res.ok) throw new Error(`download ${res.status}`);
-    const buffer = Buffer.from(await res.arrayBuffer());
-    const actual = createHash("sha256").update(buffer).digest("hex");
+    if (!res.body) throw new Error("download response has no body");
+    const file = createWriteStream(tmpPath);
+    const reader = res.body.getReader();
+    const hash = createHash("sha256");
+    let bytes = 0;
+    let fileError: Error | null = null;
+    file.on("error", (err) => {
+      fileError = err;
+    });
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = Buffer.from(value);
+        bytes += chunk.byteLength;
+        if (bytes > expectedSize) {
+          throw new Error(
+            `download size mismatch: expected ${expectedSize}, got more than ${bytes}`,
+          );
+        }
+        hash.update(chunk);
+        if (!file.write(chunk)) {
+          await waitForFileEvent(file, "drain");
+        }
+        if (fileError) throw fileError;
+      }
+      const finished = waitForFileEvent(file, "finish");
+      file.end();
+      await finished;
+    } catch (err) {
+      file.destroy();
+      throw err;
+    } finally {
+      reader.releaseLock();
+    }
+    if (bytes !== expectedSize) {
+      throw new Error(
+        `download size mismatch: expected ${expectedSize}, got ${bytes}`,
+      );
+    }
+    const actual = hash.digest("hex");
     if (actual !== expectedSha256) {
       throw new Error(
         `download digest mismatch: expected ${expectedSha256}, got ${actual}`,
       );
     }
-    writeFileSync(tmpPath, buffer);
     renameSync(tmpPath, destPath);
   } catch (err) {
     rmSync(tmpPath, { force: true });
@@ -741,6 +806,21 @@ async function readCodeSignatureInfo(
   return parseCodeSignatureInfo(`${result.stdout}\n${result.stderr}`);
 }
 
+async function verifyTrustedUpdateAppBundle(
+  appPath: string,
+  currentSignature: CodeSignatureInfo,
+): Promise<void> {
+  await runUpdateCommand("codesign", [
+    "--verify",
+    "--deep",
+    "--strict",
+    appPath,
+  ]);
+  const signature = await readCodeSignatureInfo(appPath);
+  assertTrustedUpdateSignature(currentSignature, signature);
+  await runUpdateCommand("spctl", ["-a", "-t", "exec", appPath]);
+}
+
 function assertTrustedUpdateSignature(
   current: CodeSignatureInfo,
   next: CodeSignatureInfo,
@@ -764,6 +844,44 @@ function assertTrustedUpdateSignature(
     throw new Error(
       "Update Petdex.app is not signed with Developer ID Application.",
     );
+  }
+}
+
+function updateStagingPaths(appBundleRoot: string): {
+  stagedApp: string;
+  backupApp: string;
+} {
+  const token = randomBytes(8).toString("hex");
+  const parent = dirname(appBundleRoot);
+  const appName = basename(appBundleRoot);
+  return {
+    stagedApp: join(parent, `.${appName}.update-${token}`),
+    backupApp: join(parent, `.${appName}.previous-${token}`),
+  };
+}
+
+async function installStagedAppBundle(
+  appBundleRoot: string,
+  stagedApp: string,
+  backupApp: string,
+  verifyInstalled: () => Promise<void>,
+): Promise<void> {
+  rmSync(backupApp, { recursive: true, force: true });
+  renameSync(appBundleRoot, backupApp);
+  let installed = false;
+  try {
+    renameSync(stagedApp, appBundleRoot);
+    installed = true;
+    await verifyInstalled();
+    rmSync(backupApp, { recursive: true, force: true });
+  } catch (err) {
+    if (installed) {
+      rmSync(appBundleRoot, { recursive: true, force: true });
+    }
+    if (existsSync(backupApp)) {
+      renameSync(backupApp, appBundleRoot);
+    }
+    throw err;
   }
 }
 
@@ -798,6 +916,7 @@ async function applyBundledUpdate(): Promise<void> {
     `petdex-${randomBytes(8).toString("hex")}-${dmgAsset.name}`,
   );
   let mountPoint: string | null = null;
+  let stagedApp: string | null = null;
   try {
     writeUpdateInfo({
       ...readUpdateInfo(),
@@ -810,6 +929,7 @@ async function applyBundledUpdate(): Promise<void> {
       dmgAsset.browser_download_url,
       dmgPath,
       requiredSha256Digest(dmgAsset),
+      dmgAsset.size,
     );
     writeUpdateInfo({
       ...readUpdateInfo(),
@@ -846,21 +966,31 @@ async function applyBundledUpdate(): Promise<void> {
       appBundleRoot,
     ]);
     const currentSignature = await readCodeSignatureInfo(appBundleRoot);
-    const updateSignature = await readCodeSignatureInfo(sourceApp);
-    assertTrustedUpdateSignature(currentSignature, updateSignature);
-    await runUpdateCommand("spctl", ["-a", "-t", "exec", sourceApp]);
+    await verifyTrustedUpdateAppBundle(sourceApp, currentSignature);
     writeUpdateInfo({
       ...readUpdateInfo(),
       status: "running",
       message: "Replacing Petdex.app...",
       checkedAt: Date.now(),
     });
+    const staging = updateStagingPaths(appBundleRoot);
+    stagedApp = staging.stagedApp;
+    rmSync(stagedApp, { recursive: true, force: true });
+    await runUpdateCommand("ditto", [sourceApp, stagedApp]);
+    await verifyTrustedUpdateAppBundle(stagedApp, currentSignature);
     await stopParentForUpdate();
-    await runUpdateCommand("ditto", [sourceApp, appBundleRoot]);
-    await runUpdateCommand(
-      "xattr",
-      ["-dr", "com.apple.quarantine", appBundleRoot],
-      { allowFailure: true },
+    await installStagedAppBundle(
+      appBundleRoot,
+      stagedApp,
+      staging.backupApp,
+      async () => {
+        await runUpdateCommand(
+          "xattr",
+          ["-dr", "com.apple.quarantine", appBundleRoot],
+          { allowFailure: true },
+        );
+        await verifyTrustedUpdateAppBundle(appBundleRoot, currentSignature);
+      },
     );
     writeFileSync(VERSION_FILE, `${release.tag_name}\n`);
     writeUpdateInfo({
@@ -886,6 +1016,7 @@ async function applyBundledUpdate(): Promise<void> {
       }).catch(() => {});
     }
     rmSync(dmgPath, { force: true });
+    if (stagedApp) rmSync(stagedApp, { recursive: true, force: true });
   }
 }
 
