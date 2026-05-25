@@ -16,21 +16,32 @@
  */
 
 import { spawn } from "node:child_process";
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import {
   appendFileSync,
   chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
+  renameSync,
+  rmSync,
   writeFileSync,
 } from "node:fs";
 import http from "node:http";
-import { homedir } from "node:os";
+import { homedir, arch as nodeArch, tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { nextRunningVariant } from "./running-variant";
 import { StateQueue } from "./state-queue";
+import {
+  DEFAULT_DESKTOP_PREFERENCES,
+  type DesktopPreferences,
+  type DesktopRelease,
+  findDmgAsset,
+  findEnclosingAppBundle,
+  parseDesktopPreferences,
+  parseHdiutilMount,
+} from "./update-utils";
 
 const PORT = Number(process.env.PETDEX_PORT ?? 7777);
 const RUNTIME_DIR = join(homedir(), ".petdex", "runtime");
@@ -40,6 +51,7 @@ const UPDATE_PATH = join(RUNTIME_DIR, "update.json");
 const UPDATE_LOG_PATH = join(RUNTIME_DIR, "update.log");
 const UPDATE_TOKEN_PATH = join(RUNTIME_DIR, "update-token");
 const VERSION_FILE = join(homedir(), ".petdex", "version");
+const PREFERENCES_PATH = join(homedir(), ".petdex", "preferences.json");
 const INIT_STATUS_PATH = join(RUNTIME_DIR, "init-status.json");
 const PERSISTED_BINARY_PATH = join(homedir(), ".petdex", "bin", "petdex.js");
 const LOG_PATH = join(RUNTIME_DIR, "sidecar.log");
@@ -390,6 +402,15 @@ function readCurrentVersion(): string | null {
   }
 }
 
+function readDesktopPreferences(): DesktopPreferences {
+  if (!existsSync(PREFERENCES_PATH)) return DEFAULT_DESKTOP_PREFERENCES;
+  try {
+    return parseDesktopPreferences(readFileSync(PREFERENCES_PATH, "utf8"));
+  } catch {
+    return DEFAULT_DESKTOP_PREFERENCES;
+  }
+}
+
 function readUpdateInfo(): UpdateInfo {
   if (!existsSync(UPDATE_PATH)) {
     return {
@@ -455,7 +476,7 @@ function writeInitStatus(): void {
   }
 }
 
-async function fetchLatestDesktopTag(): Promise<string | null> {
+async function fetchLatestDesktopRelease(): Promise<DesktopRelease | null> {
   for (let page = 1; page <= RELEASES_MAX_PAGES; page++) {
     const url = `${RELEASES_API_BASE}?per_page=${RELEASES_PAGE_SIZE}&page=${page}`;
     const res = await fetch(url, {
@@ -468,6 +489,7 @@ async function fetchLatestDesktopTag(): Promise<string | null> {
     }
     const data = (await res.json()) as Array<{
       tag_name?: string;
+      assets?: unknown;
       draft?: boolean;
       prerelease?: boolean;
     }>;
@@ -479,7 +501,14 @@ async function fetchLatestDesktopTag(): Promise<string | null> {
         typeof r.tag_name === "string" &&
         r.tag_name.startsWith(DESKTOP_TAG_PREFIX),
     );
-    if (hit?.tag_name) return hit.tag_name;
+    if (hit?.tag_name) {
+      return {
+        tag_name: hit.tag_name,
+        assets: Array.isArray(hit.assets)
+          ? (hit.assets as DesktopRelease["assets"])
+          : [],
+      };
+    }
     // Short page = end of list, no point asking for the next.
     if (data.length < RELEASES_PAGE_SIZE) return null;
   }
@@ -488,13 +517,14 @@ async function fetchLatestDesktopTag(): Promise<string | null> {
 
 async function checkForUpdate(): Promise<void> {
   const current = readCurrentVersion();
-  let latest: string | null = null;
+  let release: DesktopRelease | null = null;
   try {
-    latest = await fetchLatestDesktopTag();
+    release = await fetchLatestDesktopRelease();
   } catch (err) {
     log(`update check failed: ${(err as Error).message}`);
     return;
   }
+  const latest = release?.tag_name ?? null;
 
   const existing = readUpdateInfo();
   // Don't clobber a running/done status with a fresh idle write — the
@@ -503,7 +533,7 @@ async function checkForUpdate(): Promise<void> {
     return;
   }
 
-  const available = !!latest && !!current && latest !== current;
+  const available = !!latest && latest !== current;
   const next: UpdateInfo = {
     available,
     current,
@@ -516,6 +546,16 @@ async function checkForUpdate(): Promise<void> {
   log(
     `update check: current=${current ?? "?"} latest=${latest ?? "?"} available=${available}`,
   );
+  if (available && readDesktopPreferences().autoInstallUpdates) {
+    writeUpdateInfo({
+      ...next,
+      status: "running",
+      message: "Installing the latest desktop release...",
+      checkedAt: Date.now(),
+    });
+    logUpdate(`auto-install triggered for ${latest}`);
+    spawnUpdate();
+  }
 }
 
 function logUpdate(line: string) {
@@ -526,146 +566,251 @@ function logUpdate(line: string) {
   }
 }
 
-// Track the in-flight updater child so the parent watchdog and
-// SIGTERM handlers can wait for it before tearing down the sidecar.
-// The updater runs `petdex update --silent`, which itself stops the
-// desktop binary mid-flight; that triggers the parent watchdog and
-// could otherwise reap this process before the child writes its
-// terminal status, leaving update.json stuck on "running".
 let currentUpdateChild: ReturnType<typeof spawn> | null = null;
-
-// Set true after the updater hits POST /update/handoff. Used to
-// short-circuit duplicate handoffs and to stop the parent watchdog
-// from re-triggering shutdown after we already initiated one.
+let updateInProgress = false;
 let handoffRequested = false;
 
-// Resolve `npx` (or any executable) with a fallback search through
-// common install locations. The sidecar inherits PATH from the zig
-// parent, but on a Finder-launched .app that PATH may be the minimal
-// launchctl one (/usr/bin:/bin:/usr/sbin:/sbin) — node version
-// managers and homebrew aren't on it. Without this, spawn("npx") hits
-// ENOENT and the WebView's "Update" click silently fails (Hunter
-// 2026-05-11). We probe the same dirs the zig finder uses for node,
-// since npx ships in the same bin/ as node for every manager.
-function findExecutable(name: string): string | null {
-  const { existsSync } = require("node:fs") as typeof import("node:fs");
-  const path = require("node:path") as typeof import("node:path");
-  const home = process.env.HOME ?? "";
-  const candidates: string[] = [];
-  for (const dir of (process.env.PATH ?? "").split(":")) {
-    if (dir) candidates.push(path.join(dir, name));
-  }
-  candidates.push(
-    `/opt/homebrew/bin/${name}`,
-    `/usr/local/bin/${name}`,
-    `/usr/bin/${name}`,
-  );
-  if (home) {
-    candidates.push(
-      path.join(home, ".volta", "bin", name),
-      path.join(home, ".fnm", "aliases", "default", "bin", name),
-      path.join(home, ".asdf", "shims", name),
-      path.join(home, ".n", "bin", name),
-      path.join(home, ".local", "bin", name),
-    );
-    // nvm: pick highest-versioned dir that has the binary.
-    const nvmRoot = path.join(home, ".nvm", "versions", "node");
-    if (existsSync(nvmRoot)) {
-      try {
-        const { readdirSync } = require("node:fs") as typeof import("node:fs");
-        const versions = readdirSync(nvmRoot)
-          .filter((v: string) => v.startsWith("v"))
-          .sort();
-        for (const v of versions.reverse()) {
-          candidates.push(path.join(nvmRoot, v, "bin", name));
-        }
-      } catch {
-        // ignore — just skip nvm
-      }
-    }
-  }
-  for (const candidate of candidates) {
-    if (existsSync(candidate)) return candidate;
-  }
-  return null;
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function spawnUpdate(): void {
-  // npx so the host machine can pin its own petdex-cli version. The
-  // child runs detached + ignored-stdin so the sidecar exits cleanly
-  // if it gets SIGTERM mid-update; we keep stdout/stderr piped to
-  // log progress.
-  const npxPath = findExecutable("npx");
-  if (!npxPath) {
-    log("spawnUpdate: npx not found in PATH or known locations");
+function pidAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    return (err as NodeJS.ErrnoException).code !== "ESRCH";
+  }
+}
+
+async function runUpdateCommand(
+  command: string,
+  args: string[],
+  options: { allowFailure?: boolean } = {},
+): Promise<{ stdout: string; stderr: string; code: number | null }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });
+    currentUpdateChild = child;
+    let stdout = "";
+    let stderr = "";
+    child.stdout?.on("data", (chunk: Buffer) => {
+      const text = chunk.toString("utf8");
+      stdout += text;
+      const line = text.trimEnd();
+      if (line) logUpdate(`${command}: ${line}`);
+    });
+    child.stderr?.on("data", (chunk: Buffer) => {
+      const text = chunk.toString("utf8");
+      stderr += text;
+      const line = text.trimEnd();
+      if (line) logUpdate(`${command} stderr: ${line}`);
+    });
+    child.on("error", (err) => {
+      currentUpdateChild = null;
+      reject(err);
+    });
+    child.on("exit", (code) => {
+      currentUpdateChild = null;
+      if (code !== 0 && !options.allowFailure) {
+        reject(
+          new Error(
+            `${command} exited with code ${code ?? "null"}: ${stderr || stdout || "no output"}`,
+          ),
+        );
+        return;
+      }
+      resolve({ stdout, stderr, code });
+    });
+  });
+}
+
+function sha256Digest(asset: { digest?: string }): string | null {
+  if (typeof asset.digest !== "string") return null;
+  if (!asset.digest.startsWith("sha256:")) return null;
+  return asset.digest.slice("sha256:".length).toLowerCase();
+}
+
+async function downloadToFile(
+  url: string,
+  destPath: string,
+  expectedSha256: string | null,
+): Promise<void> {
+  const tmpPath = `${destPath}.tmp`;
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(120_000) });
+    if (!res.ok) throw new Error(`download ${res.status}`);
+    const buffer = Buffer.from(await res.arrayBuffer());
+    if (expectedSha256) {
+      const actual = createHash("sha256").update(buffer).digest("hex");
+      if (actual !== expectedSha256) {
+        throw new Error(
+          `download digest mismatch: expected ${expectedSha256}, got ${actual}`,
+        );
+      }
+    }
+    writeFileSync(tmpPath, buffer);
+    renameSync(tmpPath, destPath);
+  } catch (err) {
+    rmSync(tmpPath, { force: true });
+    throw err;
+  }
+}
+
+async function stopParentForUpdate(): Promise<void> {
+  const parent = Number(process.env.PETDEX_PARENT_PID);
+  if (!Number.isFinite(parent) || parent <= 0) return;
+  try {
+    process.kill(parent, "SIGTERM");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ESRCH") throw err;
+    return;
+  }
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    if (!pidAlive(parent)) return;
+    await sleep(250);
+  }
+  logUpdate(`parent ${parent} still alive after SIGTERM`);
+}
+
+async function closeServerForRelaunch(): Promise<void> {
+  if (handoffRequested) return;
+  handoffRequested = true;
+  await new Promise<void>((resolve) => server.close(() => resolve()));
+}
+
+async function applyBundledUpdate(): Promise<void> {
+  if (process.platform !== "darwin") {
+    throw new Error("Bundled desktop updater is only available on macOS.");
+  }
+  const release = await fetchLatestDesktopRelease();
+  if (!release) throw new Error("No desktop release found.");
+  const current = readCurrentVersion();
+  if (current === release.tag_name) {
     writeUpdateInfo({
-      ...readUpdateInfo(),
-      status: "error",
-      message:
-        "npx not found. Install Node.js from nodejs.org or run `brew install node`.",
+      available: false,
+      current,
+      latest: release.tag_name,
+      status: "done",
+      message: "Already up to date.",
       checkedAt: Date.now(),
     });
     return;
   }
-  const child = spawn(npxPath, ["-y", "petdex@latest", "update", "--silent"], {
-    detached: true,
-    stdio: ["ignore", "pipe", "pipe"],
-    env: process.env,
-  });
-  currentUpdateChild = child;
-  // ENOENT on spawn surfaces via 'error', not 'exit'. Without this
-  // listener, an absent npx leaves update.json stuck on "running"
-  // forever and the WebView's spinner never stops. (Hunter screenshot
-  // 2026-05-11: bubble said "Could not spawn npx: spawn npx ENOENT"
-  // but update.json was never updated.)
-  child.on("error", (err: NodeJS.ErrnoException) => {
-    currentUpdateChild = null;
-    log(`spawnUpdate: child error ${err.code ?? "?"} ${err.message}`);
+  const dmgAsset = findDmgAsset(release, nodeArch());
+  if (!dmgAsset) {
+    throw new Error(`No DMG asset for ${nodeArch()} in ${release.tag_name}.`);
+  }
+  const appBundleRoot =
+    process.env.PETDEX_APP_BUNDLE ?? findEnclosingAppBundle(__filename);
+  if (!appBundleRoot) {
+    throw new Error("Petdex.app bundle not found for in-app update.");
+  }
+  const dmgPath = join(
+    tmpdir(),
+    `petdex-${randomBytes(8).toString("hex")}-${dmgAsset.name}`,
+  );
+  let mountPoint: string | null = null;
+  try {
     writeUpdateInfo({
       ...readUpdateInfo(),
-      status: "error",
-      message:
-        err.code === "ENOENT"
-          ? "Could not run npx. Install Node.js or run: npx petdex@latest update from a terminal."
-          : `Update spawn failed: ${err.message}`,
+      latest: release.tag_name,
+      status: "running",
+      message: `Downloading ${release.tag_name}...`,
       checkedAt: Date.now(),
     });
-  });
-  child.stdout?.on("data", (chunk: Buffer) => {
-    logUpdate(chunk.toString("utf8").trimEnd());
-  });
-  child.stderr?.on("data", (chunk: Buffer) => {
-    logUpdate(`stderr: ${chunk.toString("utf8").trimEnd()}`);
-  });
-  child.on("exit", (code) => {
-    currentUpdateChild = null;
-    const info = readUpdateInfo();
-    if (code === 0) {
-      const newCurrent = readCurrentVersion();
-      writeUpdateInfo({
-        ...info,
-        current: newCurrent,
-        // Keep `available` true so the WebView shows a "Restart now"
-        // affordance after the binary has been swapped on disk.
-        status: "done",
-        message: "Update installed. Restart the desktop to use it.",
-        checkedAt: Date.now(),
-      });
-      logUpdate(`exit 0 (installed ${newCurrent ?? "?"})`);
-    } else {
-      writeUpdateInfo({
-        ...info,
-        status: "error",
-        message: `petdex update exited with code ${code ?? "null"}. See ${UPDATE_LOG_PATH}.`,
-        checkedAt: Date.now(),
-      });
-      logUpdate(`exit ${code}`);
+    await downloadToFile(
+      dmgAsset.browser_download_url,
+      dmgPath,
+      sha256Digest(dmgAsset),
+    );
+    writeUpdateInfo({
+      ...readUpdateInfo(),
+      status: "running",
+      message: "Mounting update image...",
+      checkedAt: Date.now(),
+    });
+    const mount = await runUpdateCommand("hdiutil", [
+      "attach",
+      "-nobrowse",
+      dmgPath,
+    ]);
+    mountPoint = parseHdiutilMount(mount.stdout) ?? "/Volumes/Petdex";
+    const sourceApp = join(mountPoint, "Petdex.app");
+    if (!existsSync(sourceApp)) {
+      throw new Error(`Mounted update does not contain ${sourceApp}.`);
     }
-  });
-  // Note: deliberately NOT calling child.unref() here. The whole
-  // point of tracking currentUpdateChild is to keep the sidecar
-  // alive until the updater finishes; unref'ing would let the
-  // process die early on its own.
+    writeUpdateInfo({
+      ...readUpdateInfo(),
+      status: "running",
+      message: "Verifying update signature...",
+      checkedAt: Date.now(),
+    });
+    await runUpdateCommand("codesign", [
+      "--verify",
+      "--deep",
+      "--strict",
+      sourceApp,
+    ]);
+    writeUpdateInfo({
+      ...readUpdateInfo(),
+      status: "running",
+      message: "Replacing Petdex.app...",
+      checkedAt: Date.now(),
+    });
+    await stopParentForUpdate();
+    await runUpdateCommand("ditto", [sourceApp, appBundleRoot]);
+    await runUpdateCommand(
+      "xattr",
+      ["-dr", "com.apple.quarantine", appBundleRoot],
+      { allowFailure: true },
+    );
+    writeFileSync(VERSION_FILE, `${release.tag_name}\n`);
+    writeUpdateInfo({
+      available: false,
+      current: release.tag_name,
+      latest: release.tag_name,
+      status: "done",
+      message: "Update installed. Relaunching Petdex.",
+      checkedAt: Date.now(),
+    });
+    logUpdate(`installed ${release.tag_name} into ${appBundleRoot}`);
+    await closeServerForRelaunch();
+    const opener = spawn("open", [appBundleRoot], {
+      detached: true,
+      stdio: "ignore",
+    });
+    opener.unref();
+    setTimeout(() => process.exit(0), 250).unref();
+  } finally {
+    if (mountPoint) {
+      await runUpdateCommand("hdiutil", ["detach", "-quiet", mountPoint], {
+        allowFailure: true,
+      }).catch(() => {});
+    }
+    rmSync(dmgPath, { force: true });
+  }
+}
+
+function spawnUpdate(): void {
+  if (updateInProgress) return;
+  updateInProgress = true;
+  void applyBundledUpdate()
+    .catch((err) => {
+      const message = (err as Error).message;
+      log(`spawnUpdate: ${message}`);
+      logUpdate(`error: ${message}`);
+      writeUpdateInfo({
+        ...readUpdateInfo(),
+        status: "error",
+        message,
+        checkedAt: Date.now(),
+      });
+    })
+    .finally(() => {
+      updateInProgress = false;
+      currentUpdateChild = null;
+    });
 }
 
 const server = http.createServer(async (req, res) => {
@@ -943,7 +1088,7 @@ const server = http.createServer(async (req, res) => {
       const next: UpdateInfo = {
         ...info,
         status: "running",
-        message: "Downloading the latest release...",
+        message: "Installing the latest desktop release...",
         checkedAt: Date.now(),
       };
       writeUpdateInfo(next);
@@ -1136,12 +1281,12 @@ function shutdown(signal: string) {
   // own death (triggered by the desktop dying inside `petdex update
   // --silent`) can kill the npm child before it commits the rename,
   // and update.json stays stuck on "running" forever.
-  if (currentUpdateChild) {
-    log(`sidecar received ${signal}; waiting for updater child to exit`);
+  if (updateInProgress || currentUpdateChild) {
+    log(`sidecar received ${signal}; update in progress`);
     const start = Date.now();
     const giveUp = setTimeout(() => {
       log(
-        `updater child still running after ${UPDATE_CHILD_GRACE_MS}ms; forcing exit`,
+        `update still running after ${UPDATE_CHILD_GRACE_MS}ms; forcing exit`,
       );
       // Mark the row as error so the WebView doesn't get stuck.
       const info = readUpdateInfo();
@@ -1157,9 +1302,13 @@ function shutdown(signal: string) {
       server.close(() => process.exit(0));
       setTimeout(() => process.exit(0), 1000).unref();
     }, UPDATE_CHILD_GRACE_MS);
+    if (!currentUpdateChild) {
+      giveUp.unref();
+      return;
+    }
     currentUpdateChild.on("exit", () => {
       clearTimeout(giveUp);
-      log(`updater child exited after ${Date.now() - start}ms; shutting down`);
+      log(`update command exited after ${Date.now() - start}ms; shutting down`);
       server.close(() => process.exit(0));
       setTimeout(() => process.exit(0), 1000).unref();
     });
@@ -1202,13 +1351,7 @@ if (Number.isFinite(parentPid) && parentPid > 0) {
     try {
       process.kill(parentPid, 0);
     } catch {
-      if (currentUpdateChild) {
-        // Don't shut down mid-update. The updater's exit handler will
-        // call shutdown via... actually no, the exit handler only
-        // updates update.json. Trigger shutdown here once the child
-        // is done; until then, sleep through this watchdog tick.
-        return;
-      }
+      if (updateInProgress || currentUpdateChild) return;
       log(`parent ${parentPid} gone, exiting`);
       clearInterval(timer);
       shutdown("parent-gone");
