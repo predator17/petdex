@@ -947,6 +947,7 @@ async function applyBundledUpdate(): Promise<void> {
   );
   let mountPoint: string | null = null;
   let stagedApp: string | null = null;
+  let relaunchApp: string | null = null;
   try {
     writeUpdateInfo({
       ...readUpdateInfo(),
@@ -972,7 +973,10 @@ async function applyBundledUpdate(): Promise<void> {
       "-nobrowse",
       dmgPath,
     ]);
-    mountPoint = parseHdiutilMount(mount.stdout) ?? "/Volumes/Petdex";
+    mountPoint = parseHdiutilMount(mount.stdout);
+    if (!mountPoint) {
+      throw new Error("Could not determine mounted update volume.");
+    }
     const sourceApp = join(mountPoint, "Petdex.app");
     if (!existsSync(sourceApp)) {
       throw new Error(`Mounted update does not contain ${sourceApp}.`);
@@ -1032,13 +1036,7 @@ async function applyBundledUpdate(): Promise<void> {
       checkedAt: Date.now(),
     });
     logUpdate(`installed ${release.tag_name} into ${appBundleRoot}`);
-    await closeServerForRelaunch();
-    const opener = spawn("open", [appBundleRoot], {
-      detached: true,
-      stdio: "ignore",
-    });
-    opener.unref();
-    setTimeout(() => process.exit(0), 250).unref();
+    relaunchApp = appBundleRoot;
   } finally {
     if (mountPoint) {
       await runUpdateCommand("hdiutil", ["detach", "-quiet", mountPoint], {
@@ -1047,6 +1045,15 @@ async function applyBundledUpdate(): Promise<void> {
     }
     rmSync(dmgPath, { force: true });
     if (stagedApp) rmSync(stagedApp, { recursive: true, force: true });
+  }
+  if (relaunchApp) {
+    await closeServerForRelaunch();
+    const opener = spawn("open", [relaunchApp], {
+      detached: true,
+      stdio: "ignore",
+    });
+    opener.unref();
+    setTimeout(() => process.exit(0), 250).unref();
   }
 }
 
