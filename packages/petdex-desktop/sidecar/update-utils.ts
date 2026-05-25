@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { createWriteStream, existsSync, renameSync, rmSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
+import { finished } from "node:stream/promises";
 
 export type DesktopPreferences = {
   autoInstallUpdates: boolean;
@@ -68,7 +69,7 @@ export function parseHdiutilMount(stdout: string): string | null {
 
 function waitForFileEvent(
   file: ReturnType<typeof createWriteStream>,
-  event: "drain" | "finish",
+  event: "drain",
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const onEvent = () => {
@@ -103,6 +104,7 @@ export async function downloadToFile(
     if (!res.ok) throw new Error(`download ${res.status}`);
     if (!res.body) throw new Error("download response has no body");
     const file = createWriteStream(tmpPath);
+    const finishedPromise = finished(file);
     const reader = res.body.getReader();
     const hash = createHash("sha256");
     let bytes = 0;
@@ -122,16 +124,21 @@ export async function downloadToFile(
           );
         }
         hash.update(chunk);
+        if (fileError) throw fileError;
         if (!file.write(chunk)) {
-          await waitForFileEvent(file, "drain");
+          await Promise.race([
+            waitForFileEvent(file, "drain"),
+            finishedPromise,
+          ]);
         }
         if (fileError) throw fileError;
       }
-      const finished = waitForFileEvent(file, "finish");
+      if (fileError) throw fileError;
       file.end();
-      await finished;
+      await finishedPromise;
     } catch (err) {
       file.destroy();
+      await finishedPromise.catch(() => {});
       throw err;
     } finally {
       reader.releaseLock();
