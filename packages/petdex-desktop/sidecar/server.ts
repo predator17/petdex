@@ -393,6 +393,11 @@ type UpdateInfo = {
   checkedAt: number;
 };
 
+type CodeSignatureInfo = {
+  teamIdentifier: string | null;
+  authorities: string[];
+};
+
 function readCurrentVersion(): string | null {
   if (!existsSync(VERSION_FILE)) return null;
   try {
@@ -624,29 +629,38 @@ async function runUpdateCommand(
   });
 }
 
-function sha256Digest(asset: { digest?: string }): string | null {
-  if (typeof asset.digest !== "string") return null;
-  if (!asset.digest.startsWith("sha256:")) return null;
+function requiredSha256Digest(asset: {
+  digest?: string;
+  name?: string;
+}): string {
+  if (typeof asset.digest !== "string") {
+    throw new Error(
+      `Release asset ${asset.name ?? "unknown"} has no sha256 digest.`,
+    );
+  }
+  if (!asset.digest.startsWith("sha256:")) {
+    throw new Error(
+      `Release asset ${asset.name ?? "unknown"} has an unsupported digest.`,
+    );
+  }
   return asset.digest.slice("sha256:".length).toLowerCase();
 }
 
 async function downloadToFile(
   url: string,
   destPath: string,
-  expectedSha256: string | null,
+  expectedSha256: string,
 ): Promise<void> {
   const tmpPath = `${destPath}.tmp`;
   try {
     const res = await fetch(url, { signal: AbortSignal.timeout(120_000) });
     if (!res.ok) throw new Error(`download ${res.status}`);
     const buffer = Buffer.from(await res.arrayBuffer());
-    if (expectedSha256) {
-      const actual = createHash("sha256").update(buffer).digest("hex");
-      if (actual !== expectedSha256) {
-        throw new Error(
-          `download digest mismatch: expected ${expectedSha256}, got ${actual}`,
-        );
-      }
+    const actual = createHash("sha256").update(buffer).digest("hex");
+    if (actual !== expectedSha256) {
+      throw new Error(
+        `download digest mismatch: expected ${expectedSha256}, got ${actual}`,
+      );
     }
     writeFileSync(tmpPath, buffer);
     renameSync(tmpPath, destPath);
@@ -670,13 +684,65 @@ async function stopParentForUpdate(): Promise<void> {
     if (!pidAlive(parent)) return;
     await sleep(250);
   }
-  logUpdate(`parent ${parent} still alive after SIGTERM`);
+  throw new Error(
+    "Petdex is still running after the quit request. Quit Petdex and try again.",
+  );
 }
 
 async function closeServerForRelaunch(): Promise<void> {
   if (handoffRequested) return;
   handoffRequested = true;
   await new Promise<void>((resolve) => server.close(() => resolve()));
+}
+
+function parseCodeSignatureInfo(output: string): CodeSignatureInfo {
+  const authorities: string[] = [];
+  let teamIdentifier: string | null = null;
+  for (const line of output.split("\n")) {
+    if (line.startsWith("Authority=")) authorities.push(line.slice(10).trim());
+    if (line.startsWith("TeamIdentifier=")) {
+      const value = line.slice("TeamIdentifier=".length).trim();
+      teamIdentifier = value && value !== "not set" ? value : null;
+    }
+  }
+  return { teamIdentifier, authorities };
+}
+
+async function readCodeSignatureInfo(
+  appPath: string,
+): Promise<CodeSignatureInfo> {
+  const result = await runUpdateCommand("codesign", [
+    "-dv",
+    "--verbose=4",
+    appPath,
+  ]);
+  return parseCodeSignatureInfo(`${result.stdout}\n${result.stderr}`);
+}
+
+function assertTrustedUpdateSignature(
+  current: CodeSignatureInfo,
+  next: CodeSignatureInfo,
+): void {
+  if (!current.teamIdentifier) {
+    throw new Error("Current Petdex.app has no Developer ID team identifier.");
+  }
+  if (!next.teamIdentifier) {
+    throw new Error("Update Petdex.app has no Developer ID team identifier.");
+  }
+  if (current.teamIdentifier !== next.teamIdentifier) {
+    throw new Error(
+      `Update signer mismatch: expected ${current.teamIdentifier}, got ${next.teamIdentifier}.`,
+    );
+  }
+  if (
+    !next.authorities.some((authority) =>
+      authority.startsWith("Developer ID Application:"),
+    )
+  ) {
+    throw new Error(
+      "Update Petdex.app is not signed with Developer ID Application.",
+    );
+  }
 }
 
 async function applyBundledUpdate(): Promise<void> {
@@ -702,7 +768,9 @@ async function applyBundledUpdate(): Promise<void> {
     throw new Error(`No DMG asset for ${nodeArch()} in ${release.tag_name}.`);
   }
   const appBundleRoot =
-    process.env.PETDEX_APP_BUNDLE ?? findEnclosingAppBundle(__filename);
+    process.env.PETDEX_APP_BUNDLE ??
+    findEnclosingAppBundle(process.argv[1] ?? "") ??
+    findEnclosingAppBundle(__filename);
   if (!appBundleRoot) {
     throw new Error("Petdex.app bundle not found for in-app update.");
   }
@@ -722,7 +790,7 @@ async function applyBundledUpdate(): Promise<void> {
     await downloadToFile(
       dmgAsset.browser_download_url,
       dmgPath,
-      sha256Digest(dmgAsset),
+      requiredSha256Digest(dmgAsset),
     );
     writeUpdateInfo({
       ...readUpdateInfo(),
@@ -752,6 +820,16 @@ async function applyBundledUpdate(): Promise<void> {
       "--strict",
       sourceApp,
     ]);
+    await runUpdateCommand("codesign", [
+      "--verify",
+      "--deep",
+      "--strict",
+      appBundleRoot,
+    ]);
+    const currentSignature = await readCodeSignatureInfo(appBundleRoot);
+    const updateSignature = await readCodeSignatureInfo(sourceApp);
+    assertTrustedUpdateSignature(currentSignature, updateSignature);
+    await runUpdateCommand("spctl", ["-a", "-t", "exec", sourceApp]);
     writeUpdateInfo({
       ...readUpdateInfo(),
       status: "running",
