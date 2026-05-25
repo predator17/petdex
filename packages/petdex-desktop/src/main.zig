@@ -269,7 +269,10 @@ const html_tail =
     \\    if (info.status === 'running') return info.message || 'Updating...';
     \\    if (info.status === 'error') return info.message || 'Update failed.';
     \\    if (info.status === 'done') return info.message || 'Update installed.';
-    \\    if (info.available) return 'Update ' + (info.latest || 'available') + ' available.';
+    \\    if (info.available) {
+    \\      if (info.installable === false) return info.message || 'Run petdex update in your terminal.';
+    \\      return 'Update ' + (info.latest || 'available') + ' available.';
+    \\    }
     \\    return 'Current version is up to date.';
     \\  }
     \\  async function renderSettingsWindow() {
@@ -320,7 +323,7 @@ const html_tail =
     \\      autoEl.checked = !!settings.autoInstallUpdates;
     \\      versionEl.textContent = settings.version || 'No version file';
     \\      updateEl.textContent = updateSummary(update);
-    \\      const canInstall = update && (update.available || update.status === 'error');
+    \\      const canInstall = update && update.installable !== false && (update.available || update.status === 'error');
     \\      installEl.disabled = !canInstall || update.status === 'running';
     \\      pathsEl.innerHTML = '';
     \\      const paths = [settings.configDir].concat(settings.petsRoots || []).filter(Boolean);
@@ -809,6 +812,7 @@ const html_tail =
     \\    updateCard.style.cssText = 'position:fixed;left:6px;right:6px;bottom:6px;padding:6px 9px;border-radius:9px;background:#ffffff;color:#111;font:600 11px system-ui,-apple-system,sans-serif;box-shadow:0 2px 6px rgba(0,0,0,0.30);display:none;cursor:pointer;pointer-events:auto;line-height:1.25;text-align:center;';
     \\    updateCard.addEventListener('click', async () => {
     \\      if (!(window.zero && window.zero.invoke)) return;
+    \\      if (updateCard && updateCard.dataset.installable === '0') return;
     \\      try {
     \\        const r = await window.zero.invoke('petdex.trigger_update', {});
     \\        // r is JSON-encoded: ok:true means curl POST returned 2xx.
@@ -841,9 +845,11 @@ const html_tail =
     \\      card.style.display = 'none';
     \\      return;
     \\    }
+    \\    card.dataset.installable = info.installable === false ? '0' : '1';
+    \\    card.style.cursor = info.installable === false ? 'default' : 'pointer';
     \\    let text = '';
     \\    if (info.status === 'available') {
-    \\      text = 'Update ' + (info.latest || 'available') + ' - click to install';
+    \\      text = info.installable === false ? (info.message || 'Run petdex update in your terminal.') : 'Update ' + (info.latest || 'available') + ' - click to install';
     \\    } else if (info.status === 'running') {
     \\      text = info.message || 'Updating...';
     \\    } else if (info.status === 'done') {

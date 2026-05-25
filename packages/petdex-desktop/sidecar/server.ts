@@ -384,6 +384,7 @@ async function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
 
 type UpdateInfo = {
   available: boolean;
+  installable?: boolean;
   current: string | null;
   latest: string | null;
   // "idle" → no update detected; "available" → ready for click;
@@ -398,6 +399,16 @@ type CodeSignatureInfo = {
   teamIdentifier: string | null;
   authorities: string[];
 };
+
+function canInstallBundledUpdate(): boolean {
+  return process.platform === "darwin" && !!appBundleRootPath();
+}
+
+function terminalUpdateInstruction(latest: string | null): string {
+  return latest
+    ? `Update ${latest} is available. Run petdex update in your terminal.`
+    : "Run petdex update in your terminal to update this install.";
+}
 
 function readCurrentVersion(): string | null {
   if (existsSync(VERSION_FILE)) {
@@ -435,6 +446,7 @@ function readUpdateInfo(): UpdateInfo {
   if (!existsSync(UPDATE_PATH)) {
     return {
       available: false,
+      installable: canInstallBundledUpdate(),
       current: readCurrentVersion(),
       latest: null,
       status: "idle",
@@ -442,10 +454,24 @@ function readUpdateInfo(): UpdateInfo {
     };
   }
   try {
-    return JSON.parse(readFileSync(UPDATE_PATH, "utf8")) as UpdateInfo;
+    const info = JSON.parse(readFileSync(UPDATE_PATH, "utf8")) as UpdateInfo;
+    const installable = canInstallBundledUpdate();
+    if (info.available && !installable) {
+      return {
+        ...info,
+        installable: false,
+        status: "available",
+        message: info.message ?? terminalUpdateInstruction(info.latest),
+      };
+    }
+    return {
+      ...info,
+      installable: info.installable ?? installable,
+    };
   } catch {
     return {
       available: false,
+      installable: canInstallBundledUpdate(),
       current: readCurrentVersion(),
       latest: null,
       status: "idle",
@@ -554,19 +580,23 @@ async function checkForUpdate(): Promise<void> {
   }
 
   const available = !!latest && latest !== current;
+  const installable = canInstallBundledUpdate();
   const next: UpdateInfo = {
     available,
+    installable,
     current,
     latest,
     status: available ? "available" : "idle",
+    message:
+      available && !installable ? terminalUpdateInstruction(latest) : undefined,
     checkedAt: Date.now(),
   };
   writeUpdateInfo(next);
   writeInitStatus();
   log(
-    `update check: current=${current ?? "?"} latest=${latest ?? "?"} available=${available}`,
+    `update check: current=${current ?? "?"} latest=${latest ?? "?"} available=${available} installable=${installable}`,
   );
-  if (available && readDesktopPreferences().autoInstallUpdates) {
+  if (available && installable && readDesktopPreferences().autoInstallUpdates) {
     writeUpdateInfo({
       ...next,
       status: "running",
@@ -1315,8 +1345,25 @@ const server = http.createServer(async (req, res) => {
       if (!info.available && info.status !== "error") {
         return jsonResponse(res, 200, info);
       }
+      if (!canInstallBundledUpdate()) {
+        const next: UpdateInfo = {
+          ...info,
+          available: !!info.latest && info.latest !== info.current,
+          installable: false,
+          status: "available",
+          message: terminalUpdateInstruction(info.latest),
+          checkedAt: Date.now(),
+        };
+        writeUpdateInfo(next);
+        return jsonResponse(res, 409, {
+          ok: false,
+          error: "unsupported_install",
+          message: next.message,
+        });
+      }
       const next: UpdateInfo = {
         ...info,
+        installable: true,
         status: "running",
         message: "Installing the latest desktop release...",
         checkedAt: Date.now(),
