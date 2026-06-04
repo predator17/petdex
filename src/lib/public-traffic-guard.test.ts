@@ -51,6 +51,30 @@ describe("public traffic guard", () => {
     expect(
       publicTrafficGuardRule({
         method: "GET",
+        pathname: "/pets/nukey/opengraph-image",
+      }),
+    ).toBe("metadata");
+    expect(
+      publicTrafficGuardRule({
+        method: "GET",
+        pathname: "/zh/collections/cute-coders/opengraph-image",
+      }),
+    ).toBe("metadata");
+    expect(
+      publicTrafficGuardRule({
+        method: "GET",
+        pathname: "/u/hunter/opengraph-image",
+      }),
+    ).toBe("metadata");
+    expect(
+      publicTrafficGuardRule({
+        method: "GET",
+        pathname: "/download/opengraph-image",
+      }),
+    ).toBe("metadata");
+    expect(
+      publicTrafficGuardRule({
+        method: "GET",
         pathname: "/api/pets/nukey/codex-theme",
       }),
     ).toBe("catalog");

@@ -33,6 +33,20 @@ export function publicTrafficGuardRule(input: {
   if (pathname === "/api/me/header-state") return "state";
   if (pathname === "/api/og") return "metadata";
   if (pathname === "/api/wechat-qr") return "metadata";
+  if (
+    /^\/(?:en\/|es\/|zh\/)?(?:pets|collections|u)\/[^/]+\/opengraph-image\/?$/.test(
+      pathname,
+    )
+  ) {
+    return "metadata";
+  }
+  if (
+    /^\/(?:en\/|es\/|zh\/)?(?:collections|download)\/opengraph-image\/?$/.test(
+      pathname,
+    )
+  ) {
+    return "metadata";
+  }
   if (/^\/api\/pets\/[^/]+\/codex-theme\/?$/.test(pathname)) {
     return "catalog";
   }
