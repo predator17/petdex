@@ -12,8 +12,8 @@ import { getPet, getStaticPetSlugs } from "@/lib/pets";
 import { getVariantsFor } from "@/lib/variants";
 
 import { ClaimCTA } from "@/components/claim-cta";
-import { InstallCommand } from "@/components/install-command";
 import { InstallCommandCompact } from "@/components/install-command-compact";
+import { InstallCommandLazy } from "@/components/install-command-lazy";
 import { JsonLd } from "@/components/json-ld";
 import { LikeButton } from "@/components/like-button";
 import { OpenInPetdexButton } from "@/components/open-in-petdex-button";
@@ -460,7 +460,7 @@ export default async function PetPage({ params }: PageProps) {
             the primary CTA (Open in Petdex Desktop) plus a compact
             one-line npx command already cover the common path. */}
         <div id="install" className="scroll-mt-24">
-          <InstallCommand slug={pet.slug} displayName={pet.displayName} />
+          <InstallCommandLazy slug={pet.slug} displayName={pet.displayName} />
         </div>
 
         {/* Owner credit + claim CTA. Compact row that wraps cleanly on
