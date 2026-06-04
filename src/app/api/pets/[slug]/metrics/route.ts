@@ -1,10 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { getMetricsForSlug, getMetricsSummary } from "@/lib/db/metrics";
-import {
-  PET_METRICS_CACHE_TTL_SECONDS,
-  PET_METRICS_STALE_WHILE_REVALIDATE_SECONDS,
-} from "@/lib/pet-metrics-cache";
+import { PET_METRICS_CACHE_CONTROL } from "@/lib/pet-metrics-cache";
 import { metricsReadRatelimit } from "@/lib/ratelimit";
 import { requireSameOrigin } from "@/lib/same-origin";
 
@@ -17,7 +14,7 @@ export const runtime = "nodejs";
 // slug, so bot traffic flattens out at the edge instead of touching
 // the function.
 const CACHE_HEADERS = {
-  "Cache-Control": `public, s-maxage=${PET_METRICS_CACHE_TTL_SECONDS}, stale-while-revalidate=${PET_METRICS_STALE_WHILE_REVALIDATE_SECONDS}`,
+  "Cache-Control": PET_METRICS_CACHE_CONTROL,
 };
 
 type Params = { slug: string };
