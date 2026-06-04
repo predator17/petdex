@@ -109,7 +109,7 @@ export const getPet = cache(
             return row ? rowToPet(row) : null;
           },
         );
-        return pet ?? undefined;
+        return pet ? normalizePetAssetUrls(pet) : undefined;
       },
       ["petdex-pet", slug],
       { tags: [`pet:${slug}`, "pet:list"], revalidate: 86400 },
@@ -161,7 +161,7 @@ export async function getFeaturedPetsWithMetrics(
 }
 
 async function getFeaturedPets(): Promise<PetdexPet[]> {
-  return cachedAggregate(
+  const pets = await cachedAggregate(
     {
       key: AGGREGATE_KEYS.featuredPets,
       ttlSeconds: FEATURED_PETS_TTL_SECONDS,
@@ -179,12 +179,13 @@ async function getFeaturedPets(): Promise<PetdexPet[]> {
       return rows.map(rowToPet);
     },
   );
+  return pets.map(normalizePetAssetUrls);
 }
 
 export async function getAllApprovedPets(): Promise<PetdexPet[]> {
   return withNextDataCache(
-    async () =>
-      cachedAggregate(
+    async () => {
+      const pets = await cachedAggregate(
         {
           key: AGGREGATE_KEYS.approvedCatalog,
           ttlSeconds: APPROVED_CATALOG_TTL_SECONDS,
@@ -196,7 +197,9 @@ export async function getAllApprovedPets(): Promise<PetdexPet[]> {
             .where(eq(schema.submittedPets.status, "approved"));
           return rows.map(rowToPet);
         },
-      ),
+      );
+      return pets.map(normalizePetAssetUrls);
+    },
     ["petdex-all-approved-pets"],
     { tags: ["pet:list"], revalidate: 86400 },
   )();
@@ -243,7 +246,7 @@ export type ApprovedPetSlim = {
 // this shape is ~200 bytes, which compounds across the CLI traffic that
 // hits the slim manifest on every `petdex list` / `petdex install`.
 export async function getApprovedPetsForManifest(): Promise<ApprovedPetSlim[]> {
-  return cachedAggregate(
+  const pets = await cachedAggregate(
     { key: AGGREGATE_KEYS.slimManifest, ttlSeconds: 300 },
     async () => {
       const rows = await db
@@ -269,6 +272,7 @@ export async function getApprovedPetsForManifest(): Promise<ApprovedPetSlim[]> {
       }));
     },
   );
+  return pets.map(normalizeSlimPetAssetUrls);
 }
 
 export async function getLatestApprovedPets(limit = 5): Promise<PetdexPet[]> {
@@ -358,5 +362,24 @@ export function rowToPet(row: PetRow): PetdexPet {
     approvedAt: row.approvedAt?.toISOString() ?? null,
     importedAt: row.approvedAt?.toISOString() ?? row.createdAt.toISOString(),
     qa: {},
+  };
+}
+
+function normalizePetAssetUrls(pet: PetdexPet): PetdexPet {
+  return {
+    ...pet,
+    spritesheetPath: toCurrentR2PublicUrl(pet.spritesheetPath),
+    petJsonPath: toCurrentR2PublicUrl(pet.petJsonPath),
+    zipUrl: pet.zipUrl ? toCurrentR2PublicUrl(pet.zipUrl) : pet.zipUrl,
+    soundUrl: toCurrentR2PublicUrl(pet.soundUrl),
+  };
+}
+
+function normalizeSlimPetAssetUrls(pet: ApprovedPetSlim): ApprovedPetSlim {
+  return {
+    ...pet,
+    spritesheetUrl: toCurrentR2PublicUrl(pet.spritesheetUrl),
+    petJsonUrl: toCurrentR2PublicUrl(pet.petJsonUrl),
+    zipUrl: toCurrentR2PublicUrl(pet.zipUrl),
   };
 }
