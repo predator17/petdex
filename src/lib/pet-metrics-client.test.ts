@@ -3,7 +3,6 @@ import { describe, expect, it } from "bun:test";
 import {
   PET_METRICS_CACHE_CONTROL,
   PET_METRICS_CACHE_TTL_SECONDS,
-  PET_METRICS_STALE_WHILE_REVALIDATE_SECONDS,
 } from "@/lib/pet-metrics-cache";
 import {
   loadPetMetrics,
@@ -26,7 +25,7 @@ const METRICS: PetMetricsResponse = {
 describe("pet metrics client cache", () => {
   it("keeps the API cache header aligned with the browser freshness window", () => {
     expect(PET_METRICS_CACHE_CONTROL).toBe(
-      `public, max-age=${PET_METRICS_CACHE_TTL_SECONDS}, s-maxage=${PET_METRICS_CACHE_TTL_SECONDS}, stale-while-revalidate=${PET_METRICS_STALE_WHILE_REVALIDATE_SECONDS}`,
+      `public, max-age=${PET_METRICS_CACHE_TTL_SECONDS}, s-maxage=${PET_METRICS_CACHE_TTL_SECONDS}`,
     );
   });
 
