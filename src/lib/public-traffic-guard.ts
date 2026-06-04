@@ -12,6 +12,7 @@ const BLOCKED_USER_AGENTS = ["petoverlaycompose-pixelartclassifier"];
 
 export type PublicTrafficGuardRule =
   | "catalog"
+  | "metadata"
   | "pack"
   | "page"
   | "state"
@@ -26,8 +27,16 @@ export function publicTrafficGuardRule(input: {
   if (/^\/api\/pets\/[^/]+\/sticker\/?$/.test(pathname)) return "sticker";
   if (/^\/api\/pets\/[^/]+\/wastickers\/?$/.test(pathname)) return "pack";
   if (pathname === "/api/manifest") return "catalog";
+  if (pathname === "/api/collections/previews") return "catalog";
+  if (pathname === "/api/pets/random") return "catalog";
   if (pathname === "/api/pets/search") return "catalog";
   if (pathname === "/api/me/header-state") return "state";
+  if (pathname === "/api/og") return "metadata";
+  if (pathname === "/api/wechat-qr") return "metadata";
+  if (/^\/api\/pets\/[^/]+\/codex-theme\/?$/.test(pathname)) {
+    return "catalog";
+  }
+  if (/^\/api\/pets\/[^/]+\/metrics\/?$/.test(pathname)) return "catalog";
   if (/^\/api\/pets\/[^/]+\/variants\/?$/.test(pathname)) return "catalog";
   if (/^\/api\/install-pet\/[^/]+\/?$/.test(pathname)) return "catalog";
   if (/^\/(?:en\/|es\/|zh\/)?install\/[^/]+\/?$/.test(pathname)) {
@@ -46,7 +55,7 @@ export function shouldBlockKnownAbusiveClient(
   return BLOCKED_USER_AGENTS.some((blocked) => userAgent.includes(blocked));
 }
 
-export function shouldBlockDirectAssetExport(input: {
+export function shouldBlockUntrustedAssetExport(input: {
   headers?: HeaderBag;
   method: string;
   origin?: string;
@@ -59,12 +68,15 @@ export function shouldBlockDirectAssetExport(input: {
     input.headers,
     input.origin,
   );
-  return (
-    referrerSource === "direct" &&
-    trafficSource !== "browser" &&
-    trafficSource !== "prefetch" &&
-    trafficSource !== "preview"
-  );
+  const secFetchSite = readHeader(input.headers, "sec-fetch-site")
+    .trim()
+    .toLowerCase();
+  const trustedBrowser =
+    (trafficSource === "browser" || trafficSource === "prefetch") &&
+    (referrerSource === "internal" ||
+      secFetchSite === "same-origin" ||
+      isRequestOrigin(input.headers, input.origin));
+  return !trustedBrowser;
 }
 
 export function publicTrafficGuardKey(headers: HeaderBag | undefined): string {
@@ -89,7 +101,9 @@ function isPublicPagePath(pathname: string): boolean {
   if (path === "/") return true;
   if (/^\/pets\/[^/]+\/?$/.test(path)) return true;
   if (/^\/collections\/[^/]+\/?$/.test(path)) return true;
+  if (/^\/kind\/[^/]+\/?$/.test(path)) return true;
   if (/^\/u\/[^/]+\/?$/.test(path)) return true;
+  if (/^\/vibe\/[^/]+\/?$/.test(path)) return true;
   return [
     "/about",
     "/advertise",
@@ -104,4 +118,17 @@ function isPublicPagePath(pathname: string): boolean {
     "/legal/telemetry",
     "/requests",
   ].includes(path);
+}
+
+function isRequestOrigin(
+  headers: HeaderBag | undefined,
+  origin: string | undefined,
+): boolean {
+  const requestOrigin = readHeader(headers, "origin");
+  if (!requestOrigin || !origin) return false;
+  try {
+    return new URL(requestOrigin).origin === new URL(origin).origin;
+  } catch {
+    return false;
+  }
 }

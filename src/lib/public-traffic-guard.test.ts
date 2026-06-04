@@ -3,8 +3,8 @@ import { describe, expect, it } from "bun:test";
 import {
   publicTrafficGuardKey,
   publicTrafficGuardRule,
-  shouldBlockDirectAssetExport,
   shouldBlockKnownAbusiveClient,
+  shouldBlockUntrustedAssetExport,
 } from "@/lib/public-traffic-guard";
 
 describe("public traffic guard", () => {
@@ -25,6 +25,15 @@ describe("public traffic guard", () => {
       publicTrafficGuardRule({ method: "GET", pathname: "/api/manifest" }),
     ).toBe("catalog");
     expect(
+      publicTrafficGuardRule({
+        method: "GET",
+        pathname: "/api/collections/previews",
+      }),
+    ).toBe("catalog");
+    expect(
+      publicTrafficGuardRule({ method: "GET", pathname: "/api/pets/random" }),
+    ).toBe("catalog");
+    expect(
       publicTrafficGuardRule({ method: "GET", pathname: "/api/pets/search" }),
     ).toBe("catalog");
     expect(
@@ -33,6 +42,24 @@ describe("public traffic guard", () => {
         pathname: "/api/me/header-state",
       }),
     ).toBe("state");
+    expect(publicTrafficGuardRule({ method: "GET", pathname: "/api/og" })).toBe(
+      "metadata",
+    );
+    expect(
+      publicTrafficGuardRule({ method: "GET", pathname: "/api/wechat-qr" }),
+    ).toBe("metadata");
+    expect(
+      publicTrafficGuardRule({
+        method: "GET",
+        pathname: "/api/pets/nukey/codex-theme",
+      }),
+    ).toBe("catalog");
+    expect(
+      publicTrafficGuardRule({
+        method: "GET",
+        pathname: "/api/pets/nukey/metrics",
+      }),
+    ).toBe("catalog");
     expect(
       publicTrafficGuardRule({
         method: "GET",
@@ -51,8 +78,17 @@ describe("public traffic guard", () => {
     expect(
       publicTrafficGuardRule({
         method: "GET",
+        pathname: "/kind/cat",
+      }),
+    ).toBe("page");
+    expect(
+      publicTrafficGuardRule({
+        method: "GET",
         pathname: "/collections/cute-coders",
       }),
+    ).toBe("page");
+    expect(
+      publicTrafficGuardRule({ method: "GET", pathname: "/zh/vibe/cozy" }),
     ).toBe("page");
     expect(
       publicTrafficGuardRule({ method: "GET", pathname: "/leaderboard" }),
@@ -80,9 +116,9 @@ describe("public traffic guard", () => {
     ).toBeNull();
   });
 
-  it("blocks direct unknown asset export clients but allows browser fetches", () => {
+  it("blocks untrusted asset exports but allows same-origin browser fetches", () => {
     expect(
-      shouldBlockDirectAssetExport({
+      shouldBlockUntrustedAssetExport({
         method: "GET",
         pathname: "/api/pets/nukey/sticker",
         headers: { "user-agent": "python-requests/2.32" },
@@ -90,7 +126,7 @@ describe("public traffic guard", () => {
       }),
     ).toBe(true);
     expect(
-      shouldBlockDirectAssetExport({
+      shouldBlockUntrustedAssetExport({
         method: "GET",
         pathname: "/api/pets/nukey/sticker",
         headers: { "user-agent": "curl/8.7.1" },
@@ -98,7 +134,18 @@ describe("public traffic guard", () => {
       }),
     ).toBe(true);
     expect(
-      shouldBlockDirectAssetExport({
+      shouldBlockUntrustedAssetExport({
+        method: "GET",
+        pathname: "/api/pets/nukey/sticker",
+        headers: {
+          "sec-fetch-site": "none",
+          "user-agent": "Mozilla/5.0",
+        },
+        origin: "https://petdex.crafter.run",
+      }),
+    ).toBe(true);
+    expect(
+      shouldBlockUntrustedAssetExport({
         method: "GET",
         pathname: "/api/pets/nukey/sticker",
         headers: {
@@ -108,6 +155,30 @@ describe("public traffic guard", () => {
         origin: "https://petdex.crafter.run",
       }),
     ).toBe(false);
+    expect(
+      shouldBlockUntrustedAssetExport({
+        method: "GET",
+        pathname: "/api/pets/nukey/sticker",
+        headers: {
+          referer: "https://petdex.crafter.run/pets/nukey",
+          "sec-fetch-site": "same-origin",
+          "user-agent": "Mozilla/5.0",
+        },
+        origin: "https://petdex.crafter.run",
+      }),
+    ).toBe(false);
+    expect(
+      shouldBlockUntrustedAssetExport({
+        method: "GET",
+        pathname: "/api/pets/nukey/sticker",
+        headers: {
+          referer: "https://example.com/embed",
+          "sec-fetch-site": "cross-site",
+          "user-agent": "Mozilla/5.0",
+        },
+        origin: "https://petdex.crafter.run",
+      }),
+    ).toBe(true);
   });
 
   it("keys limits by client IP headers", () => {

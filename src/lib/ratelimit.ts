@@ -71,7 +71,7 @@ export const wastickersRatelimit = createRatelimit({
 
 export const stickerAssetRatelimit = createRatelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(180, "1 h"),
+  limiter: Ratelimit.slidingWindow(60, "1 h"),
   prefix: "petdex:sticker-asset",
 });
 
@@ -83,20 +83,32 @@ export const packAssetRatelimit = createRatelimit({
 
 export const publicCatalogRatelimit = createRatelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(120, "1 h"),
+  limiter: Ratelimit.slidingWindow(60, "1 h"),
   prefix: "petdex:public-catalog",
 });
 
 export const publicStateRatelimit = createRatelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(600, "1 h"),
+  limiter: Ratelimit.slidingWindow(300, "1 h"),
   prefix: "petdex:public-state",
 });
 
 export const publicPageRatelimit = createRatelimit({
   redis,
-  limiter: Ratelimit.slidingWindow(1200, "1 h"),
+  limiter: Ratelimit.slidingWindow(600, "1 h"),
   prefix: "petdex:public-page",
+});
+
+export const publicMetadataRatelimit = createRatelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(120, "1 h"),
+  prefix: "petdex:public-metadata",
+});
+
+export const publicTrafficBurstRatelimit = createRatelimit({
+  redis,
+  limiter: Ratelimit.slidingWindow(120, "1 m"),
+  prefix: "petdex:public-burst",
 });
 
 // Public metrics reads — `/api/pets/[slug]/metrics`. Browser pages hit

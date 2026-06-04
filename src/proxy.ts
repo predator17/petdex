@@ -10,14 +10,16 @@ import createMiddleware from "next-intl/middleware";
 import {
   publicTrafficGuardKey,
   publicTrafficGuardRule,
-  shouldBlockDirectAssetExport,
   shouldBlockKnownAbusiveClient,
+  shouldBlockUntrustedAssetExport,
 } from "@/lib/public-traffic-guard";
 import {
   packAssetRatelimit,
   publicCatalogRatelimit,
+  publicMetadataRatelimit,
   publicPageRatelimit,
   publicStateRatelimit,
+  publicTrafficBurstRatelimit,
   stickerAssetRatelimit,
 } from "@/lib/ratelimit";
 import {
@@ -109,7 +111,7 @@ async function guardPublicTraffic(
   }
 
   if (
-    shouldBlockDirectAssetExport({
+    shouldBlockUntrustedAssetExport({
       headers: req.headers,
       method: req.method,
       origin: req.nextUrl.origin,
@@ -129,19 +131,28 @@ async function guardPublicTraffic(
   if (!rule) return null;
 
   const key = publicTrafficGuardKey(req.headers);
+  const burst = await publicTrafficBurstRatelimit.limit(key);
+  if (!burst.success) return rateLimitedResponse(burst.reset);
+
   const limit =
     rule === "sticker"
       ? await stickerAssetRatelimit.limit(key)
       : rule === "pack"
         ? await packAssetRatelimit.limit(key)
-        : rule === "state"
-          ? await publicStateRatelimit.limit(key)
-          : rule === "page"
-            ? await publicPageRatelimit.limit(key)
-            : await publicCatalogRatelimit.limit(key);
+        : rule === "metadata"
+          ? await publicMetadataRatelimit.limit(key)
+          : rule === "state"
+            ? await publicStateRatelimit.limit(key)
+            : rule === "page"
+              ? await publicPageRatelimit.limit(key)
+              : await publicCatalogRatelimit.limit(key);
   if (limit.success) return null;
 
-  const retryAfter = Math.max(1, Math.ceil((limit.reset - Date.now()) / 1000));
+  return rateLimitedResponse(limit.reset);
+}
+
+function rateLimitedResponse(reset: number): NextResponse {
+  const retryAfter = Math.max(1, Math.ceil((reset - Date.now()) / 1000));
   return NextResponse.json(
     { error: "rate_limited" },
     {
