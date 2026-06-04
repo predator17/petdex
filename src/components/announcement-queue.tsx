@@ -8,12 +8,14 @@ import { safeGetItem, safeSetItem } from "@/lib/utils";
 
 import { DesktopAnnouncementModal } from "@/components/desktop-announcement-modal";
 import { GithubStarModal } from "@/components/github-star-modal";
+import { SecurityUpdateModal } from "@/components/security-update-modal";
 
 type QueuedAnnouncement = {
   id: string;
   delayMs: number;
   gateMs: number;
   Component: ComponentType<{ onClose: () => void }>;
+  isEligible?: (pathname: string | null) => boolean;
 };
 
 const HOME_PATH_RE = /^\/(?:en|es|zh)?\/?$/;
@@ -23,6 +25,13 @@ const HOME_PATH_RE = /^\/(?:en|es|zh)?\/?$/;
 // localStorage. Re-bump the id (`_v2`, `_v3`) to force a re-show
 // after a major refresh of the modal content.
 const QUEUE: QueuedAnnouncement[] = [
+  {
+    id: "petdex_announce_security_update_v1",
+    delayMs: 700,
+    gateMs: 600,
+    Component: SecurityUpdateModal,
+    isEligible: isInstallSurface,
+  },
   {
     id: "petdex_announce_desktop_v1",
     delayMs: 1200,
@@ -39,7 +48,23 @@ const QUEUE: QueuedAnnouncement[] = [
 
 type Phase = "idle" | "showing";
 
-function isEligible(_index: number, pathname: string | null) {
+function stripLocale(pathname: string | null): string {
+  return (pathname ?? "/").replace(/^\/(?:en|es|zh)(?=\/|$)/, "") || "/";
+}
+
+function isInstallSurface(pathname: string | null) {
+  const path = stripLocale(pathname);
+  return (
+    path === "/" ||
+    path === "/download" ||
+    /^\/pets\/[^/]+\/?$/.test(path) ||
+    /^\/collections(?:\/[^/]+)?\/?$/.test(path)
+  );
+}
+
+function isEligible(index: number, pathname: string | null) {
+  const item = QUEUE[index];
+  if (item?.isEligible) return item.isEligible(pathname);
   // Both modals only fire from the home page so contributors landing on
   // /pets/<slug> or /admin don't get hit with marketing.
   return HOME_PATH_RE.test(pathname ?? "/");

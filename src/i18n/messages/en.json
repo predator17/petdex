@@ -1600,6 +1600,21 @@
     "downloadCta": "Download",
     "seeHowCta": "See how it works"
   },
+  "securityUpdate": {
+    "ariaLabel": "Petdex security update",
+    "dismissAria": "Dismiss security update",
+    "closeAria": "Close",
+    "eyebrow": "Security update",
+    "title": "Update Petdex to keep installing pets",
+    "description": "We added protected asset downloads to block hotlinking, direct scraping, and unofficial origins.",
+    "impact": "Petdex web, the latest CLI, and the latest desktop app are supported. Older CLI snapshots may fail when installing pets until they are refreshed.",
+    "commandLabel": "Run this once in your terminal:",
+    "commandHint": "This pulls the latest desktop release and refreshes the CLI snapshot used by Petdex Desktop.",
+    "originTitle": "Using Petdex assets from another origin?",
+    "originBody": "Open an issue with the origin URL and use case. We will review allowlist requests case by case.",
+    "doneCta": "I will update",
+    "originCta": "Request origin access"
+  },
   "githubStar": {
     "eyebrow": "Open source · Petdex",
     "title": "Help Petdex grow. Star us on GitHub",

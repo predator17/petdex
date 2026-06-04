@@ -45,6 +45,7 @@ export const CLIENT_MESSAGE_PATHS = [
   "profileAnnouncement",
   "profileShare",
   "requests.view",
+  "securityUpdate",
   "sticker",
   "submit.form",
   "submit.form.copy",

@@ -1852,6 +1852,21 @@
     "downloadCta": "下载",
     "seeHowCta": "了解工作原理"
   },
+  "securityUpdate": {
+    "ariaLabel": "Petdex 安全更新",
+    "dismissAria": "忽略安全更新",
+    "closeAria": "关闭",
+    "eyebrow": "安全更新",
+    "title": "更新 Petdex 以继续安装宠物",
+    "description": "我们加入了受保护的资源下载，用来阻止 hotlink、直接抓取和非官方 origin。",
+    "impact": "Petdex 网站、最新版 CLI 和最新版桌面应用已经支持。旧的 CLI 快照在刷新前可能无法安装宠物。",
+    "commandLabel": "在终端运行一次：",
+    "commandHint": "这会拉取最新桌面版本，并刷新 Petdex Desktop 使用的 CLI 快照。",
+    "originTitle": "想从其他 origin 使用 Petdex 资源？",
+    "originBody": "请提交 issue，写上 origin URL 和使用场景。我们会逐个审核 allowlist 请求。",
+    "doneCta": "我会更新",
+    "originCta": "申请 origin 访问"
+  },
   "githubStar": {
     "eyebrow": "开源 · Petdex",
     "title": "帮助 Petdex 成长。在 GitHub 上加星",
