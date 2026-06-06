@@ -11,9 +11,9 @@
 </p>
 
 <p>
-  <a href="https://petdex.crafter.run"><strong>petdex.crafter.run</strong></a>
+  <a href="https://petdex.dev"><strong>petdex.dev</strong></a>
   &nbsp;·&nbsp;
-  <a href="https://petdex.crafter.run/built-with">Built with Petdex</a>
+  <a href="https://petdex.dev/built-with">Built with Petdex</a>
   &nbsp;·&nbsp;
   <a href="https://discord.gg/byhubdyBTe">Discord</a>
   &nbsp;·&nbsp;
@@ -35,7 +35,7 @@
 
 Petdex is three things working together:
 
-1. **A web gallery** at [petdex.crafter.run](https://petdex.crafter.run) where the community submits, reviews, and showcases animated pets in the Codex sprite format.
+1. **A web gallery** at [petdex.dev](https://petdex.dev) where the community submits, reviews, and showcases animated pets in the Codex sprite format.
 2. **A CLI** that installs any pet on your machine with one command and ships them straight into Codex.
 3. **A desktop app** that floats a pet on your screen and reacts to your coding agent's activity in real time.
 
@@ -75,11 +75,11 @@ If hooks are installed, you can also type `/petdex status` inside a supported ag
 
 | You want to... | Do this |
 | --- | --- |
-| Browse pets | Visit [petdex.crafter.run](https://petdex.crafter.run) |
+| Browse pets | Visit [petdex.dev](https://petdex.dev) |
 | Install a pet | `npx petdex install <slug>` |
 | Switch active mascot | `npx petdex select` (interactive picker) or `npx petdex select <slug>` |
 | Run the desktop floater | `npx petdex init` (downloads the `.dmg` and wires Codex/Claude Code hooks) |
-| Make a pet | Use the `hatch-pet` skill inside Codex, or build one with the [Petdex creator tools](https://petdex.crafter.run/create) |
+| Make a pet | Use the `hatch-pet` skill inside Codex, or build one with the [Petdex creator tools](https://petdex.dev/create) |
 | Submit a pet | `npx petdex submit ./my-pet/` or drop it through the web submitter |
 | Join the community | [Discord](https://discord.gg/byhubdyBTe) |
 
@@ -89,10 +89,10 @@ Full CLI reference: [`packages/petdex-cli/README.md`](./packages/petdex-cli/READ
 
 If you want to build on top of Petdex (a desktop client, a wearable, an SDK, a Discord bot, anything), you have two stable surfaces:
 
-- **The HTTP API.** `petdex.crafter.run/api/manifest` returns every approved pet with its slug, spritesheet URL, animation states, and metadata.
+- **The HTTP API.** `petdex.dev/api/manifest` returns every approved pet with its slug, spritesheet URL, animation states, and metadata.
 - **The pet package format.** Every pet is a `pet.json` plus a `spritesheet.{webp,png}` rendered as an 8×9 grid of 192×208 frames.
 
-19 open-source and source-available projects already build on these. See [petdex.crafter.run/built-with](https://petdex.crafter.run/built-with) for the catalog, then [submit yours via the issue template](https://github.com/crafter-station/petdex/issues/new?template=built-with.yml).
+21 open-source and source-available projects already build on these. See [petdex.dev/built-with](https://petdex.dev/built-with) for the catalog, then [submit yours via the issue template](https://github.com/crafter-station/petdex/issues/new?template=built-with.yml).
 
 ## Architecture
 
@@ -149,7 +149,7 @@ Animation states are the rows: `idle`, `wave`, `run`, `failed`, `review`, `jump`
 
 ## Contribute
 
-- **Submit a pet:** [petdex.crafter.run/submit](https://petdex.crafter.run/submit) or `npx petdex submit <path>`.
+- **Submit a pet:** [petdex.dev/submit](https://petdex.dev/submit) or `npx petdex submit <path>`.
 - **List your project:** open a [Built with Petdex issue](https://github.com/crafter-station/petdex/issues/new?template=built-with.yml).
 - **Fix a bug or add a feature:** read [`CONTRIBUTING.md`](./CONTRIBUTING.md), then open a PR.
 - **Hang out:** [Discord](https://discord.gg/byhubdyBTe) has channels for shipping (`#wip`, `#ship-or-sink`), feedback (`#cli-feedback`), and showcases (`#showcase`).
