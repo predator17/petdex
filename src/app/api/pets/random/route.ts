@@ -5,6 +5,9 @@ import { getRandomPetPool } from "@/lib/random-pet-pool";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const RANDOM_CACHE_CONTROL =
+  "public, max-age=30, s-maxage=60, stale-while-revalidate=300";
+
 // GET /api/pets/random?exclude=current-slug
 //
 // Picks a random approved pet (excluding the optional `exclude` slug).
@@ -40,12 +43,18 @@ export async function GET(req: Request): Promise<Response> {
         href: `/pets/${next.slug}`,
         installHref: `/install/${next.slug}`,
       },
-      { headers: { "Cache-Control": "private, no-store" } },
+      { headers: { "Cache-Control": RANDOM_CACHE_CONTROL } },
     );
   }
 
   if (!next) {
-    return NextResponse.redirect(new URL("/", req.url), 302);
+    return NextResponse.redirect(new URL("/", req.url), {
+      status: 302,
+      headers: { "Cache-Control": "private, no-store" },
+    });
   }
-  return NextResponse.redirect(new URL(`/pets/${next.slug}`, req.url), 302);
+  return NextResponse.redirect(new URL(`/pets/${next.slug}`, req.url), {
+    status: 302,
+    headers: { "Cache-Control": RANDOM_CACHE_CONTROL },
+  });
 }
