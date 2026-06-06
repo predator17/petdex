@@ -33,13 +33,13 @@ export function posixInstallScript(pet: ResolvedPet): string {
   return [
     "#!/bin/sh",
     "# Petdex installer",
-    `# https://petdex.crafter.run/pets/${safeSlug}`,
+    `# https://petdex.dev/pets/${safeSlug}`,
     "",
     "set -e",
     "",
     `PET_DIR="$HOME/.codex/pets/${safeSlug}"`,
     `DISPLAY_NAME=${quotePosix(displayNameText)}`,
-    'PETDEX_REFERER="https://petdex.crafter.run/"',
+    'PETDEX_REFERER="https://petdex.dev/"',
     "",
     'printf "Installing %s into %s\\n" "$DISPLAY_NAME" "$PET_DIR"',
     'mkdir -p "$PET_DIR"',
@@ -65,12 +65,12 @@ export function powershellInstallScript(pet: ResolvedPet): string {
   const displayNameText = singleLine(displayName);
   return [
     "# Petdex installer",
-    `# https://petdex.crafter.run/pets/${safeSlug}`,
+    `# https://petdex.dev/pets/${safeSlug}`,
     "",
     "$ErrorActionPreference = 'Stop'",
     `$slug = ${quotePowerShell(safeSlug)}`,
     "$petDir = Join-Path $HOME (Join-Path '.codex' (Join-Path 'pets' $slug))",
-    "$headers = @{ Referer = 'https://petdex.crafter.run/' }",
+    "$headers = @{ Referer = 'https://petdex.dev/' }",
     "",
     `Write-Host ${quotePowerShell(`Installing ${displayNameText} into `)}$petDir`,
     "New-Item -ItemType Directory -Force -Path $petDir | Out-Null",
@@ -94,7 +94,7 @@ export function posixNotFoundScript(slug: string): string {
   return [
     "#!/bin/sh",
     `echo "Pet '${safe}' not found in Petdex." >&2`,
-    'echo "Browse pets at https://petdex.crafter.run" >&2',
+    'echo "Browse pets at https://petdex.dev" >&2',
     "exit 1",
     "",
   ].join("\n");
@@ -104,7 +104,7 @@ export function powershellNotFoundScript(slug: string): string {
   const safe = String(slug).replace(/[^a-z0-9-]/g, "");
   return [
     `Write-Error "Pet '${safe}' not found in Petdex."`,
-    'Write-Error "Browse pets at https://petdex.crafter.run"',
+    'Write-Error "Browse pets at https://petdex.dev"',
     "exit 1",
     "",
   ].join("\n");

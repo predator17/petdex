@@ -44,9 +44,9 @@ import {
 } from "../src/telemetry.js";
 
 // ─── config ────────────────────────────────────────────────────────────────
-const PETDEX_URL = process.env.PETDEX_URL ?? "https://petdex.crafter.run";
+const PETDEX_URL = process.env.PETDEX_URL ?? "https://petdex.dev";
 const PETDEX_REFERER = `${PETDEX_URL.replace(/\/+$/, "")}/`;
-const FALLBACK_ISSUER = "https://clerk.petdex.crafter.run";
+const FALLBACK_ISSUER = "https://clerk.petdex.dev";
 const FALLBACK_CLIENT_ID = "LcThwEayl6KAA1Qm";
 const DEFAULT_SCOPES = ["profile", "email", "openid", "offline_access"];
 
@@ -1495,7 +1495,7 @@ function cmdHooksKillswitch(sub: "toggle" | "on" | "off" | "status"): void {
   }
 }
 
-// One-shot first-run setup. The petdex.crafter.run/download landing
+// One-shot first-run setup. The petdex.dev/download landing
 // tells users to drag the DMG into Applications and then run this,
 // so init has to be idempotent across both layouts:
 //

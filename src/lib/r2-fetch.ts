@@ -1,6 +1,6 @@
 import { toCurrentR2PublicUrl } from "@/lib/r2-public-url";
 
-export const PETDEX_ASSET_REFERER = "https://petdex.crafter.run/";
+export const PETDEX_ASSET_REFERER = "https://petdex.dev/";
 
 export function fetchR2Asset(
   input: RequestInfo | URL,

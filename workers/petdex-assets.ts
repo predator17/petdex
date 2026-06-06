@@ -15,12 +15,12 @@ type Env = {
 const ALLOWED_REFERER_PREFIXES = [
   "http://localhost",
   "https://localhost",
-  "https://petdex.crafter.run/",
+  "https://petdex.dev/",
 ];
 
 const ALLOWED_ORIGINS = new Set([
   "http://localhost:3000",
-  "https://petdex.crafter.run",
+  "https://petdex.dev",
 ]);
 
 function isAllowedReferer(request: Request): boolean {

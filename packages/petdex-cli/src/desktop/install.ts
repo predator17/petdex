@@ -263,7 +263,7 @@ export function resolveDesktopInstallPlan(
     kind: "unsupported",
     target,
     reason: `No desktop binary for ${target.assetSuffix} in ${release.tag_name}.`,
-    hint: "Run `petdex hooks install` for hooks-only setup, or download a supported desktop build from https://petdex.crafter.run/download.",
+    hint: "Run `petdex hooks install` for hooks-only setup, or download a supported desktop build from https://petdex.dev/download.",
   };
 }
 
@@ -687,7 +687,7 @@ export type RunInstallDesktopResult = {
 // (404 page, facet pages). Easy to swap if we later want to make
 // this configurable per-release.
 const DEFAULT_PET_SLUG = "boba";
-const PETDEX_URL = process.env.PETDEX_URL ?? "https://petdex.crafter.run";
+const PETDEX_URL = process.env.PETDEX_URL ?? "https://petdex.dev";
 
 // Hosts we trust for serving pet assets (spritesheet + pet.json).
 // Mirrored from src/lib/url-allowlist.ts (the server-side validation

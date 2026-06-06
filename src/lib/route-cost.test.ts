@@ -113,8 +113,8 @@ describe("route cost helpers", () => {
     ).toBe("browser");
     expect(
       classifyRouteCostReferrerSource(
-        { referer: "https://petdex.crafter.run/pets/nukey" },
-        "https://petdex.crafter.run",
+        { referer: "https://petdex.dev/pets/nukey" },
+        "https://petdex.dev",
       ),
     ).toBe("internal");
   });
@@ -138,13 +138,13 @@ describe("route cost helpers", () => {
     expect(
       classifyRouteCostReferrerSource(
         { referer: "https://www.google.com/search?q=petdex" },
-        "https://petdex.crafter.run",
+        "https://petdex.dev",
       ),
     ).toBe("search");
     expect(
       classifyRouteCostReferrerSource(
         { referer: "https://github.com/crafter-station/petdex" },
-        "https://petdex.crafter.run",
+        "https://petdex.dev",
       ),
     ).toBe("external");
   });

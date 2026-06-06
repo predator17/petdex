@@ -2048,14 +2048,14 @@
       "authenticate": {
         "title": "Authenticate",
         "intro": "Sign in once, then any command that needs auth, such as submit, works seamlessly.",
-        "flow": "The flow is OAuth 2.0 + PKCE: the CLI opens your browser, you sign in with Clerk on <code>accounts.petdex.crafter.run</code>, and the browser redirects to a one-shot localhost listener with the authorization code. The CLI exchanges it for a token set and stores it in the keychain. No secrets touch disk.",
+        "flow": "The flow is OAuth 2.0 + PKCE: the CLI opens your browser, you sign in with Clerk on <code>accounts.petdex.dev</code>, and the browser redirects to a one-shot localhost listener with the authorization code. The CLI exchanges it for a token set and stores it in the keychain. No secrets touch disk.",
         "otherCommands": "Other auth commands:"
       },
       "commands": {
         "title": "Commands",
         "intro": "The CLI covers the full lifecycle: discover, install, hatch, publish, plus the desktop app and agent hooks. All commands accept <code>--help</code>.",
         "listBody": "Print every approved pet with credit. Useful for discovery before installing.",
-        "installBody": "Drop a pet into <code>~/.codex/pets/{petName}/</code>. Equivalent to <code>curl -sSf https://petdex.crafter.run/install/{petName} | sh</code>.",
+        "installBody": "Drop a pet into <code>~/.codex/pets/{petName}/</code>. Equivalent to <code>curl -sSf https://petdex.dev/install/{petName} | sh</code>.",
         "submitIntro": "Publish your pet(s) to the gallery. The CLI accepts three shapes:",
         "submitSingle": "<strong>Single folder</strong>: <code>petdex submit ~/.codex/pets/boba</code>",
         "submitZip": "<strong>Single zip</strong>: <code>petdex submit ~/Downloads/boba.zip</code>",
@@ -2158,8 +2158,8 @@
       "config": {
         "title": "Configuration",
         "intro": "The CLI ships with sensible defaults pointing at production. You only need to override env vars if you are testing against a non-production deployment.",
-        "petdexUrl": "<code>PETDEX_URL</code>: base URL, default <code>https://petdex.crafter.run</code>",
-        "clerkIssuer": "<code>CLERK_ISSUER</code>: OAuth issuer, default <code>https://clerk.petdex.crafter.run</code>",
+        "petdexUrl": "<code>PETDEX_URL</code>: base URL, default <code>https://petdex.dev</code>",
+        "clerkIssuer": "<code>CLERK_ISSUER</code>: OAuth issuer, default <code>https://clerk.petdex.dev</code>",
         "clerkClientId": "<code>CLERK_OAUTH_CLIENT_ID</code>: public client id (baked into the CLI binary)"
       },
       "contribute": {

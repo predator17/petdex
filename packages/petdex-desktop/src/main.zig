@@ -1689,7 +1689,7 @@ const PetdexState = struct {
     // it to finish. Used by the URL-scheme deep-link path: when the
     // user opens petdex://<slug> for a pet they don't have installed,
     // we shell out to the CLI which downloads the sprite + petJson
-    // from petdex.crafter.run, validates the host allowlist, and
+    // from petdex.dev, validates the host allowlist, and
     // writes them under ~/.petdex/pets/<slug>. The CLI is the
     // single source of truth for install logic — replicating it in
     // zig would mean two places to keep in sync.

@@ -10,7 +10,7 @@ body:
 
         We review submissions manually. Once approved, we take a screenshot and merge the entry into `src/data/built-with.json`. Typical turnaround: 3-5 days.
 
-        Read the [audit criteria](https://petdex.crafter.run/built-with) before submitting.
+        Read the [audit criteria](https://petdex.dev/built-with) before submitting.
   - type: input
     id: project-name
     attributes:
@@ -101,5 +101,5 @@ body:
           required: true
         - label: The evidence quote and URL above are accurate and live right now.
           required: true
-        - label: I'm comfortable with the project being publicly listed at petdex.crafter.run/built-with.
+        - label: I'm comfortable with the project being publicly listed at petdex.dev/built-with.
           required: true
