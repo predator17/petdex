@@ -144,11 +144,19 @@ export function buildVersionBrowserCacheKey(currentVersion: string | null) {
 export function clearCachedBuildVersion(storage: Storage | null): void {
   if (!storage) return;
 
+  // Match only the base key and per-build variants (`<base>:<token>`),
+  // never an unrelated key that merely shares the prefix such as
+  // `petdex:build-version-settings`.
+  const variantPrefix = `${BUILD_VERSION_BROWSER_CACHE_KEY}:`;
+
   try {
     const keys: string[] = [];
     for (let i = 0; i < storage.length; i += 1) {
       const key = storage.key(i);
-      if (key?.startsWith(BUILD_VERSION_BROWSER_CACHE_KEY)) {
+      if (
+        key === BUILD_VERSION_BROWSER_CACHE_KEY ||
+        key?.startsWith(variantPrefix)
+      ) {
         keys.push(key);
       }
     }
