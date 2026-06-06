@@ -45,7 +45,7 @@ export async function fetchBuildVersion(
 
   try {
     const response = await fetcher(BUILD_VERSION_PATH, {
-      cache: "no-store",
+      cache: "default",
       signal: controller.signal,
     });
 

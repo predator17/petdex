@@ -120,7 +120,7 @@ describe("build version check helpers", () => {
 
     expect(version).toBe("abc123|2026-05-17T00:00:00.000Z");
     expect(requestedUrl).toBe("/version.json");
-    expect(requestedInit?.cache).toBe("no-store");
+    expect(requestedInit?.cache).toBe("default");
   });
 
   it("coalesces build version checks through local storage", async () => {
