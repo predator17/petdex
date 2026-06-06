@@ -4,7 +4,7 @@ export const WORKERS_DEV_R2_PUBLIC_BASE =
 export const LEGACY_R2_PUBLIC_BASE =
   "https://pub-94495283df974cfea5e98d6a9e3fa462.r2.dev";
 
-function normalizeBase(raw: string | undefined): string {
+export function normalizeBase(raw: string | undefined): string {
   if (!raw) return DEFAULT_R2_PUBLIC_BASE;
   try {
     const parsed = new URL(raw);

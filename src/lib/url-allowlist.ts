@@ -12,18 +12,12 @@
 
 import { R2_TRUSTED_HOSTS } from "@/lib/r2-public-url";
 
-const ALLOWED_HOSTS = (() => {
-  const hosts = new Set<string>(R2_TRUSTED_HOSTS);
-  const base = process.env.R2_PUBLIC_BASE;
-  if (base) {
-    try {
-      hosts.add(new URL(base).host);
-    } catch {
-      /* ignore malformed env */
-    }
-  }
-  return hosts;
-})();
+// R2_TRUSTED_HOSTS already includes the normalized R2_PUBLIC_BASE host, where
+// normalizeBase() has rewritten any legacy/workers override back to the
+// canonical host. We intentionally do NOT re-add the raw env host here: a
+// deployment with R2_PUBLIC_BASE pointing at a retired host must not re-enter
+// the trust set and start accepting new submissions/edits for a dead host.
+const ALLOWED_HOSTS = new Set<string>(R2_TRUSTED_HOSTS);
 
 export function isAllowedAssetUrl(raw: string | null | undefined): boolean {
   if (!raw) return false;

@@ -20,6 +20,12 @@ import {
   posixNotFoundScript,
   powershellInstallScript,
 } from "@/lib/install-script-render";
+import {
+  DEFAULT_R2_PUBLIC_BASE,
+  LEGACY_R2_PUBLIC_BASE,
+  normalizeBase,
+  WORKERS_DEV_R2_PUBLIC_BASE,
+} from "@/lib/r2-public-url";
 import { validateSubmission } from "@/lib/submissions-validation";
 import {
   isAllowedAssetUrl,
@@ -90,6 +96,35 @@ describe("isAllowedAssetUrl", () => {
     expect(isAllowedAssetUrl("")).toBe(false);
     expect(isAllowedAssetUrl(null)).toBe(false);
     expect(isAllowedAssetUrl(undefined)).toBe(false);
+  });
+});
+
+// R2_PUBLIC_BASE feeds the trusted host set. If a deployment sets it to a
+// retired host, normalizeBase must rewrite it to the canonical host so the
+// dead host never re-enters the allowlist via the env override.
+describe("normalizeBase (env override safety)", () => {
+  it("rewrites the legacy r2.dev base to canonical", () => {
+    expect(normalizeBase(LEGACY_R2_PUBLIC_BASE)).toBe(DEFAULT_R2_PUBLIC_BASE);
+  });
+
+  it("rewrites the workers.dev base to canonical", () => {
+    expect(normalizeBase(WORKERS_DEV_R2_PUBLIC_BASE)).toBe(
+      DEFAULT_R2_PUBLIC_BASE,
+    );
+  });
+
+  it("falls back to canonical for non-https / malformed bases", () => {
+    expect(normalizeBase("http://assets.petdex.dev")).toBe(
+      DEFAULT_R2_PUBLIC_BASE,
+    );
+    expect(normalizeBase("not a url")).toBe(DEFAULT_R2_PUBLIC_BASE);
+    expect(normalizeBase(undefined)).toBe(DEFAULT_R2_PUBLIC_BASE);
+  });
+
+  it("preserves a valid custom https base", () => {
+    expect(normalizeBase("https://cdn.example.com")).toBe(
+      "https://cdn.example.com",
+    );
   });
 });
 
