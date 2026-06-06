@@ -232,7 +232,7 @@ export default async function Image({
             textTransform: "uppercase",
           }}
         >
-          petdex.crafter.run/collections/{collection.slug}
+          petdex.dev/collections/{collection.slug}
         </div>
       </div>
     </div>,

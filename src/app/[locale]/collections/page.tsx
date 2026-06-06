@@ -21,7 +21,7 @@ import { hasLocale } from "@/i18n/config";
 // a function on every visit.
 export const revalidate = 86400;
 
-const SITE_URL = "https://petdex.crafter.run";
+const SITE_URL = "https://petdex.dev";
 const MIN_PETS = 4;
 const INITIAL_PREVIEW_COUNT = 24;
 

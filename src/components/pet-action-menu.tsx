@@ -41,7 +41,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const SITE_URL = "https://petdex.crafter.run";
+const SITE_URL = "https://petdex.dev";
 const TAKEDOWN_ISSUE_URL =
   "https://github.com/crafter-station/petdex/issues/new";
 

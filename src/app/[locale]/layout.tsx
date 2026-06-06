@@ -37,7 +37,7 @@ type Props = {
   params: Promise<{ locale: string }>;
 };
 
-const SITE_URL = "https://petdex.crafter.run";
+const SITE_URL = "https://petdex.dev";
 
 export function generateStaticParams() {
   return locales.map((locale) => ({ locale }));

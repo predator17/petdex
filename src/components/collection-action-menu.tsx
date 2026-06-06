@@ -25,7 +25,7 @@ import { track } from "@/lib/vercel-analytics";
 
 import { CodexLogo } from "@/components/codex-logo";
 
-const SITE_URL = "https://petdex.crafter.run";
+const SITE_URL = "https://petdex.dev";
 // Cap on the install command length. Beyond this we truncate with a
 // hint so the user can paste the rest manually instead of getting a
 // 4 KB clipboard payload that some shells reject.

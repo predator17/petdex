@@ -263,7 +263,7 @@ export default async function Image({
             textTransform: "uppercase",
           }}
         >
-          petdex.crafter.run
+          petdex.dev
         </div>
       </div>
     </div>,

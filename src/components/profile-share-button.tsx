@@ -14,7 +14,7 @@ import { createPortal } from "react-dom";
 
 import { track } from "@/lib/vercel-analytics";
 
-const SITE_URL = "https://petdex.crafter.run";
+const SITE_URL = "https://petdex.dev";
 
 type Props = {
   /** Public handle without leading @ — used to build the URL. */
