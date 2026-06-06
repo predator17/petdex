@@ -2,7 +2,7 @@ import { createBuildVersionToken } from "@/lib/build-version-token";
 
 export const BUILD_VERSION_PATH = "/version.json";
 export const BUILD_VERSION_FETCH_TIMEOUT_MS = 5_000;
-export const BUILD_VERSION_BROWSER_CACHE_TTL_MS = 10 * 60_000;
+export const BUILD_VERSION_BROWSER_CACHE_TTL_MS = 60 * 60_000;
 export const BUILD_VERSION_BROWSER_CACHE_KEY = "petdex:build-version";
 
 const CHUNK_LOAD_FAILURE_PATTERNS = [

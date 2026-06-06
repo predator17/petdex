@@ -16,7 +16,7 @@ import { CURRENT_BUILD_KEY } from "@/lib/current-build";
 
 import { Button } from "@/components/ui/button";
 
-const CHECK_INTERVAL_MS = 10 * 60_000;
+const CHECK_INTERVAL_MS = 60 * 60_000;
 
 type UpdateReason = "version" | "asset-load";
 
