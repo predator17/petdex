@@ -28,12 +28,9 @@ import {
 } from "@/lib/url-allowlist";
 
 const BASE_INPUT = {
-  zipUrl:
-    "https://pub-94495283df974cfea5e98d6a9e3fa462.r2.dev/community/x/x.zip",
-  spritesheetUrl:
-    "https://pub-94495283df974cfea5e98d6a9e3fa462.r2.dev/community/x/spritesheet.webp",
-  petJsonUrl:
-    "https://pub-94495283df974cfea5e98d6a9e3fa462.r2.dev/community/x/pet.json",
+  zipUrl: "https://assets.petdex.dev/community/x/x.zip",
+  spritesheetUrl: "https://assets.petdex.dev/community/x/spritesheet.webp",
+  petJsonUrl: "https://assets.petdex.dev/community/x/pet.json",
   displayName: "Test Pet",
   description: "A test pet.",
   petId: "test-pet",
@@ -42,20 +39,28 @@ const BASE_INPUT = {
 };
 
 describe("isAllowedAssetUrl", () => {
-  it("allows R2 https", () => {
+  it("allows canonical asset host https", () => {
+    expect(isAllowedAssetUrl("https://assets.petdex.dev/x/y.webp")).toBe(true);
+  });
+
+  it("blocks retired legacy r2.dev host", () => {
     expect(
       isAllowedAssetUrl(
         "https://pub-94495283df974cfea5e98d6a9e3fa462.r2.dev/x/y.webp",
       ),
-    ).toBe(true);
+    ).toBe(false);
+  });
+
+  it("blocks retired workers.dev host", () => {
+    expect(
+      isAllowedAssetUrl(
+        "https://petdex-assets.raillyhugo.workers.dev/x/y.webp",
+      ),
+    ).toBe(false);
   });
 
   it("blocks http", () => {
-    expect(
-      isAllowedAssetUrl(
-        "http://pub-94495283df974cfea5e98d6a9e3fa462.r2.dev/x/y.webp",
-      ),
-    ).toBe(false);
+    expect(isAllowedAssetUrl("http://assets.petdex.dev/x/y.webp")).toBe(false);
   });
 
   it("blocks javascript:", () => {

@@ -27,10 +27,22 @@ function normalizeBase(raw: string | undefined): string {
 
 export const R2_PUBLIC_BASE = normalizeBase(process.env.R2_PUBLIC_BASE);
 
+// Hosts we recognize ONLY to rewrite stray stored URLs to the canonical host
+// at runtime (toCurrentR2PublicUrl). Includes the dead legacy hosts on purpose
+// — recognizing them is how we auto-correct old DB rows. This is NOT a trust
+// list: never use it to validate new user input.
 export const R2_PUBLIC_HOSTS = new Set<string>([
   new URL(DEFAULT_R2_PUBLIC_BASE).host,
   new URL(LEGACY_R2_PUBLIC_BASE).host,
   new URL(WORKERS_DEV_R2_PUBLIC_BASE).host,
+  new URL(R2_PUBLIC_BASE).host,
+]);
+
+// Hosts we trust for NEW input: submissions, edits, OG fetches, render.
+// Only the live canonical host (+ configured override). The dead legacy hosts
+// are deliberately excluded so we never accept or persist URLs that 401/404.
+export const R2_TRUSTED_HOSTS = new Set<string>([
+  new URL(DEFAULT_R2_PUBLIC_BASE).host,
   new URL(R2_PUBLIC_BASE).host,
 ]);
 

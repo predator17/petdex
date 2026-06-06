@@ -3,15 +3,17 @@
 // rejected at the validateSubmission boundary and skipped at the OG
 // fetch boundary so we never SSRF or echo attacker-controlled URLs.
 //
-// We allow the configured R2 public bucket and known R2 legacy hosts.
+// We allow only the live canonical R2 public bucket (+ configured override).
+// The dead legacy hosts are deliberately NOT trusted here — recognizing them
+// for rewrite is r2-public-url's job, not a reason to accept new input.
 //
 // Block everything else, including http://, file://, data:, javascript:,
 // and lan IPs.
 
-import { R2_PUBLIC_HOSTS } from "@/lib/r2-public-url";
+import { R2_TRUSTED_HOSTS } from "@/lib/r2-public-url";
 
 const ALLOWED_HOSTS = (() => {
-  const hosts = new Set<string>(R2_PUBLIC_HOSTS);
+  const hosts = new Set<string>(R2_TRUSTED_HOSTS);
   const base = process.env.R2_PUBLIC_BASE;
   if (base) {
     try {
