@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 
 const RANDOM_CACHE_CONTROL =
   "public, max-age=30, s-maxage=60, stale-while-revalidate=300";
+const RANDOM_VARY = "Accept";
 
 // GET /api/pets/random?exclude=current-slug
 //
@@ -43,18 +44,23 @@ export async function GET(req: Request): Promise<Response> {
         href: `/pets/${next.slug}`,
         installHref: `/install/${next.slug}`,
       },
-      { headers: { "Cache-Control": RANDOM_CACHE_CONTROL } },
+      {
+        headers: {
+          "Cache-Control": RANDOM_CACHE_CONTROL,
+          Vary: RANDOM_VARY,
+        },
+      },
     );
   }
 
   if (!next) {
     return NextResponse.redirect(new URL("/", req.url), {
       status: 302,
-      headers: { "Cache-Control": "private, no-store" },
+      headers: { "Cache-Control": "private, no-store", Vary: RANDOM_VARY },
     });
   }
   return NextResponse.redirect(new URL(`/pets/${next.slug}`, req.url), {
     status: 302,
-    headers: { "Cache-Control": RANDOM_CACHE_CONTROL },
+    headers: { "Cache-Control": RANDOM_CACHE_CONTROL, Vary: RANDOM_VARY },
   });
 }
