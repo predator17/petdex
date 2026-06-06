@@ -17,8 +17,9 @@ export const dynamic = "force-dynamic";
 
 type Params = { slug: string };
 
-const INSTALL_CACHE_CONTROL =
+const INSTALL_MISS_CACHE_CONTROL =
   "public, max-age=60, s-maxage=120, stale-while-revalidate=300";
+const INSTALL_SUCCESS_CACHE_CONTROL = "private, no-store";
 const INSTALL_SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
 export async function GET(
@@ -33,7 +34,10 @@ export async function GET(
   if (!INSTALL_SLUG_RE.test(slug)) {
     return Response.json(
       { ok: false, error: "invalid_slug" },
-      { status: 400, headers: { "cache-control": INSTALL_CACHE_CONTROL } },
+      {
+        status: 400,
+        headers: { "cache-control": INSTALL_MISS_CACHE_CONTROL },
+      },
     );
   }
 
@@ -41,7 +45,10 @@ export async function GET(
   if (!pet) {
     return Response.json(
       { ok: false, error: "not_found", slug },
-      { status: 404, headers: { "cache-control": INSTALL_CACHE_CONTROL } },
+      {
+        status: 404,
+        headers: { "cache-control": INSTALL_MISS_CACHE_CONTROL },
+      },
     );
   }
 
@@ -70,7 +77,7 @@ export async function GET(
     {
       status: 200,
       headers: {
-        "cache-control": INSTALL_CACHE_CONTROL,
+        "cache-control": INSTALL_SUCCESS_CACHE_CONTROL,
         "content-type": "application/json",
       },
     },

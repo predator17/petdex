@@ -13,8 +13,9 @@ export const dynamic = "force-dynamic";
 
 type Params = { locale: string; slug: string };
 
-const INSTALL_CACHE_CONTROL =
+const INSTALL_MISS_CACHE_CONTROL =
   "public, max-age=60, s-maxage=120, stale-while-revalidate=300";
+const INSTALL_SUCCESS_CACHE_CONTROL = "private, no-store";
 const INSTALL_SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const INSTALL_SCRIPT_VARY = "User-Agent";
 
@@ -57,7 +58,7 @@ export async function GET(
           platform === "ps1"
             ? "text/plain; charset=utf-8"
             : "text/plain; charset=utf-8",
-        "Cache-Control": INSTALL_CACHE_CONTROL,
+        "Cache-Control": INSTALL_MISS_CACHE_CONTROL,
         Vary: INSTALL_SCRIPT_VARY,
       },
     });
@@ -76,7 +77,7 @@ export async function GET(
           platform === "ps1"
             ? "text/plain; charset=utf-8"
             : "text/plain; charset=utf-8",
-        "Cache-Control": INSTALL_CACHE_CONTROL,
+        "Cache-Control": INSTALL_MISS_CACHE_CONTROL,
         Vary: INSTALL_SCRIPT_VARY,
       },
     });
@@ -104,7 +105,7 @@ export async function GET(
         platform === "ps1"
           ? "text/plain; charset=utf-8"
           : "text/x-shellscript; charset=utf-8",
-      "Cache-Control": INSTALL_CACHE_CONTROL,
+      "Cache-Control": INSTALL_SUCCESS_CACHE_CONTROL,
       Vary: INSTALL_SCRIPT_VARY,
     },
   });
