@@ -38,7 +38,7 @@ import { SubmittedBy } from "@/components/submitted-by";
 
 import { defaultLocale, hasLocale } from "@/i18n/config";
 
-const SITE_URL = "https://petdex.crafter.run";
+const SITE_URL = "https://petdex.dev";
 
 type PageProps = {
   params: Promise<{

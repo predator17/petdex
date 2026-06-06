@@ -22,7 +22,7 @@ import { defaultLocale, hasLocale } from "@/i18n/config";
 export const dynamic = "force-static";
 export const revalidate = 86400;
 
-const SITE_URL = "https://petdex.crafter.run";
+const SITE_URL = "https://petdex.dev";
 
 type PageProps = { params: Promise<{ slug: string; locale: string }> };
 

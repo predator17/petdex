@@ -26,7 +26,7 @@ import { StaticPetSprite } from "@/components/static-pet-sprite";
 import { hasLocale } from "@/i18n/config";
 import { buildSetupSteps, parsePendingInstallSlugs } from "./setup-steps";
 
-const SITE_URL = "https://petdex.crafter.run";
+const SITE_URL = "https://petdex.dev";
 const DEFAULT_PREVIEW_PET_SLUG = "boba";
 const DEFAULT_PREVIEW_PET = {
   displayName: "Boba",

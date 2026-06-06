@@ -62,7 +62,7 @@ export async function generateMetadata({
     ),
   };
 }
-const SITE_URL = "https://petdex.crafter.run";
+const SITE_URL = "https://petdex.dev";
 const HOME_INITIAL_GALLERY_LIMIT = 10;
 
 export function generateStaticParams() {
