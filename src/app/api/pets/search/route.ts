@@ -88,7 +88,7 @@ export async function GET(req: Request): Promise<Response> {
   // alpha, recent) are deterministic per (filters, cursor, limit), so
   // the edge serves them shared with a generous SWR window.
   const cacheHeader =
-    sort === "curated"
+    sort === "curated" || q
       ? "private, no-store"
       : "public, max-age=300, s-maxage=600, stale-while-revalidate=3600";
 

@@ -98,6 +98,21 @@ describe("GET /api/pets/search", () => {
     expect(call?.input.shuffleSeed).toBe(TEST_SEED);
   });
 
+  it("keeps explicit sorted text search private", async () => {
+    const response = await search(
+      "https://petdex.local/api/pets/search?q=cozy&sort=alpha",
+    );
+    const body = (await response.json()) as { shuffleSeed?: string };
+    const call = calls[0];
+
+    expect(body.shuffleSeed).toBeUndefined();
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(response.headers.get("Set-Cookie")).toBeNull();
+    expect(call?.input.q).toBe("cozy");
+    expect(call?.input.sort).toBe("alpha");
+    expect(call?.input.shuffleSeed).toBeUndefined();
+  });
+
   it("returns the minted curated seed so no-cookie pagination can reuse it", async () => {
     const first = await search(
       "https://petdex.local/api/pets/search?sort=curated",
