@@ -2,6 +2,7 @@ import { describe, expect, it } from "bun:test";
 
 import {
   buildVersionBrowserCacheKey,
+  clearCachedBuildVersion,
   fetchBuildVersion,
   fetchBuildVersionWithBrowserCache,
   getBuildVersionTokenFromPayload,
@@ -209,5 +210,25 @@ describe("build version check helpers", () => {
         value: originalWindow,
       });
     }
+  });
+
+  it("clears every build-version cache entry, leaving others intact", () => {
+    const storage = new MemoryStorage();
+    storage.setItem("petdex:build-version", "base");
+    storage.setItem("petdex:build-version:abc123", "keyed");
+    storage.setItem("petdex:build-version-settings", "keep");
+    storage.setItem("unrelated", "keep");
+
+    clearCachedBuildVersion(storage);
+
+    expect(storage.getItem("petdex:build-version")).toBeNull();
+    expect(storage.getItem("petdex:build-version:abc123")).toBeNull();
+    // Shares the prefix but is not a cache variant, so it must survive.
+    expect(storage.getItem("petdex:build-version-settings")).toBe("keep");
+    expect(storage.getItem("unrelated")).toBe("keep");
+  });
+
+  it("is a no-op when storage is null", () => {
+    expect(() => clearCachedBuildVersion(null)).not.toThrow();
   });
 });

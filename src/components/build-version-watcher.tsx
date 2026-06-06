@@ -7,6 +7,7 @@ import { useTranslations } from "next-intl";
 
 import {
   buildVersionBrowserCacheKey,
+  clearCachedBuildVersion,
   fetchBuildVersionWithBrowserCache,
   isChunkLoadFailure,
 } from "@/lib/build-version-check";
@@ -26,6 +27,18 @@ export function BuildVersionWatcher() {
 
   const showUpdatePrompt = useCallback((reason: UpdateReason) => {
     setUpdateReason((currentReason) => currentReason ?? reason);
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    // Drop the cached version token first. Without this, a stale entry can
+    // outlive the reload (bfcache / cached document) and immediately
+    // re-trigger the prompt, leaving the user stuck refreshing forever.
+    try {
+      clearCachedBuildVersion(window.localStorage);
+    } catch {
+      // localStorage may be unavailable (private mode); reload anyway.
+    }
+    window.location.reload();
   }, []);
 
   useEffect(() => {
@@ -105,7 +118,7 @@ export function BuildVersionWatcher() {
               variant="petdex-cta"
               size="sm"
               className="h-9 rounded-full px-4 text-xs shadow-sm shadow-blue-950/10"
-              onClick={() => window.location.reload()}
+              onClick={handleRefresh}
             >
               <RefreshCw className="size-3.5" />
               {t("refresh")}
