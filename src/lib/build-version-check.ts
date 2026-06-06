@@ -138,6 +138,28 @@ export function buildVersionBrowserCacheKey(currentVersion: string | null) {
     : BUILD_VERSION_BROWSER_CACHE_KEY;
 }
 
+// Drop every cached build-version entry (the base key plus any
+// per-build-keyed variants). Called when the user accepts the update so a
+// stale cached token can't keep re-triggering the prompt after reload.
+export function clearCachedBuildVersion(storage: Storage | null): void {
+  if (!storage) return;
+
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < storage.length; i += 1) {
+      const key = storage.key(i);
+      if (key?.startsWith(BUILD_VERSION_BROWSER_CACHE_KEY)) {
+        keys.push(key);
+      }
+    }
+    for (const key of keys) {
+      storage.removeItem(key);
+    }
+  } catch {
+    return;
+  }
+}
+
 export function isChunkLoadFailure(errorLike: unknown): boolean {
   const message = getErrorLikeMessage(errorLike).toLowerCase();
 
