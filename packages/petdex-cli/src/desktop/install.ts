@@ -697,11 +697,7 @@ const PETDEX_URL = process.env.PETDEX_URL ?? "https://petdex.dev";
 // malicious origin in CI/dev, an unrestricted fetch would write
 // attacker-controlled bytes to ~/.petdex/pets and ~/.codex/pets.
 // Keep this list in sync with the server-side allowlist.
-const TRUSTED_ASSET_HOSTS = new Set<string>([
-  "assets.petdex.dev",
-  "petdex-assets.raillyhugo.workers.dev",
-  "pub-94495283df974cfea5e98d6a9e3fa462.r2.dev",
-]);
+const TRUSTED_ASSET_HOSTS = new Set<string>(["assets.petdex.dev"]);
 
 export function isTrustedAssetUrl(url: string): boolean {
   try {

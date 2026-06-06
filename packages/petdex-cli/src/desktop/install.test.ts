@@ -433,7 +433,7 @@ describe("resolveDesktopInstallPlan", () => {
 //   - happy path → files land in both ~/.petdex/pets and ~/.codex/pets
 //   - partial download failure → rollback removes orphan directories
 
-const TRUSTED_HOST = "https://petdex-assets.raillyhugo.workers.dev";
+const TRUSTED_HOST = "https://assets.petdex.dev";
 
 describe("installStarterPet", () => {
   const realHome = process.env.HOME;
@@ -889,33 +889,31 @@ describe("installStarterPet", () => {
 // could either reject legit installs or accept attacker bytes.
 
 describe("isTrustedAssetUrl", () => {
-  test("accepts the protected R2 worker", () => {
-    expect(
-      isTrustedAssetUrl(
-        "https://petdex-assets.raillyhugo.workers.dev/pets/boba/spritesheet.webp",
-      ),
-    ).toBe(true);
-  });
-
-  test("accepts the R2 public bucket", () => {
-    expect(
-      isTrustedAssetUrl(
-        "https://pub-94495283df974cfea5e98d6a9e3fa462.r2.dev/pets/boba/spritesheet.webp",
-      ),
-    ).toBe(true);
-  });
-
-  test("accepts the R2 custom domain", () => {
+  test("accepts the canonical asset host", () => {
     expect(
       isTrustedAssetUrl("https://assets.petdex.dev/pets/boba/spritesheet.webp"),
     ).toBe(true);
   });
 
-  test("rejects http (must be https)", () => {
+  test("rejects the retired R2 worker host", () => {
     expect(
       isTrustedAssetUrl(
-        "http://pub-94495283df974cfea5e98d6a9e3fa462.r2.dev/pets/boba/spritesheet.webp",
+        "https://petdex-assets.raillyhugo.workers.dev/pets/boba/spritesheet.webp",
       ),
+    ).toBe(false);
+  });
+
+  test("rejects the retired R2 public bucket host", () => {
+    expect(
+      isTrustedAssetUrl(
+        "https://pub-94495283df974cfea5e98d6a9e3fa462.r2.dev/pets/boba/spritesheet.webp",
+      ),
+    ).toBe(false);
+  });
+
+  test("rejects http (must be https)", () => {
+    expect(
+      isTrustedAssetUrl("http://assets.petdex.dev/pets/boba/spritesheet.webp"),
     ).toBe(false);
   });
 

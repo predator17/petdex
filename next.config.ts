@@ -47,13 +47,12 @@ function r2PublicSource(): string {
 }
 
 const r2PublicHostValue = r2PublicHost();
+// assets.petdex.dev is the only asset host we serve from. The legacy
+// pub-*.r2.dev and *.workers.dev hosts are dead; stored URLs pointing at
+// them are rewritten to the canonical host at runtime via
+// toCurrentR2PublicUrl, so they never need to be allowed here.
 const r2PublicSources = Array.from(
-  new Set([
-    `https://${CANONICAL_R2_PUBLIC_HOST}`,
-    `https://${WORKERS_DEV_R2_PUBLIC_HOST}`,
-    `https://${LEGACY_R2_PUBLIC_HOST}`,
-    r2PublicSource(),
-  ]),
+  new Set([`https://${CANONICAL_R2_PUBLIC_HOST}`, r2PublicSource()]),
 ).join(" ");
 
 // Content-Security-Policy. Blocks inline <script> sources we didn't ship,
@@ -130,8 +129,6 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       { protocol: "https", hostname: CANONICAL_R2_PUBLIC_HOST },
-      { protocol: "https", hostname: WORKERS_DEV_R2_PUBLIC_HOST },
-      { protocol: "https", hostname: LEGACY_R2_PUBLIC_HOST },
       { protocol: "https", hostname: r2PublicHostValue },
       { protocol: "https", hostname: "img.clerk.com" },
       { protocol: "https", hostname: "images.clerk.dev" },
