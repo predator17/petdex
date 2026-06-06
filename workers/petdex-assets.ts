@@ -16,11 +16,17 @@ const ALLOWED_REFERER_PREFIXES = [
   "http://localhost",
   "https://localhost",
   "https://petdex.dev/",
+  // Legacy host: older published CLIs (<= 0.4.2) still send the
+  // petdex.crafter.run referer. Keep accepting it so their asset
+  // fetches don't break after the domain migration.
+  "https://petdex.crafter.run/",
 ];
 
 const ALLOWED_ORIGINS = new Set([
   "http://localhost:3000",
   "https://petdex.dev",
+  // Legacy host kept for older clients (see referer note above).
+  "https://petdex.crafter.run",
 ]);
 
 function isAllowedReferer(request: Request): boolean {
