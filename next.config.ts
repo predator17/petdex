@@ -122,6 +122,13 @@ const securityHeaders = [
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
 ];
 
+const versionJsonHeaders = [
+  {
+    key: "Cache-Control",
+    value: "public, max-age=300, s-maxage=600, stale-while-revalidate=3600",
+  },
+];
+
 const mockRoot = path.resolve(__dirname, "src/lib/mock");
 
 const nextConfig: NextConfig = {
@@ -152,6 +159,10 @@ const nextConfig: NextConfig = {
   ],
   async headers() {
     return [
+      {
+        source: "/version.json",
+        headers: versionJsonHeaders,
+      },
       {
         source: "/:path*",
         headers: securityHeaders,
