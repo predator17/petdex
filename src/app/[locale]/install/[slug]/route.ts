@@ -13,6 +13,10 @@ export const dynamic = "force-dynamic";
 
 type Params = { locale: string; slug: string };
 
+const INSTALL_CACHE_CONTROL =
+  "public, max-age=60, s-maxage=120, stale-while-revalidate=300";
+const INSTALL_SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
+
 function detectPlatformFromRequest(req: Request): "posix" | "ps1" {
   const url = new URL(req.url);
   const explicit = url.searchParams.get("platform")?.toLowerCase();
@@ -40,6 +44,23 @@ export async function GET(
   const origin = new URL(req.url).origin;
   const platform = detectPlatformFromRequest(req);
 
+  if (!INSTALL_SLUG_RE.test(slug)) {
+    const body =
+      platform === "ps1"
+        ? powershellNotFoundScript(slug)
+        : posixNotFoundScript(slug);
+    return new Response(body, {
+      status: 404,
+      headers: {
+        "Content-Type":
+          platform === "ps1"
+            ? "text/plain; charset=utf-8"
+            : "text/plain; charset=utf-8",
+        "Cache-Control": INSTALL_CACHE_CONTROL,
+      },
+    });
+  }
+
   const pet = await resolveInstallablePet(slug, origin);
   if (!pet) {
     const body =
@@ -53,6 +74,7 @@ export async function GET(
           platform === "ps1"
             ? "text/plain; charset=utf-8"
             : "text/plain; charset=utf-8",
+        "Cache-Control": INSTALL_CACHE_CONTROL,
       },
     });
   }
@@ -79,7 +101,7 @@ export async function GET(
         platform === "ps1"
           ? "text/plain; charset=utf-8"
           : "text/x-shellscript; charset=utf-8",
-      "Cache-Control": "public, max-age=30",
+      "Cache-Control": INSTALL_CACHE_CONTROL,
     },
   });
 }
