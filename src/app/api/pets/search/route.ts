@@ -83,14 +83,14 @@ export async function GET(req: Request): Promise<Response> {
     { includeTotal: includeMeta, includeFacets: includeMeta },
   );
 
-  // Curated results are per-visitor (shuffle seed cookie) so the edge
-  // can't share them across users. Other sorts (popular, installed,
-  // alpha, recent) are deterministic per (filters, cursor, limit), so
-  // the edge serves them shared with a generous SWR window.
+  // Curated results are per-visitor (shuffle seed cookie), and text
+  // searches stay private even with a deterministic sort. Other sorts
+  // (popular, installed, alpha, recent) are deterministic per (filters,
+  // cursor, limit), so the edge serves them shared with a generous SWR window.
   const cacheHeader =
-    sort === "curated"
+    sort === "curated" || q
       ? "private, no-store"
-      : "public, max-age=60, s-maxage=120, stale-while-revalidate=600";
+      : "public, max-age=300, s-maxage=600, stale-while-revalidate=3600";
 
   const payload =
     sort === "curated" && shuffleSeed ? { ...result, shuffleSeed } : result;
