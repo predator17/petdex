@@ -125,7 +125,7 @@ const securityHeaders = [
 const versionJsonHeaders = [
   {
     key: "Cache-Control",
-    value: "public, max-age=300, s-maxage=600, must-revalidate",
+    value: "public, max-age=0, s-maxage=600, must-revalidate",
   },
 ];
 
