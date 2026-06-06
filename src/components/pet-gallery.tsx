@@ -23,7 +23,6 @@ import { petStates } from "@/lib/pet-states";
 import { PET_KINDS, PET_VIBES, type PetKind, type PetVibe } from "@/lib/types";
 import { isAllowedAvatarUrl } from "@/lib/url-allowlist";
 import { cn } from "@/lib/utils";
-import { track } from "@/lib/vercel-analytics";
 
 import { FeedAdSlot } from "@/components/ads/feed-ad-slot";
 import { useHeaderState } from "@/components/header-state-provider";
@@ -209,23 +208,6 @@ export function PetGallery({
         if (data.facets) setFacets(data.facets);
         const mode = data.searchMode ?? "all";
         setSearchMode(mode);
-        // Track only meaningful searches (skip the empty initial load
-        // and very short typing). 'no_results' fires its own event
-        // because it gates the request CTA — we want to know which
-        // queries miss most often.
-        if (trimmedQuery.length >= 4 && mode !== "all") {
-          track("gallery_searched", {
-            mode,
-            length: trimmedQuery.length,
-            results: nextTotal,
-          });
-          if (nextTotal === 0) {
-            track("gallery_no_results", {
-              query_length: trimmedQuery.length,
-              mode,
-            });
-          }
-        }
       } catch (error) {
         if (isAbortError(error)) return;
         // soft-fail: keep whatever's already on screen
@@ -238,7 +220,7 @@ export function PetGallery({
       controller.abort();
       window.clearTimeout(handle);
     };
-  }, [buildParams, trimmedQuery]);
+  }, [buildParams]);
 
   const loadMore = useCallback(async () => {
     if (nextCursor == null || loadingMore || loadingPage) return;
@@ -320,7 +302,6 @@ export function PetGallery({
             <button
               type="button"
               onClick={() => {
-                track("filters_cleared");
                 clearFilters();
               }}
               className="rounded-full border border-border-base bg-surface px-2.5 py-1 text-muted-2 transition hover:border-border-strong hover:text-black dark:hover:text-stone-100"
@@ -365,7 +346,6 @@ export function PetGallery({
           <Select
             value={sort}
             onValueChange={(next) => {
-              track("sort_changed", { sort: next });
               setSortTouched(true);
               setSort(next as SortKey);
             }}
@@ -477,7 +457,6 @@ export function PetGallery({
               type="button"
               variant="petdex-pill"
               onClick={() => {
-                track("filters_cleared");
                 clearFilters();
               }}
               className="h-10 px-4 text-sm font-medium text-muted-2"
@@ -657,11 +636,6 @@ function FilterChips({
             size="chip"
             pressed={isActive}
             onPressedChange={() => {
-              track("filter_toggled", {
-                tone,
-                value,
-                next: isActive ? "off" : "on",
-              });
               onToggle(value);
             }}
             className={tone === "batch" ? "" : "capitalize"}
@@ -1159,7 +1133,6 @@ function NoResults({
 
   async function submitRequest() {
     if (!canRequest || state.tag === "submitting") return;
-    track("pet_request_clicked", { from: "gallery_empty_state" });
     setState({ tag: "submitting" });
     try {
       const res = await fetch("/api/pet-requests", {
@@ -1169,7 +1142,6 @@ function NoResults({
       });
       if (!res.ok) {
         if (res.status === 401) {
-          track("pet_request_blocked", { reason: "unauthorized" });
           setState({
             tag: "error",
             reason: "Sign in to request a pet.",
@@ -1180,7 +1152,6 @@ function NoResults({
           message?: string;
           error?: string;
         };
-        track("pet_request_failed", { status: res.status });
         setState({
           tag: "error",
           reason:
@@ -1192,17 +1163,12 @@ function NoResults({
         mode: "created" | "upvoted";
         upvoteCount: number;
       };
-      track("pet_request_succeeded", {
-        mode: data.mode,
-        upvotes: data.upvoteCount,
-      });
       setState({
         tag: "ok",
         mode: data.mode,
         count: data.upvoteCount,
       });
     } catch {
-      track("pet_request_failed", { reason: "network" });
       setState({ tag: "error", reason: "Network error, try again." });
     }
   }
