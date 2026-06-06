@@ -2,8 +2,7 @@
 //
 // Purpose: prevent submitters from embedding promotional URLs or links
 // inside fields that are rendered as plain text in the gallery. This is
-// distinct from the asset-url allowlist (r2 / uploadthing hosts) which
-// covers internal storage URLs.
+// distinct from the asset-url allowlist, which covers internal storage URLs.
 //
 // Do NOT apply to creditUrl — that field is explicitly intended to hold
 // a URL.

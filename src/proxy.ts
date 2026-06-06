@@ -34,6 +34,10 @@ import { defaultLocale, locales } from "@/i18n/config";
 
 const IS_MOCK_AUTH =
   process.env.PETDEX_MOCK === "1" || process.env.PETDEX_MOCK_AUTH === "1";
+const ADMIN_URL = normalizeBaseUrl(
+  process.env.PETDEX_ADMIN_URL || process.env.NEXT_PUBLIC_PETDEX_ADMIN_URL,
+  "https://admin.petdex.dev",
+);
 
 const isProtected = createRouteMatcher([
   "/submit",
@@ -44,12 +48,6 @@ const isProtected = createRouteMatcher([
   "/api/submit/(.*)",
   "/api/r2",
   "/api/r2/(.*)",
-  "/admin",
-  "/admin/(.*)",
-  "/:locale/admin",
-  "/:locale/admin/(.*)",
-  "/api/admin",
-  "/api/admin/(.*)",
   "/api/my-pets",
   "/api/my-pets/(.*)",
 ]);
@@ -65,6 +63,8 @@ const handleI18nRouting = createMiddleware({
 // backend secret before our shims have a chance to short-circuit).
 // Everything else — next-intl routing, the shuffle cookie — keeps working.
 const baseMiddleware = async (req: NextRequest, event?: NextFetchEvent) => {
+  const adminSurface = adminSurfaceResponse(req);
+  if (adminSurface) return adminSurface;
   scheduleRouteCostSample(req, event);
   const guard = await guardPublicTraffic(req);
   if (guard) return guard;
@@ -77,6 +77,8 @@ const baseMiddleware = async (req: NextRequest, event?: NextFetchEvent) => {
 export default IS_MOCK_AUTH
   ? baseMiddleware
   : clerkMiddleware(async (auth, req, event) => {
+      const adminSurface = adminSurfaceResponse(req);
+      if (adminSurface) return adminSurface;
       scheduleRouteCostSample(req, event);
       const guard = await guardPublicTraffic(req);
       if (guard) return guard;
@@ -167,6 +169,41 @@ function rateLimitedResponse(reset: number): NextResponse {
       },
     },
   );
+}
+
+function adminSurfaceResponse(req: NextRequest): NextResponse | null {
+  const pathname = req.nextUrl.pathname;
+  if (pathname === "/api/admin" || pathname.startsWith("/api/admin/")) {
+    return new NextResponse(null, {
+      status: 404,
+      headers: { "cache-control": "no-store" },
+    });
+  }
+
+  const stripped = pathname.replace(/^\/(?:en|es|zh)(?=\/|$)/, "") || "/";
+  if (stripped !== "/admin" && !stripped.startsWith("/admin/")) return null;
+  if (req.method !== "GET" && req.method !== "HEAD") {
+    return new NextResponse(null, {
+      status: 404,
+      headers: { "cache-control": "no-store" },
+    });
+  }
+
+  const url = new URL(pathname, ADMIN_URL);
+  url.search = req.nextUrl.search;
+  return NextResponse.redirect(url);
+}
+
+function normalizeBaseUrl(raw: string | null | undefined, fallback: string) {
+  try {
+    const url = new URL(raw?.trim() || fallback);
+    url.pathname = "";
+    url.search = "";
+    url.hash = "";
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    return fallback.replace(/\/$/, "");
+  }
 }
 
 function scheduleRouteCostSample(req: NextRequest, event?: NextFetchEvent) {

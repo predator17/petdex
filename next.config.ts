@@ -9,36 +9,48 @@ import { ensureBuildVersionFiles } from "./scripts/build-version";
 const IS_MOCK = process.env.PETDEX_MOCK === "1";
 const IS_MOCK_AUTH = IS_MOCK || process.env.PETDEX_MOCK_AUTH === "1";
 
-const DEFAULT_R2_PUBLIC_HOST = "petdex-assets.raillyhugo.workers.dev";
+const CANONICAL_R2_PUBLIC_HOST = "assets.petdex.dev";
+const WORKERS_DEV_R2_PUBLIC_HOST = "petdex-assets.raillyhugo.workers.dev";
 const LEGACY_R2_PUBLIC_HOST = "pub-94495283df974cfea5e98d6a9e3fa462.r2.dev";
 ensureBuildVersionFiles();
 
 function r2PublicHost(): string {
-  if (!process.env.R2_PUBLIC_BASE) return DEFAULT_R2_PUBLIC_HOST;
+  if (!process.env.R2_PUBLIC_BASE) return CANONICAL_R2_PUBLIC_HOST;
   try {
-    return new URL(process.env.R2_PUBLIC_BASE).hostname;
+    const host = new URL(process.env.R2_PUBLIC_BASE).hostname;
+    if (host === WORKERS_DEV_R2_PUBLIC_HOST || host === LEGACY_R2_PUBLIC_HOST) {
+      return CANONICAL_R2_PUBLIC_HOST;
+    }
+    return host;
   } catch {
-    return DEFAULT_R2_PUBLIC_HOST;
+    return CANONICAL_R2_PUBLIC_HOST;
   }
 }
 
 function r2PublicSource(): string {
-  if (!process.env.R2_PUBLIC_BASE) return `https://${DEFAULT_R2_PUBLIC_HOST}`;
+  if (!process.env.R2_PUBLIC_BASE) return `https://${CANONICAL_R2_PUBLIC_HOST}`;
   try {
     const parsed = new URL(process.env.R2_PUBLIC_BASE);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return `https://${DEFAULT_R2_PUBLIC_HOST}`;
+      return `https://${CANONICAL_R2_PUBLIC_HOST}`;
+    }
+    if (
+      parsed.hostname === WORKERS_DEV_R2_PUBLIC_HOST ||
+      parsed.hostname === LEGACY_R2_PUBLIC_HOST
+    ) {
+      return `https://${CANONICAL_R2_PUBLIC_HOST}`;
     }
     return parsed.origin;
   } catch {
-    return `https://${DEFAULT_R2_PUBLIC_HOST}`;
+    return `https://${CANONICAL_R2_PUBLIC_HOST}`;
   }
 }
 
 const r2PublicHostValue = r2PublicHost();
 const r2PublicSources = Array.from(
   new Set([
-    `https://${DEFAULT_R2_PUBLIC_HOST}`,
+    `https://${CANONICAL_R2_PUBLIC_HOST}`,
+    `https://${WORKERS_DEV_R2_PUBLIC_HOST}`,
     `https://${LEGACY_R2_PUBLIC_HOST}`,
     r2PublicSource(),
   ]),
@@ -55,8 +67,8 @@ const r2PublicSources = Array.from(
 // - clerk.petdex.crafter.run + *.clerk.com / *.clerk.accounts.dev for
 //   the Clerk client SDK
 // - vercel-scripts / vitals for Vercel analytics
-// - R2 public bucket + UploadThing host + Clerk image hosts + social
-//   avatar hosts for sprites and avatars
+// - R2 public bucket + Clerk image hosts + social avatar hosts for sprites
+//   and avatars
 const cspDirectives = [
   "default-src 'self'",
   "base-uri 'self'",
@@ -70,14 +82,14 @@ const cspDirectives = [
   "frame-src 'self' https://challenges.cloudflare.com https://*.clerk.com https://*.clerk.accounts.dev https://accounts.petdex.crafter.run https://clerk.petdex.crafter.run",
   "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://clerk.petdex.crafter.run https://accounts.petdex.crafter.run https://*.clerk.com https://*.clerk.accounts.dev https://challenges.cloudflare.com https://va.vercel-scripts.com https://vercel.live",
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob: ${r2PublicSources} https://yu2vz9gndp.ufs.sh https://img.clerk.com https://images.clerk.dev https://avatars.githubusercontent.com https://pbs.twimg.com https://storage.googleapis.com`,
+  `img-src 'self' data: blob: ${r2PublicSources} https://img.clerk.com https://images.clerk.dev https://avatars.githubusercontent.com https://pbs.twimg.com https://storage.googleapis.com`,
   `media-src 'self' ${r2PublicSources}`,
   "font-src 'self' data:",
   // R2 reads via pub-*.r2.dev, R2 PUT uploads via the account-specific
   // S3 endpoint (*.r2.cloudflarestorage.com). Both must be on the
   // connect-src allowlist or browser fetch / XHR fail with a generic
   // network error (root cause of issues #22-#80+).
-  `connect-src 'self' https://clerk.petdex.crafter.run https://accounts.petdex.crafter.run https://*.clerk.com https://*.clerk.accounts.dev https://api.clerk.com https://api.github.com https://challenges.cloudflare.com ${r2PublicSources} https://*.r2.cloudflarestorage.com https://yu2vz9gndp.ufs.sh https://utfs.io https://va.vercel-scripts.com https://vitals.vercel-insights.com`,
+  `connect-src 'self' https://clerk.petdex.crafter.run https://accounts.petdex.crafter.run https://*.clerk.com https://*.clerk.accounts.dev https://api.clerk.com https://api.github.com https://challenges.cloudflare.com ${r2PublicSources} https://*.r2.cloudflarestorage.com https://va.vercel-scripts.com https://vitals.vercel-insights.com`,
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   "upgrade-insecure-requests",
@@ -117,10 +129,10 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   images: {
     remotePatterns: [
-      { protocol: "https", hostname: DEFAULT_R2_PUBLIC_HOST },
+      { protocol: "https", hostname: CANONICAL_R2_PUBLIC_HOST },
+      { protocol: "https", hostname: WORKERS_DEV_R2_PUBLIC_HOST },
       { protocol: "https", hostname: LEGACY_R2_PUBLIC_HOST },
       { protocol: "https", hostname: r2PublicHostValue },
-      { protocol: "https", hostname: "yu2vz9gndp.ufs.sh" },
       { protocol: "https", hostname: "img.clerk.com" },
       { protocol: "https", hostname: "images.clerk.dev" },
       { protocol: "https", hostname: "avatars.githubusercontent.com" },

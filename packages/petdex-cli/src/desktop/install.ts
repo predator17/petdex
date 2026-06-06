@@ -698,13 +698,9 @@ const PETDEX_URL = process.env.PETDEX_URL ?? "https://petdex.crafter.run";
 // attacker-controlled bytes to ~/.petdex/pets and ~/.codex/pets.
 // Keep this list in sync with the server-side allowlist.
 const TRUSTED_ASSET_HOSTS = new Set<string>([
+  "assets.petdex.dev",
   "petdex-assets.raillyhugo.workers.dev",
-  // R2 public bucket (current asset origin).
   "pub-94495283df974cfea5e98d6a9e3fa462.r2.dev",
-  // Legacy UploadThing host. Rows from before the R2 migration still
-  // point here; safe for GET because UT URLs are user-uploaded but
-  // namespaced. Drop when no manifest entries reference UT anymore.
-  "yu2vz9gndp.ufs.sh",
 ]);
 
 export function isTrustedAssetUrl(url: string): boolean {

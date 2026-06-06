@@ -9,7 +9,6 @@ import {
   GearSixIcon,
   IdentificationCardIcon,
   InfoIcon,
-  QrCodeIcon,
   ShieldCheckIcon,
   ShieldWarningIcon,
   SignOutIcon,
@@ -18,12 +17,7 @@ import { ChatCircleDotsIcon } from "@phosphor-icons/react/dist/ssr";
 import { ExternalLink } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 
-import {
-  canAccessCollaboratorAreaClientSafe,
-  canModeratePublishedPetsClientSafe,
-  isAdminClientSafe,
-  isCollaboratorClientSafe,
-} from "@/lib/admin";
+import { isAdminClientSafe } from "@/lib/admin";
 import { withLocale } from "@/lib/locale-routing";
 import { cn } from "@/lib/utils";
 
@@ -97,19 +91,14 @@ function UserDropdown({ compact = false }: { compact?: boolean }) {
   const { user, isLoaded } = useUser();
   const { signOut, openUserProfile } = useClerk();
   const showAdmin = isAdminClientSafe(user?.id);
-  const showCollaborator = canAccessCollaboratorAreaClientSafe(user?.id);
-  const canReviewAsCollaborator = isCollaboratorClientSafe(user?.id);
-  const canModerate = canModeratePublishedPetsClientSafe(user?.id);
-  const collaboratorHref = canReviewAsCollaborator
-    ? "/collaborator"
-    : canModerate
-      ? "/collaborator/moderation"
-      : "/collaborator/wechat-qr";
   const unread = useHeaderState().state.feedback.count;
   const t = useTranslations("header");
   const locale = useLocale();
   const currentLocale: Locale = hasLocale(locale) ? locale : "en";
   const href = (pathname: string) => withLocale(pathname, currentLocale);
+  const adminHref =
+    process.env.NEXT_PUBLIC_PETDEX_ADMIN_URL?.replace(/\/$/, "") ||
+    "https://admin.petdex.dev";
 
   // Source of truth for the public profile handle is our DB
   // (user_profiles.handle), not Clerk's username field. Clerk username
@@ -219,17 +208,11 @@ function UserDropdown({ compact = false }: { compact?: boolean }) {
             ) : null}
           </DropdownMenuItem>
           {showAdmin ? (
-            <DropdownMenuItem render={<Link href="/admin" prefetch={false} />}>
+            <DropdownMenuItem
+              render={<Link href={adminHref} prefetch={false} />}
+            >
               <ShieldCheckIcon weight="duotone" className="size-4" />
               {t("admin")}
-            </DropdownMenuItem>
-          ) : null}
-          {showCollaborator ? (
-            <DropdownMenuItem
-              render={<Link href={href(collaboratorHref)} prefetch={false} />}
-            >
-              <QrCodeIcon weight="duotone" className="size-4" />
-              {t("collaborator")}
             </DropdownMenuItem>
           ) : null}
         </DropdownMenuGroup>

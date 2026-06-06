@@ -50,10 +50,6 @@ describe("isAllowedAssetUrl", () => {
     ).toBe(true);
   });
 
-  it("allows legacy uploadthing https", () => {
-    expect(isAllowedAssetUrl("https://yu2vz9gndp.ufs.sh/f/abc")).toBe(true);
-  });
-
   it("blocks http", () => {
     expect(
       isAllowedAssetUrl(

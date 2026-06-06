@@ -905,8 +905,10 @@ describe("isTrustedAssetUrl", () => {
     ).toBe(true);
   });
 
-  test("accepts the legacy UploadThing host (pre-R2 migration)", () => {
-    expect(isTrustedAssetUrl("https://yu2vz9gndp.ufs.sh/f/abc123")).toBe(true);
+  test("accepts the R2 custom domain", () => {
+    expect(
+      isTrustedAssetUrl("https://assets.petdex.dev/pets/boba/spritesheet.webp"),
+    ).toBe(true);
   });
 
   test("rejects http (must be https)", () => {

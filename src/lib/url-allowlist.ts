@@ -3,11 +3,7 @@
 // rejected at the validateSubmission boundary and skipped at the OG
 // fetch boundary so we never SSRF or echo attacker-controlled URLs.
 //
-// We allow:
-//   - the configured R2 public bucket (and the stable default fallback)
-//   - the legacy UploadThing host (rows from before the R2 migration still
-//     point here; safe for GET because UT URLs are user-uploaded but
-//     namespaced)
+// We allow the configured R2 public bucket and known R2 legacy hosts.
 //
 // Block everything else, including http://, file://, data:, javascript:,
 // and lan IPs.
@@ -15,7 +11,7 @@
 import { R2_PUBLIC_HOSTS } from "@/lib/r2-public-url";
 
 const ALLOWED_HOSTS = (() => {
-  const hosts = new Set<string>([...R2_PUBLIC_HOSTS, "yu2vz9gndp.ufs.sh"]);
+  const hosts = new Set<string>(R2_PUBLIC_HOSTS);
   const base = process.env.R2_PUBLIC_BASE;
   if (base) {
     try {

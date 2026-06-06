@@ -106,7 +106,7 @@ export async function GET(
   try {
     // Single fetch of the spritesheet, reused for tray + every state render.
     // Previously this route hit the upstream image host 10 times per pack
-    // download, burning R2 / UploadThing egress.
+    // download, burning asset egress.
     const sheetBuf = await fetchSpritesheet(pet.spritesheetUrl);
     trayBuf = await buildTrayIcon(sheetBuf);
     stickerBufs = await Promise.all(

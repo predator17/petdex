@@ -1,4 +1,5 @@
-export const DEFAULT_R2_PUBLIC_BASE =
+export const DEFAULT_R2_PUBLIC_BASE = "https://assets.petdex.dev";
+export const WORKERS_DEV_R2_PUBLIC_BASE =
   "https://petdex-assets.raillyhugo.workers.dev";
 export const LEGACY_R2_PUBLIC_BASE =
   "https://pub-94495283df974cfea5e98d6a9e3fa462.r2.dev";
@@ -11,7 +12,14 @@ function normalizeBase(raw: string | undefined): string {
     parsed.pathname = parsed.pathname.replace(/\/+$/, "");
     parsed.search = "";
     parsed.hash = "";
-    return parsed.toString().replace(/\/+$/, "");
+    const normalized = parsed.toString().replace(/\/+$/, "");
+    if (
+      normalized === LEGACY_R2_PUBLIC_BASE ||
+      normalized === WORKERS_DEV_R2_PUBLIC_BASE
+    ) {
+      return DEFAULT_R2_PUBLIC_BASE;
+    }
+    return normalized;
   } catch {
     return DEFAULT_R2_PUBLIC_BASE;
   }
@@ -22,6 +30,7 @@ export const R2_PUBLIC_BASE = normalizeBase(process.env.R2_PUBLIC_BASE);
 export const R2_PUBLIC_HOSTS = new Set<string>([
   new URL(DEFAULT_R2_PUBLIC_BASE).host,
   new URL(LEGACY_R2_PUBLIC_BASE).host,
+  new URL(WORKERS_DEV_R2_PUBLIC_BASE).host,
   new URL(R2_PUBLIC_BASE).host,
 ]);
 

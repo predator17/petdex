@@ -133,7 +133,6 @@ const STATIC_ROUTE_SET = new Set([
   "api/stripe/webhook",
   "api/submit",
   "api/telemetry/event",
-  "api/uploadthing",
   "api/webhooks/resend",
   "api/wechat-qr",
   "brand",

@@ -332,7 +332,7 @@ export function PetSubmitForm() {
     setUploadError(null);
     uploadErrorRef.current = null;
 
-    // ── R2 presigned PUT flow (replaces UploadThing) ──────────────────────
+    // ── R2 presigned PUT flow ─────────────────────────────────────────────
     let zipUrl: string;
     let spritesheetUrl: string;
     let petJsonUrl: string;
