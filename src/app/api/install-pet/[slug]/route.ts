@@ -17,8 +17,9 @@ export const dynamic = "force-dynamic";
 
 type Params = { slug: string };
 
-const INSTALL_MISS_CACHE_CONTROL =
+const INSTALL_INVALID_SLUG_CACHE_CONTROL =
   "public, max-age=60, s-maxage=120, stale-while-revalidate=300";
+const INSTALL_DB_MISS_CACHE_CONTROL = "private, no-store";
 const INSTALL_SUCCESS_CACHE_CONTROL = "private, no-store";
 const INSTALL_SLUG_RE = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
@@ -36,7 +37,7 @@ export async function GET(
       { ok: false, error: "invalid_slug" },
       {
         status: 400,
-        headers: { "cache-control": INSTALL_MISS_CACHE_CONTROL },
+        headers: { "cache-control": INSTALL_INVALID_SLUG_CACHE_CONTROL },
       },
     );
   }
@@ -47,7 +48,7 @@ export async function GET(
       { ok: false, error: "not_found", slug },
       {
         status: 404,
-        headers: { "cache-control": INSTALL_MISS_CACHE_CONTROL },
+        headers: { "cache-control": INSTALL_DB_MISS_CACHE_CONTROL },
       },
     );
   }
