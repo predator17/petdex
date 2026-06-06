@@ -8,6 +8,8 @@ const testMock = (
 ).mock;
 
 const TEST_SEED = "0123456789abcdef";
+const DETERMINISTIC_CACHE_CONTROL =
+  "public, max-age=300, s-maxage=600, stale-while-revalidate=3600";
 const calls: Array<{
   input: {
     cursor?: number;
@@ -71,7 +73,9 @@ describe("GET /api/pets/search", () => {
     const call = calls[0];
 
     expect(body.shuffleSeed).toBeUndefined();
-    expect(response.headers.get("Cache-Control")).toContain("public");
+    expect(response.headers.get("Cache-Control")).toBe(
+      DETERMINISTIC_CACHE_CONTROL,
+    );
     expect(response.headers.get("Set-Cookie")).toBeNull();
     expect(call?.input.shuffleSeed).toBeUndefined();
     expect(call?.input.sort).toBe("alpha");
@@ -131,7 +135,9 @@ describe("GET /api/pets/search", () => {
     );
     const call = calls[0];
 
-    expect(response.headers.get("Cache-Control")).toContain("public");
+    expect(response.headers.get("Cache-Control")).toBe(
+      DETERMINISTIC_CACHE_CONTROL,
+    );
     expect(call?.input.cursor).toBe(10);
     expect(call?.input.limit).toBe(24);
     expect(call?.input.sort).toBe("alpha");

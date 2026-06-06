@@ -90,7 +90,7 @@ export async function GET(req: Request): Promise<Response> {
   const cacheHeader =
     sort === "curated"
       ? "private, no-store"
-      : "public, max-age=60, s-maxage=120, stale-while-revalidate=600";
+      : "public, max-age=300, s-maxage=600, stale-while-revalidate=3600";
 
   const payload =
     sort === "curated" && shuffleSeed ? { ...result, shuffleSeed } : result;
