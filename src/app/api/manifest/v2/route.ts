@@ -5,7 +5,7 @@ import { R2_PUBLIC_BASE } from "@/lib/r2-public-url";
 export const runtime = "nodejs";
 export const revalidate = 300;
 
-const BROWSER_CACHE_CONTROL = "public, max-age=60";
+const BROWSER_CACHE_CONTROL = "public, max-age=300";
 const CDN_CACHE_CONTROL = "public, s-maxage=300, stale-while-revalidate=3600";
 const COMPACT_MANIFEST_URL =
   process.env.PETDEX_MANIFEST_V2_URL ??
