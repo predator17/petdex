@@ -158,6 +158,22 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "petdex.crafter.run" }],
+        destination: "https://petdex.dev/:path*",
+        permanent: true,
+      },
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.petdex.crafter.run" }],
+        destination: "https://petdex.dev/:path*",
+        permanent: true,
+      },
+    ];
+  },
   // In mock auth mode, redirect every Clerk import to in-process mocks
   // so contributors can boot without a Clerk backend secret. We set both
   // webpack and turbopack aliases since `next dev` defaults to turbopack
