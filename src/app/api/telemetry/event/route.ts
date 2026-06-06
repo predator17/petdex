@@ -257,6 +257,23 @@ function validate(body: unknown):
 }
 
 export async function POST(req: Request): Promise<Response> {
+  const contentType = req.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    return new Response(JSON.stringify({ error: "unsupported_media_type" }), {
+      status: 415,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  // Cheap upfront reject when the client advertises an oversized body.
+  const contentLength = Number(req.headers.get("content-length") ?? "0");
+  if (contentLength > MAX_BODY_BYTES) {
+    return new Response(JSON.stringify({ error: "payload_too_large" }), {
+      status: 413,
+      headers: { "content-type": "application/json" },
+    });
+  }
+
   // Rate-limit by IP, but hash it before handing to Upstash so the
   // Redis key isn't a literal IP — the privacy page promises raw IPs
   // are never stored, and "stored in our rate-limit cache" still
@@ -269,15 +286,6 @@ export async function POST(req: Request): Promise<Response> {
   const rl = await telemetryRatelimit.limit(rateLimitKey);
   if (!rl.success) {
     return new Response(null, { status: 429 });
-  }
-
-  // Cheap upfront reject when the client advertises an oversized body.
-  const contentLength = Number(req.headers.get("content-length") ?? "0");
-  if (contentLength > MAX_BODY_BYTES) {
-    return new Response(JSON.stringify({ error: "payload_too_large" }), {
-      status: 413,
-      headers: { "content-type": "application/json" },
-    });
   }
 
   // Stream-cap fallback: chunked or unlabeled bodies don't have
