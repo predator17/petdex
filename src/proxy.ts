@@ -38,6 +38,14 @@ const ADMIN_URL = normalizeBaseUrl(
   process.env.PETDEX_ADMIN_URL || process.env.NEXT_PUBLIC_PETDEX_ADMIN_URL,
   "https://admin.petdex.dev",
 );
+const CANONICAL_URL = normalizeBaseUrl(
+  process.env.PETDEX_URL,
+  "https://petdex.dev",
+);
+const LEGACY_REDIRECT_HOSTS = new Set([
+  "petdex.crafter.run",
+  "www.petdex.crafter.run",
+]);
 
 const isProtected = createRouteMatcher([
   "/submit",
@@ -63,6 +71,8 @@ const handleI18nRouting = createMiddleware({
 // backend secret before our shims have a chance to short-circuit).
 // Everything else — next-intl routing, the shuffle cookie — keeps working.
 const baseMiddleware = async (req: NextRequest, event?: NextFetchEvent) => {
+  const legacyRedirect = legacyHostRedirect(req);
+  if (legacyRedirect) return legacyRedirect;
   const adminSurface = adminSurfaceResponse(req);
   if (adminSurface) return adminSurface;
   scheduleRouteCostSample(req, event);
@@ -77,6 +87,8 @@ const baseMiddleware = async (req: NextRequest, event?: NextFetchEvent) => {
 export default IS_MOCK_AUTH
   ? baseMiddleware
   : clerkMiddleware(async (auth, req, event) => {
+      const legacyRedirect = legacyHostRedirect(req);
+      if (legacyRedirect) return legacyRedirect;
       const adminSurface = adminSurfaceResponse(req);
       if (adminSurface) return adminSurface;
       scheduleRouteCostSample(req, event);
@@ -194,6 +206,15 @@ function adminSurfaceResponse(req: NextRequest): NextResponse | null {
   return NextResponse.redirect(url);
 }
 
+function legacyHostRedirect(req: NextRequest): NextResponse | null {
+  const host = normalizeHost(req.headers.get("host"));
+  if (!LEGACY_REDIRECT_HOSTS.has(host)) return null;
+
+  const url = new URL(req.nextUrl.pathname, CANONICAL_URL);
+  url.search = req.nextUrl.search;
+  return NextResponse.redirect(url, 308);
+}
+
 function normalizeBaseUrl(raw: string | null | undefined, fallback: string) {
   try {
     const url = new URL(raw?.trim() || fallback);
@@ -204,6 +225,10 @@ function normalizeBaseUrl(raw: string | null | undefined, fallback: string) {
   } catch {
     return fallback.replace(/\/$/, "");
   }
+}
+
+function normalizeHost(raw: string | null): string {
+  return raw?.split(":")[0]?.toLowerCase() ?? "";
 }
 
 function scheduleRouteCostSample(req: NextRequest, event?: NextFetchEvent) {
