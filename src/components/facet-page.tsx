@@ -6,7 +6,7 @@ import Link from "next/link";
 
 import { getLocale } from "next-intl/server";
 
-import type { PetWithMetrics } from "@/lib/pets";
+import type { SearchPet } from "@/lib/pet-search";
 import { cn } from "@/lib/utils";
 
 import { CommandLine } from "@/components/command-line";
@@ -19,7 +19,7 @@ type FacetPageProps = {
   title: string;
   intro: string;
   countLabel: string;
-  pets: PetWithMetrics[];
+  pets: SearchPet[];
   exampleSlug?: string;
   relatedLabel: string;
   related: { href: string; label: string; count: number }[];

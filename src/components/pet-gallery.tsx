@@ -19,7 +19,7 @@ import { COLOR_FAMILIES, type ColorFamily } from "@/lib/color-families";
 import { formatBatchLabel, getBatchKey } from "@/lib/dex-batch";
 import { formatLocalizedNumber } from "@/lib/format-number";
 import { petStates } from "@/lib/pet-states";
-import type { PetWithMetrics } from "@/lib/pets";
+import type { SearchPet } from "@/lib/pet-search";
 import { PET_KINDS, PET_VIBES, type PetKind, type PetVibe } from "@/lib/types";
 import { isAllowedAvatarUrl } from "@/lib/url-allowlist";
 import { cn } from "@/lib/utils";
@@ -66,7 +66,7 @@ type Facets = {
 type SearchMode = "vibe" | "keyword" | "all";
 
 type SearchPayload = {
-  pets: PetWithMetrics[];
+  pets: SearchPet[];
   total?: number;
   nextCursor: number | null;
   searchMode?: SearchMode;
@@ -133,7 +133,7 @@ export function PetGallery({
   const headerCaught = useHeaderState().state.caught;
   const caughtSet = new Set(caughtSlugs ?? headerCaught);
 
-  const [pets, setPets] = useState<PetWithMetrics[]>(initial.pets);
+  const [pets, setPets] = useState<SearchPet[]>(initial.pets);
   const [total, setTotal] = useState<number>(initial.total);
   const [nextCursor, setNextCursor] = useState<number | null>(
     initial.nextCursor,
@@ -776,7 +776,7 @@ export type PetCardPinState = {
 };
 
 type PetCardProps = {
-  pet: PetWithMetrics;
+  pet: SearchPet;
   index: number;
   /** User has already favorited/caught this pet; shown by the heart button. */
   caught?: boolean;
