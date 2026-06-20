@@ -17,6 +17,7 @@ import {
 import { useTranslations } from "next-intl";
 
 import { petStates } from "@/lib/pet-states";
+import { locatePetZipEntries } from "@/lib/pet-zip";
 
 type ParsedPet = {
   petId: string;
@@ -181,39 +182,53 @@ export function PetSubmitForm() {
 
         const buf = await zipFile.arrayBuffer();
         const zip = await JSZip.loadAsync(buf);
-        const petJsonEntry = zip.file("pet.json");
-        const webpEntry = zip.file("spritesheet.webp");
-        const pngEntry = zip.file("spritesheet.png");
-        const spriteEntry = webpEntry ?? pngEntry;
-        spritesheetExt = webpEntry ? "webp" : "png";
+        const located = locatePetZipEntries(zip);
 
-        // Detect "petdex-approved.zip" — the all-pets bundle, not a single pet.
-        const allFiles = Object.keys(zip.files);
-        const looksLikeBundle =
-          !petJsonEntry &&
-          allFiles.some((p) => p.includes("/pet.json")) &&
-          allFiles.length > 4;
-
-        if (looksLikeBundle) {
+        if (located.kind === "allPetsBundle") {
           issues.push(t("issues.allPetsBundle"));
+        } else if (located.kind === "missingPetJson") {
+          issues.push(t("issues.zipMissingPetJson"));
         } else {
-          if (!petJsonEntry) issues.push(t("issues.zipMissingPetJson"));
-          if (!spriteEntry) {
+          petJsonString = await located.petJsonEntry.async("string");
+          petIdFromName =
+            located.petDirName ?? zipFile.name.replace(/\.zip$/i, "");
+
+          if (located.kind === "missingSpritesheet") {
             issues.push(
               t("issues.zipMissingSpritesheet", {
-                present: allFiles.slice(0, 5).join(", "),
+                present: located.present.slice(0, 5).join(", "),
               }),
             );
+          } else {
+            spritesheetExt = located.spritesheetExt;
+            spritesheetBlob = await located.spriteEntry.async("blob");
+
+            if (
+              located.petJsonPath === "pet.json" &&
+              located.spritePath === `spritesheet.${spritesheetExt}`
+            ) {
+              zipBlob = new Blob([buf], { type: "application/zip" });
+              zipFileName = zipFile.name;
+            } else {
+              const normalizedZip = new JSZip();
+              normalizedZip.file("pet.json", petJsonString);
+              normalizedZip.file(
+                `spritesheet.${spritesheetExt}`,
+                spritesheetBlob,
+              );
+              zipBlob = await normalizedZip.generateAsync({
+                type: "blob",
+                compression: "DEFLATE",
+              });
+              zipFileName = `${petIdFromName}.zip`;
+            }
           }
         }
 
-        petJsonString = petJsonEntry ? await petJsonEntry.async("string") : "";
-        spritesheetBlob = spriteEntry
-          ? await spriteEntry.async("blob")
-          : new Blob();
-        zipBlob = new Blob([buf], { type: "application/zip" });
-        zipFileName = zipFile.name;
-        petIdFromName = zipFile.name.replace(/\.zip$/i, "");
+        if (!zipFileName) {
+          zipBlob = new Blob([buf], { type: "application/zip" });
+          zipFileName = zipFile.name;
+        }
       }
 
       // ── Common: parse pet.json, validate sprite dims ──────────────────
