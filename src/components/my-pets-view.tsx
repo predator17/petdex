@@ -287,6 +287,7 @@ export function SubmissionCard({ submission }: { submission: Submission }) {
   const [withdrawn, setWithdrawn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const locale = useLocale();
+  const t = useTranslations("myPets");
 
   if (withdrawn) {
     return (
@@ -393,12 +394,18 @@ export function SubmissionCard({ submission }: { submission: Submission }) {
       <div className="flex flex-col gap-2 border-t border-black/[0.06] px-5 py-4 dark:border-white/[0.06]">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-lg font-semibold tracking-tight text-foreground">
-            {submission.displayName}
+            {submission.pending?.displayName ?? submission.displayName}
           </h3>
           <span className="font-mono text-[10px] tracking-[0.18em] text-muted-4 uppercase">
             {submission.kind}
           </span>
         </div>
+        {submission.pending?.displayName &&
+        submission.pending.displayName !== submission.displayName ? (
+          <p className="font-mono text-[10px] tracking-[0.12em] text-amber-600 uppercase dark:text-amber-500">
+            {t("edit.pendingReview")}
+          </p>
+        ) : null}
         <p className="line-clamp-2 text-sm leading-6 text-muted-2">
           {submission.description}
         </p>
