@@ -9,8 +9,6 @@
 // server picks one offset and the client picks another; a slug-derived
 // pseudo-hash gives both sides the same answer without coordination.
 
-import { petPreviewUrlForSource } from "@/lib/pet-preview";
-
 import { PetSprite } from "@/components/pet-sprite";
 
 export type CollectionCoverPet = {
@@ -75,21 +73,15 @@ export function CollectionCover({
   );
 
   if (lineup.length === 1) {
-    const pet = lineup[0];
-    const previewSrc = petPreviewUrlForSource(pet.slug, pet.spritesheetPath);
     return (
       <div
         className={`pet-sprite-stage relative grid aspect-[16/9] place-items-center overflow-hidden ${className}`}
       >
         <PetSprite
-          src={previewSrc ?? pet.spritesheetPath}
-          fallbackSrc={previewSrc ? pet.spritesheetPath : undefined}
-          layout={previewSrc ? "row" : "atlas"}
-          fallbackLayout="atlas"
-          state="idle"
-          cycleStates={!previewSrc}
+          src={lineup[0].spritesheetPath}
+          cycleStates
           scale={scale * 1.5}
-          label={`${pet.displayName} animated`}
+          label={`${lineup[0].displayName} animated`}
         />
       </div>
     );
@@ -146,10 +138,6 @@ export function CollectionCover({
         const isLead =
           pet.slug === lineup[0].slug && i === Math.floor((n - 1) / 2);
         const h = hashSlug(pet.slug);
-        const previewSrc = petPreviewUrlForSource(
-          pet.slug,
-          pet.spritesheetPath,
-        );
 
         // Compute slot center inside the inner band. The first/last pets
         // sit at innerLeft / innerRight respectively; the middle ones
@@ -189,12 +177,8 @@ export function CollectionCover({
             }}
           >
             <PetSprite
-              src={previewSrc ?? pet.spritesheetPath}
-              fallbackSrc={previewSrc ? pet.spritesheetPath : undefined}
-              layout={previewSrc ? "row" : "atlas"}
-              fallbackLayout="atlas"
-              state="idle"
-              cycleStates={!previewSrc}
+              src={pet.spritesheetPath}
+              cycleStates
               scale={petScale}
               label={`${pet.displayName} animated`}
             />
