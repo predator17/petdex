@@ -13,8 +13,12 @@ on:
     inputs:
       mode:
         description: "check (dry-run, no upload) or apply (write to R2)"
+        type: choice
         required: false
         default: "apply"
+        options:
+          - apply
+          - check
 
 permissions:
   contents: read
@@ -33,6 +37,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          # Always run reviewed code from the default branch. A manual
+          # dispatch can target any ref, and this job holds prod R2 write
+          # credentials, so we never run a non-main branch here.
+          ref: main
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -41,11 +50,12 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Publish snapshots
-        run: |
-          bun --conditions react-server \
-            scripts/publish-manifest-snapshots.ts \
-            "${{ github.event.inputs.mode || 'apply' }}"
+        # MODE is validated to check|apply by the script; the choice input
+        # already constrains it, and passing via env (not interpolation)
+        # avoids any shell-injection surface.
+        run: bun --conditions react-server scripts/publish-manifest-snapshots.ts "$MODE"
         env:
+          MODE: ${{ github.event.inputs.mode || 'apply' }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
