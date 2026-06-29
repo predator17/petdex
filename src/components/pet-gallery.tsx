@@ -134,7 +134,7 @@ export function PetGallery({
   const [activeVibes, setActiveVibes] = useState<Set<PetVibe>>(new Set());
   const [activeColors, setActiveColors] = useState<Set<ColorFamily>>(new Set());
   const [activeBatches, setActiveBatches] = useState<Set<string>>(new Set());
-  const [sort, setSort] = useState<SortKey>("alpha");
+  const [sort, setSort] = useState<SortKey>("installed");
   const [sortTouched, setSortTouched] = useState(false);
   const caughtSet = new Set(caughtSlugs ?? []);
 
@@ -183,7 +183,7 @@ export function PetGallery({
 
   useEffect(() => {
     if (sortTouched) return;
-    setSort(trimmedQuery ? "curated" : "alpha");
+    setSort(trimmedQuery ? "curated" : "installed");
   }, [sortTouched, trimmedQuery]);
 
   // Re-fetch on filter / sort / query changes (debounced for the query).

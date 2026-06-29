@@ -8,7 +8,7 @@ describe("home gallery payload", () => {
 
     expect(source).toContain("const HOME_INITIAL_GALLERY_LIMIT = 10;");
     expect(source).toContain(
-      'searchPets({ sort: "alpha", limit: HOME_INITIAL_GALLERY_LIMIT })',
+      'searchPets({ sort: "installed", limit: HOME_INITIAL_GALLERY_LIMIT })',
     );
     expect(source).not.toContain("getDexNumberMap");
     expect(source).not.toContain("dexMap=");

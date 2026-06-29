@@ -39,7 +39,7 @@ import { WechatCommunityDialog } from "@/components/wechat-community-dialog";
 
 import { hasLocale, locales } from "@/i18n/config";
 
-// ISR. The home page renders an alpha-ordered, anon shell.
+// ISR. The home page renders an install-count ordered, anon shell.
 // visitor's shuffle seed and caught-slug set are pulled client-side
 // after interaction; /api/me/header-state feeds the "caught" highlight.
 // With a 24h ceiling and tag-based
@@ -92,7 +92,7 @@ export default async function Home({
   const [heroPets, initialSearch, collections, feedAds, randomPet] =
     await Promise.all([
       getFeaturedPetsWithMetrics(6),
-      searchPets({ sort: "alpha", limit: HOME_INITIAL_GALLERY_LIMIT }),
+      searchPets({ sort: "installed", limit: HOME_INITIAL_GALLERY_LIMIT }),
       getCollectionsBySlugs(LANDING_COLLECTION_ORDER, 6),
       getActiveFeedAds(6),
       getRandomPet(),
