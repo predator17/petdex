@@ -3,9 +3,9 @@ import Link from "next/link";
 import { ArrowRight, Search, Sparkles } from "lucide-react";
 import { getTranslations } from "next-intl/server";
 
+import { StaticCommandLine } from "@/components/download/static-command-line";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { StaticCommandLine } from "@/components/static-command-line";
 
 export async function generateMetadata({
   params,

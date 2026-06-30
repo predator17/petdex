@@ -7,7 +7,10 @@ import { getTranslations } from "next-intl/server";
 import { db, schema } from "@/lib/db/client";
 import { buildLocaleAlternates } from "@/lib/locale-routing";
 
-import { type RequestRow, RequestsView } from "@/components/requests-view";
+import {
+  type RequestRow,
+  RequestsView,
+} from "@/components/requests/requests-view";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 

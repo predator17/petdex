@@ -8,7 +8,7 @@ import {
 import { buildLocaleAlternates } from "@/lib/locale-routing";
 import { resolveOwnerCredits } from "@/lib/owner-credit";
 
-import { LeaderboardView } from "@/components/leaderboard-view";
+import { LeaderboardView } from "@/components/leaderboard/leaderboard-view";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 

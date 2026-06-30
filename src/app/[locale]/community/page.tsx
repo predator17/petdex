@@ -11,15 +11,15 @@ import { getTranslations } from "next-intl/server";
 
 import { buildLocaleAlternates } from "@/lib/locale-routing";
 
-import { DiscordLink } from "@/components/discord-link";
-import { DiscordIcon } from "@/components/icons/wechat-icon";
-import { JsonLd } from "@/components/json-ld";
-import { SiteFooter } from "@/components/site-footer";
-import { SiteHeader } from "@/components/site-header";
+import { DiscordLink } from "@/components/community/discord-link";
 import {
   WechatCommunityDialog,
   WechatCommunityQrCard,
-} from "@/components/wechat-community-dialog";
+} from "@/components/community/wechat-community-dialog";
+import { DiscordIcon } from "@/components/icons/wechat-icon";
+import { JsonLd } from "@/components/layout/json-ld";
+import { SiteFooter } from "@/components/site-footer";
+import { SiteHeader } from "@/components/site-header";
 
 import { hasLocale } from "@/i18n/config";
 

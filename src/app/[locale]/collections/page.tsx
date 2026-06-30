@@ -8,10 +8,10 @@ import {
 import { buildLocaleAlternates } from "@/lib/locale-routing";
 import { resolveOwnerCredits } from "@/lib/owner-credit";
 
-import { JsonLd } from "@/components/json-ld";
+import { StaticCollectionCard } from "@/components/collections/static-collection-card";
+import { JsonLd } from "@/components/layout/json-ld";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { StaticCollectionCard } from "@/components/static-collection-card";
 
 import { hasLocale } from "@/i18n/config";
 

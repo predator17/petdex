@@ -6,8 +6,8 @@ import { getTranslations } from "next-intl/server";
 
 import { buildLocaleAlternates, withLocale } from "@/lib/locale-routing";
 
-import { CommandLine } from "@/components/command-line";
-import { GithubIcon } from "@/components/github-icon";
+import { GithubIcon } from "@/components/brand/github-icon";
+import { CommandLine } from "@/components/download/command-line";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 

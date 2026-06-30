@@ -8,8 +8,8 @@ import { getTranslations } from "next-intl/server";
 
 import { db, schema } from "@/lib/db/client";
 
-import { FullAuthProviders } from "@/components/auth-providers";
-import { MyFeedbackFilters } from "@/components/my-feedback-filters";
+import { FullAuthProviders } from "@/components/auth/auth-providers";
+import { MyFeedbackFilters } from "@/components/feedback/my-feedback-filters";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 

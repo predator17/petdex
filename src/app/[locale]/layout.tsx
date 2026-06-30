@@ -9,9 +9,9 @@ import {
   setRequestLocale,
 } from "next-intl/server";
 
-import { AuthFeedbackWidget } from "@/components/auth-feedback-widget";
-import { ConditionalAuthProviders } from "@/components/conditional-auth-providers";
-import { AppProviders } from "@/components/theme-providers";
+import { AuthFeedbackWidget } from "@/components/auth/auth-feedback-widget";
+import { ConditionalAuthProviders } from "@/components/layout/conditional-auth-providers";
+import { AppProviders } from "@/components/layout/theme-providers";
 import { TopPromoStrip } from "@/components/zh/top-promo-strip";
 import { ZhLayoutSpacer } from "@/components/zh/zh-layout-spacer";
 

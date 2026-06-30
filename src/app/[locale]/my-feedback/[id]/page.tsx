@@ -7,8 +7,8 @@ import { getTranslations } from "next-intl/server";
 
 import { db, schema } from "@/lib/db/client";
 
-import { FullAuthProviders } from "@/components/auth-providers";
-import { FeedbackThread } from "@/components/feedback-thread";
+import { FullAuthProviders } from "@/components/auth/auth-providers";
+import { FeedbackThread } from "@/components/feedback/feedback-thread";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 

@@ -2,8 +2,8 @@ import { getLocale, getTranslations } from "next-intl/server";
 
 import { withLocale } from "@/lib/locale-routing";
 
-import { AuthBadge } from "@/components/auth-badge";
-import { PetdexLogo } from "@/components/petdex-logo";
+import { AuthBadge } from "@/components/auth/auth-badge";
+import { PetdexLogo } from "@/components/brand/petdex-logo";
 import { DesktopNav } from "@/components/site-header/desktop-nav";
 import { GithubLink } from "@/components/site-header/github-link";
 import { MobileNav } from "@/components/site-header/mobile-nav";

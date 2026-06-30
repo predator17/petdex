@@ -2,7 +2,7 @@ import { getTranslations } from "next-intl/server";
 
 import { buildLocaleAlternates } from "@/lib/locale-routing";
 
-import { GithubIcon } from "@/components/github-icon";
+import { GithubIcon } from "@/components/brand/github-icon";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 

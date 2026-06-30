@@ -1,5 +1,5 @@
-import { MobileHeaderSettings } from "@/components/mobile-header-settings";
 import { HeaderNavLink } from "@/components/site-header/header-nav-link";
+import { MobileHeaderSettings } from "@/components/site-header/mobile-header-settings";
 import { SubmitLink } from "@/components/site-header/submit-link";
 import type { HeaderNavItem } from "@/components/site-header/types";
 

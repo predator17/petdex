@@ -1,4 +1,4 @@
-import { GithubIcon } from "@/components/github-icon";
+import { GithubIcon } from "@/components/brand/github-icon";
 import type { HeaderNavItem } from "@/components/site-header/types";
 
 type GithubLinkProps = {

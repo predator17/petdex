@@ -20,10 +20,10 @@ import { getPet } from "@/lib/pets";
 import {
   DownloadHeroActions,
   DownloadSetupSteps,
-} from "@/components/download-activation-islands";
+} from "@/components/download/download-activation-islands";
+import { StaticPetSprite } from "@/components/pets/static-pet-sprite";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { StaticPetSprite } from "@/components/static-pet-sprite";
 
 import { hasLocale } from "@/i18n/config";
 

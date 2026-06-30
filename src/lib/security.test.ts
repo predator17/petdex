@@ -377,7 +377,7 @@ describe("isSafeExternalUrl", () => {
 
 describe("JsonLd escape", () => {
   it("escapes </script in user-controlled values", async () => {
-    const { JsonLd } = await import("@/components/json-ld");
+    const { JsonLd } = await import("@/components/layout/json-ld");
     // We render to a string-ish thing by inspecting the dangerouslySetInnerHTML
     // payload of the React element. The escaper is the unit under test.
     const evilName = "Boba</script><script>alert(1)</script>";
@@ -390,7 +390,7 @@ describe("JsonLd escape", () => {
   });
 
   it("escapes <!-- comment opener", async () => {
-    const { JsonLd } = await import("@/components/json-ld");
+    const { JsonLd } = await import("@/components/layout/json-ld");
     const el = JsonLd({
       data: { x: "before<!--after" },
     }) as unknown as { props: { dangerouslySetInnerHTML: { __html: string } } };

@@ -15,26 +15,26 @@ import { getRandomPet } from "@/lib/random-pet-pool";
 import { toSurprisePet } from "@/lib/surprise-pets";
 import { cn } from "@/lib/utils";
 
-import { CollectionActionMenu } from "@/components/collection-action-menu";
-import { CollectionCover } from "@/components/collection-cover";
-import { DiscordLink } from "@/components/discord-link";
-import { DownloadDesktopCTA } from "@/components/download-desktop-cta";
+import { CollectionActionMenu } from "@/components/collections/collection-action-menu";
+import { CollectionCover } from "@/components/collections/collection-cover";
+import { DiscordLink } from "@/components/community/discord-link";
+import { WechatCommunityDialog } from "@/components/community/wechat-community-dialog";
+import { DownloadDesktopCTA } from "@/components/download/download-desktop-cta";
+import { StaticCommandLine } from "@/components/download/static-command-line";
 import { DiscordIcon } from "@/components/icons/wechat-icon";
-import { JsonLd } from "@/components/json-ld";
-import { PetGallery } from "@/components/pet-gallery";
-import { PetSprite } from "@/components/pet-sprite";
+import { JsonLd } from "@/components/layout/json-ld";
+import { PetGallery } from "@/components/pets/pet-gallery";
+import { PetSprite } from "@/components/pets/pet-sprite";
+import { SurprisePetCard } from "@/components/pets/surprise-pet-card";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { StaticCommandLine } from "@/components/static-command-line";
-import { SubmitCTA } from "@/components/submit-cta";
-import { SurprisePetCard } from "@/components/surprise-pet-card";
+import { SubmitCTA } from "@/components/submit/submit-cta";
 import {
   Card,
   CardContent,
   CardDescription,
   CardTitle,
 } from "@/components/ui/card";
-import { WechatCommunityDialog } from "@/components/wechat-community-dialog";
 
 import { hasLocale, locales } from "@/i18n/config";
 

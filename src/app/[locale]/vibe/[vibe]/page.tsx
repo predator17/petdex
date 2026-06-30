@@ -7,8 +7,8 @@ import { withNextDataCache } from "@/lib/next-data-cache";
 import { searchPets } from "@/lib/pet-search";
 import { PET_VIBES, type PetVibe } from "@/lib/types";
 
-import { FacetPage } from "@/components/facet-page";
-import { JsonLd } from "@/components/json-ld";
+import { FacetPage } from "@/components/layout/facet-page";
+import { JsonLd } from "@/components/layout/json-ld";
 
 import { hasLocale } from "@/i18n/config";
 

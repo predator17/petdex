@@ -10,10 +10,10 @@ import { formatLocalizedNumber } from "@/lib/format-number";
 import { buildLocaleAlternates } from "@/lib/locale-routing";
 import { getStoredPublicProfileForUser } from "@/lib/owner-credit";
 
-import { CollectionCaughtProgress } from "@/components/collection-caught-progress";
-import { CollectionPetGrid } from "@/components/collection-pet-grid";
-import { JsonLd } from "@/components/json-ld";
-import { PetSprite } from "@/components/pet-sprite";
+import { CollectionCaughtProgress } from "@/components/collections/collection-caught-progress";
+import { CollectionPetGrid } from "@/components/collections/collection-pet-grid";
+import { JsonLd } from "@/components/layout/json-ld";
+import { PetSprite } from "@/components/pets/pet-sprite";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 

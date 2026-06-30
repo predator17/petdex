@@ -5,10 +5,10 @@ import { getTranslations } from "next-intl/server";
 
 import { buildLocaleAlternates } from "@/lib/locale-routing";
 
-import { FullAuthProviders } from "@/components/auth-providers";
-import { PetSubmitForm } from "@/components/pet-submit-form";
+import { FullAuthProviders } from "@/components/auth/auth-providers";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { PetSubmitForm } from "@/components/submit/pet-submit-form";
 
 import { hasLocale } from "@/i18n/config";
 

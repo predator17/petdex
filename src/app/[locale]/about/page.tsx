@@ -5,10 +5,10 @@ import { getTranslations } from "next-intl/server";
 import { buildLocaleAlternates, withLocale } from "@/lib/locale-routing";
 import { getApprovedPetCount } from "@/lib/pets";
 
-import { JsonLd } from "@/components/json-ld";
+import { StaticCommandLine } from "@/components/download/static-command-line";
+import { JsonLd } from "@/components/layout/json-ld";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { StaticCommandLine } from "@/components/static-command-line";
 
 import { hasLocale } from "@/i18n/config";
 

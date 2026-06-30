@@ -22,13 +22,13 @@ import { buildLocaleAlternates } from "@/lib/locale-routing";
 import { type PetWithMetrics, rowToPet } from "@/lib/pets";
 import { toCurrentR2PublicUrl } from "@/lib/r2-public-url";
 
-import { FullAuthProviders } from "@/components/auth-providers";
-import { JsonLd } from "@/components/json-ld";
-import type { Submission } from "@/components/my-pets-view";
-import { ProfileExternalLink } from "@/components/profile-external-link";
-import { ProfileInlineEditor } from "@/components/profile-inline-editor";
-import { ProfilePinningSurface } from "@/components/profile-pinning-surface";
-import { ProfileShareButton } from "@/components/profile-share-button";
+import { FullAuthProviders } from "@/components/auth/auth-providers";
+import { JsonLd } from "@/components/layout/json-ld";
+import type { Submission } from "@/components/profile/my-pets-view";
+import { ProfileExternalLink } from "@/components/profile/profile-external-link";
+import { ProfileInlineEditor } from "@/components/profile/profile-inline-editor";
+import { ProfilePinningSurface } from "@/components/profile/profile-pinning-surface";
+import { ProfileShareButton } from "@/components/profile/profile-share-button";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 
