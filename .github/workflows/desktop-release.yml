@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - name: Checkout petdex
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # Manual workflow_dispatch must build from inputs.tag, not from
           # the branch the workflow file lives on. Tag pushes already
@@ -77,7 +77,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout petdex
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag || github.ref }}
 
@@ -102,7 +102,7 @@ jobs:
     runs-on: windows-2022
     steps:
       - name: Checkout petdex
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag || github.ref }}
 
@@ -151,7 +151,7 @@ jobs:
       contents: write
     steps:
       - name: Checkout petdex
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.tag || github.ref }}
 

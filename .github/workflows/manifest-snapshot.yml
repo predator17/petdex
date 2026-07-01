@@ -36,7 +36,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           # Always run reviewed code from the default branch. A manual
           # dispatch can target any ref, and this job holds prod R2 write
