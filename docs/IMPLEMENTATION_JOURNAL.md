@@ -152,6 +152,27 @@ the VS 2022 Build Tools (MSVC 14.44.35207) environment. Both compile clean:
 This also verifies the earlier Rust changes (find_node expansion,
 set_active_pet) that were previously uncompiled.
 
+### Unit C2: §5.7 security hardening (must-implement items)
+The plan marks §5.7 items "must implement, not optional." Completed:
+- **#1 Key at rest**: `ensureKeyStoreOwnerOnly()` tightens the key file to
+  owner-only on every read — `icacls /inheritance:r /grant:r <owner>:F` on
+  Windows, `chmod 0600` on POSIX. DPAPI-at-rest remains the documented
+  follow-up; owner-only ACLs are the v1 minimum. Best-effort (logged, not
+  fatal). The key is never logged or echoed in errors.
+- **#2 Token-gate + loopback**: POST /generate gated by
+  X-Petdex-Update-Token (constantTimeEquals); sidecar binds 127.0.0.1 only
+  (verified server.listen(PORT, "127.0.0.1")).
+- **#3 Cost guardrail**: server surfaces an estimate (10 images, ~$0.40;
+  max 20/$0.80 with retries) and HARD-REJECTS with 402
+  `cost_confirmation_required` unless the client asserts `confirmCost:true`
+  — a drive-by POST can't spend credits. Orchestrator caps retries at 1/row.
+- **#4 Prompt sanitization**: `sanitizePromptText` strips C0/C1 control
+  chars + BOM + bidirectional-override marks (prompt-injection hiding),
+  collapses whitespace, caps length. Extracted to prompt-sanitize.ts for
+  unit testing. 9 tests pin the behavior.
+- **#5 Output validation before write**: validateAtlas runs before any
+  write (done in Unit C1).
+
 ---
 
 ## Workstream C — In-App Pet Generation

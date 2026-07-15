@@ -15,7 +15,7 @@
  * requiring Bun.
  */
 
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import {
   appendFileSync,
@@ -27,6 +27,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import http from "node:http";
+import * as os from "node:os";
 import { homedir, arch as nodeArch, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
@@ -35,6 +36,7 @@ import { basename, dirname, join } from "node:path";
 // left as a runtime require against a file that doesn't ship alongside
 // server.js). The pipeline only does work when POST /generate is hit.
 import { generatePet } from "./generate-pet";
+import { sanitizePromptText } from "./prompt-sanitize";
 import { nextRunningVariant } from "./running-variant";
 import { StateQueue } from "./state-queue";
 import {
@@ -381,6 +383,34 @@ async function readJsonBody(req: http.IncomingMessage): Promise<unknown> {
     });
     req.on("error", reject);
   });
+}
+
+/**
+ * Tighten the OpenRouter key file to owner-only access (plan §5.7 #1).
+ * On POSIX: chmod 0600. On Windows: icacls to disable inheritance and
+ * grant only the current owner — DPAPI-at-rest is the stronger follow-up,
+ * but owner-only ACLs are the documented v1 minimum so another local user
+ * can't read the plaintext key. Best-effort: a failure is logged, not
+ * fatal (the sidecar already has read access).
+ */
+function ensureKeyStoreOwnerOnly(keyPath: string): void {
+  try {
+    if (process.platform === "win32") {
+      // Disable inheritance (/inheritance:r) then grant full control to the
+      // current owner only. `>nul 2>&1` suppresses icacls's own output.
+      execFileSync(
+        "icacls",
+        [keyPath, "/inheritance:r", "/grant:r", `${os.userInfo().username}:F`],
+        { stdio: "ignore", windowsHide: true },
+      );
+    } else {
+      chmodSync(keyPath, 0o600);
+    }
+  } catch (err) {
+    log(
+      `key-store ACL tightening failed (non-fatal): ${(err as Error).message}`,
+    );
+  }
 }
 
 // ─── Update check ──────────────────────────────────────────────────────
@@ -1182,11 +1212,18 @@ const server = http.createServer(async (req, res) => {
         displayName?: unknown;
         id?: unknown;
         style?: unknown;
+        // Optional client-asserted confirmation that the user saw the cost
+        // estimate. The UI must surface the estimate and require an explicit
+        // confirm before the first call (plan §5.7 #3); the server hard-caps
+        // the image count regardless, so a missing/absent flag can't exceed it.
+        confirmCost?: unknown;
       };
-      const description =
-        typeof data.description === "string"
-          ? data.description.trim().slice(0, 500)
-          : "";
+      // Prompt sanitization (plan §5.7 #4): strip control chars and cap
+      // length so the user description can't inject control flow or balloon
+      // the prompt. Mirrors the boundary discipline in auto-tag.ts.
+      const rawDescription =
+        typeof data.description === "string" ? data.description : "";
+      const description = sanitizePromptText(rawDescription, 500);
       const displayName =
         typeof data.displayName === "string"
           ? data.displayName.trim().slice(0, 60)
@@ -1198,10 +1235,43 @@ const server = http.createServer(async (req, res) => {
         });
       }
 
+      // Cost guardrail (plan §5.7 #3): 1 base + 9 rows = 10 images, with a
+      // hard retry cap of 1/row → at most 20 image calls. The estimate is
+      // surfaced to the client; the orchestrator enforces maxRetriesPerRow=1.
+      // We hard-reject a client that tries to raise the cap via the body
+      // (there's no such param — generation always runs the full 10-row set).
+      const EST_IMAGES = 10;
+      const MAX_IMAGES = 20; // 10 + up to 1 retry per row
+      const estimate = {
+        images: EST_IMAGES,
+        maxImages: MAX_IMAGES,
+        // gpt-image-2 ≈ $0.04/image (plan §2.5 pricing). Upper bound.
+        estimatedCostUsd: Number((EST_IMAGES * 0.04).toFixed(2)),
+        maxCostUsd: Number((MAX_IMAGES * 0.04).toFixed(2)),
+        requiresConfirmation: true,
+      };
+      // The client MUST confirm it showed the estimate (defensive — the
+      // server cap holds regardless). A drive-by POST that omits the flag
+      // is rejected before any credit is spent.
+      if (data.confirmCost !== true) {
+        return jsonResponse(res, 402, {
+          ok: false,
+          error: "cost_confirmation_required",
+          estimate,
+        });
+      }
+
       // Read the local OpenRouter key. NEVER from the request body.
       let apiKey = "";
       try {
         apiKey = readFileSync(OPENROUTER_KEY_PATH, "utf8").trim();
+        // Key-at-rest protection (plan §5.7 #1): tighten the key file to
+        // owner-only on every read. Best-effort — a failure doesn't block
+        // generation (the key is already readable to this sidecar process)
+        // but is logged. POSIX uses chmod 0600; Windows uses icacls to
+        // remove inherited access and grant only the owner. DPAPI-at-rest
+        // is the stronger follow-up; this is the documented v1 minimum.
+        ensureKeyStoreOwnerOnly(OPENROUTER_KEY_PATH);
       } catch {
         return jsonResponse(res, 400, {
           ok: false,
