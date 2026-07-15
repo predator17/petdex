@@ -28,8 +28,15 @@ type CheckResult = {
   hint?: string;
 };
 
-function homeDir(): string {
-  return process.env.HOME ?? homedir();
+export function homeDir(): string {
+  // On Windows the canonical home is %USERPROFILE%; falling back through
+  // HOME first (as the old code did) resolves to the MSYS/Git-Bash pseudo
+  // home, which is wrong for locating ~/.petdex. Mirrors install.ts
+  // homeDir() so doctor and install agree on the same root (plan §4.6).
+  if (process.platform === "win32") {
+    return process.env.USERPROFILE ?? process.env.HOME ?? homedir();
+  }
+  return process.env.HOME ?? process.env.USERPROFILE ?? homedir();
 }
 
 function tokenPath(): string {
@@ -52,7 +59,11 @@ function checkBinary(): CheckResult {
   }
   try {
     const stat = statSync(bin);
-    if (!(stat.mode & 0o111)) {
+    // The POSIX exec-bit check (`mode & 0o111`) is meaningless on
+    // Windows — executability there is governed by the `.exe` extension,
+    // not permission bits. Skip it on win32 so we don't report a false
+    // "not executable" failure on a perfectly valid .exe (plan §4.6).
+    if (process.platform !== "win32" && !(stat.mode & 0o111)) {
       return {
         status: "fail",
         label: "Desktop binary",
@@ -197,6 +208,17 @@ function checkToken(): CheckResult {
         label: "Update token",
         detail: "present but suspiciously short",
         hint: `Stop the desktop and run \`petdex desktop start\` to regenerate.`,
+      };
+    }
+    // `chmod 600` only enforces owner-only access on POSIX. On Windows
+    // the mode bits are a fiction (chmod is a near-no-op), so reporting
+    // "expected 600" would mislead — skip the check on win32. Windows
+    // file ACLs are the real access control there (plan §4.6).
+    if (process.platform === "win32") {
+      return {
+        status: "ok",
+        label: "Update token",
+        detail: "present (permission bits not enforced on Windows)",
       };
     }
     const stat = statSync(tp);
@@ -455,11 +477,60 @@ export async function runDoctor(): Promise<void> {
   printResult(checkCodexFeatureFlag());
   console.log("");
 
-  // Also surface any obvious port collisions — quick lsof if it
-  // exists. Best-effort, no warning if lsof isn't on PATH.
+  // Also surface any obvious port collisions. lsof on POSIX,
+  // netstat on Windows (lsof is not shipped with Windows).
   console.log(pc.bold("Network"));
-  // lsof exits 1 when nothing matches, so a non-zero exit is normal
-  // here. We only fall to the catch when lsof itself isn't on PATH.
+  printResult(checkPort7777Listener());
+  console.log("");
+}
+
+/**
+ * Detect what's listening on :7777. lsof is the POSIX tool; on Windows it
+ * isn't available, so we branch to `netstat -ano` + findstr (plan §4.6).
+ * Best-effort: a missing/unavailable tool reports "info", never "fail".
+ */
+function checkPort7777Listener(): CheckResult {
+  if (process.platform === "win32") {
+    // netstat -ano lists proto/addr/port/state/PID. findstr filters to
+    // rows mentioning :7777 in LISTENING state. `|| true` keeps the
+    // exit code 0 when nothing matches (findstr exits 1 on no match).
+    let netstatOut = "";
+    try {
+      netstatOut = execSync(
+        'netstat -ano | findstr ":7777" | findstr "LISTENING"',
+        { encoding: "utf8" },
+      ).trim();
+    } catch {
+      // netstat missing, or no rows matched (findstr exits 1 on no
+      // match). Treat empty/missing as "nothing bound".
+      return {
+        status: "info",
+        label: ":7777 listener",
+        detail: "nothing bound (sidecar offline)",
+      };
+    }
+    if (netstatOut.length === 0) {
+      return {
+        status: "info",
+        label: ":7777 listener",
+        detail: "nothing bound (sidecar offline)",
+      };
+    }
+    const dataLines = netstatOut.split("\n").filter((l) => l.trim()).length;
+    return {
+      status: dataLines === 1 ? "ok" : "warn",
+      label: ":7777 listener",
+      detail:
+        dataLines === 1 ? "1 process bound" : `${dataLines} processes bound`,
+      hint:
+        dataLines > 1
+          ? "Multiple sidecars contending for the same port. Stop both and start fresh."
+          : undefined,
+    };
+  }
+
+  // POSIX: lsof. Exits 1 when nothing matches, so a non-zero exit is
+  // normal here; we only treat an actual missing-binary as unavailable.
   let lsofOut: string | null = null;
   try {
     lsofOut = execSync("lsof -nP -iTCP:7777 -sTCP:LISTEN 2>/dev/null || true", {
@@ -469,30 +540,29 @@ export async function runDoctor(): Promise<void> {
     lsofOut = null;
   }
   if (lsofOut === null) {
-    printResult({
+    return {
       status: "info",
       label: ":7777 listener",
       detail: "lsof unavailable",
-    });
-  } else if (lsofOut.length === 0) {
-    printResult({
+    };
+  }
+  if (lsofOut.length === 0) {
+    return {
       status: "info",
       label: ":7777 listener",
       detail: "nothing bound (sidecar offline)",
-    });
-  } else {
-    // First line is the lsof header; data lines follow.
-    const dataLines = lsofOut.split("\n").length - 1;
-    printResult({
-      status: dataLines === 1 ? "ok" : "warn",
-      label: ":7777 listener",
-      detail:
-        dataLines === 1 ? "1 process bound" : `${dataLines} processes bound`,
-      hint:
-        dataLines > 1
-          ? "Multiple sidecars contending for the same port. Stop both and start fresh."
-          : undefined,
-    });
+    };
   }
-  console.log("");
+  // First line is the lsof header; data lines follow.
+  const dataLines = lsofOut.split("\n").length - 1;
+  return {
+    status: dataLines === 1 ? "ok" : "warn",
+    label: ":7777 listener",
+    detail:
+      dataLines === 1 ? "1 process bound" : `${dataLines} processes bound`,
+    hint:
+      dataLines > 1
+        ? "Multiple sidecars contending for the same port. Stop both and start fresh."
+        : undefined,
+  };
 }

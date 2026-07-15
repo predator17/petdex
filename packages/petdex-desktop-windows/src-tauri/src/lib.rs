@@ -122,6 +122,12 @@ fn read_active_slug() -> Option<String> {
 
 /// Resolve the node executable — tries common install locations so we work
 /// even when app.exe inherits a PATH that doesn't include nodejs.
+///
+/// A GUI app does not inherit a shell's PATH, so `where node` frequently
+/// fails for users who installed node via a version manager (nvm-windows,
+/// scoop, fnm, volta) rather than the official installer. We therefore
+/// probe the well-known per-manager paths in addition to the two Program
+/// Files locations and `where.exe` (plan §4.7).
 fn find_node() -> PathBuf {
     // Try PATH first (works in dev when launched from a node-aware shell)
     if let Ok(out) = std::process::Command::new("where.exe").arg("node").output() {
@@ -134,13 +140,49 @@ fn find_node() -> PathBuf {
             }
         }
     }
-    // Common fixed install paths on Windows
-    for candidate in &[
-        r"C:\Program Files\nodejs\node.exe",
-        r"C:\Program Files (x86)\nodejs\node.exe",
-    ] {
-        let p = PathBuf::from(candidate);
-        if p.exists() { return p; }
+
+    // Collect candidate paths from the common Windows node managers.
+    // Each manager installs node into a predictable, env-derived location:
+    let mut candidates: Vec<PathBuf> = Vec::new();
+
+    // Official installer (also the nvm-windows symlink target).
+    candidates.push(PathBuf::from(r"C:\Program Files\nodejs\node.exe"));
+    candidates.push(PathBuf::from(r"C:\Program Files (x86)\nodejs\node.exe"));
+
+    let user_profile = std::env::var_os("USERPROFILE")
+        .map(PathBuf::from)
+        .or_else(|| dirs::home_dir());
+    let app_data = std::env::var_os("APPDATA").map(PathBuf::from);
+    let local_app_data = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
+
+    if let Some(home) = &user_profile {
+        // nvm-windows: %NVM_HOME% (usually %APPDATA%\nvm) and the symlink
+        // %NVM_SYMLINK% (usually C:\Program Files\nodejs, covered above).
+        if let Some(nvm_home) = std::env::var_os("NVM_HOME").map(PathBuf::from) {
+            candidates.push(nvm_home.join("node.exe"));
+        }
+        // scoop: shims live under %USERPROFILE%\scoop\shims
+        candidates.push(home.join("scoop").join("shims").join("node.exe"));
+        // volta: %USERPROFILE%\.volta\bin
+        candidates.push(home.join(".volta").join("bin").join("node.exe"));
+    }
+
+    // nvm-windows also installs under %APPDATA%\nvm (the default NVM_HOME).
+    if let Some(appdata) = &app_data {
+        candidates.push(appdata.join("nvm").join("node.exe"));
+    }
+
+    // fnm stores multishells under %LOCALAPPDATA%\fnm_multishells; the
+    // active node is a junction resolved via `fnm env`, but probing the
+    // multishell dir for a node.exe is a reasonable last-resort heuristic.
+    if let Some(local) = &local_app_data {
+        candidates.push(local.join("fnm_multishells").join("node.exe"));
+    }
+
+    for candidate in &candidates {
+        if candidate.exists() {
+            return candidate.clone();
+        }
     }
     // Final fallback — let OS resolve it
     PathBuf::from("node")
