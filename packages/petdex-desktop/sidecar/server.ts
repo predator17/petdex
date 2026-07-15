@@ -30,6 +30,11 @@ import http from "node:http";
 import { homedir, arch as nodeArch, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
+// In-app pet generation (plan Workstream C). Imported statically so the
+// CJS bundle inlines the pipeline + sharp (a dynamic import() would be
+// left as a runtime require against a file that doesn't ship alongside
+// server.js). The pipeline only does work when POST /generate is hit.
+import { generatePet } from "./generate-pet";
 import { nextRunningVariant } from "./running-variant";
 import { StateQueue } from "./state-queue";
 import {
@@ -56,6 +61,9 @@ const PREFERENCES_PATH = join(homedir(), ".petdex", "preferences.json");
 const INIT_STATUS_PATH = join(RUNTIME_DIR, "init-status.json");
 const PERSISTED_BINARY_PATH = join(homedir(), ".petdex", "bin", "petdex.js");
 const LOG_PATH = join(RUNTIME_DIR, "sidecar.log");
+// Local store for the user's OpenRouter API key, written by the Settings UI.
+// Read by POST /generate; NEVER accepted from a request body (plan §5.7).
+const OPENROUTER_KEY_PATH = join(RUNTIME_DIR, "openrouter-key");
 const MAX_BODY_BYTES = 64 * 1024;
 // Listing the last N releases instead of `/releases/latest` because
 // the petdex repo publishes multiple release lineages (desktop-v*,
@@ -1142,6 +1150,102 @@ const server = http.createServer(async (req, res) => {
         text,
         counter: bubbleCounter,
       });
+    }
+
+    if (req.method === "POST" && url.pathname === "/generate") {
+      // In-app pet generation (plan §5.7). This endpoint SPENDS REAL MONEY
+      // (gpt-image-2 image credits), so it carries a stricter security
+      // envelope than /state or /bubble:
+      //   1. Token gate (same X-Petdex-Update-Token) — without it any web
+      //      page the user visits could POST and burn OpenRouter credits.
+      //   2. The OpenRouter key is NEVER read from the request body. It
+      //      comes from the local key store (~/.petdex/runtime/openrouter-key,
+      //      written by the settings UI), so a drive-by POST can't exfiltrate
+      //      or substitute a key.
+      //   3. The request body carries only the pet description/displayName,
+      //      which is sanitized + capped before flowing into the prompt.
+      //   4. The generated atlas is validated (transparency + grid) BEFORE
+      //      it is written — a malformed local pet would crash the renderer.
+      const provided = req.headers[UPDATE_TOKEN_HEADER];
+      const providedStr = Array.isArray(provided) ? provided[0] : provided;
+      if (!providedStr || !constantTimeEquals(providedStr, UPDATE_TOKEN)) {
+        return jsonResponse(res, 401, { ok: false, error: "unauthorized" });
+      }
+      let body: unknown;
+      try {
+        body = await readJsonBody(req);
+      } catch {
+        return jsonResponse(res, 400, { ok: false, error: "invalid_json" });
+      }
+      const data = body as {
+        description?: unknown;
+        displayName?: unknown;
+        id?: unknown;
+        style?: unknown;
+      };
+      const description =
+        typeof data.description === "string"
+          ? data.description.trim().slice(0, 500)
+          : "";
+      const displayName =
+        typeof data.displayName === "string"
+          ? data.displayName.trim().slice(0, 60)
+          : "";
+      if (!description || !displayName) {
+        return jsonResponse(res, 400, {
+          ok: false,
+          error: "missing_description_or_displayName",
+        });
+      }
+
+      // Read the local OpenRouter key. NEVER from the request body.
+      let apiKey = "";
+      try {
+        apiKey = readFileSync(OPENROUTER_KEY_PATH, "utf8").trim();
+      } catch {
+        return jsonResponse(res, 400, {
+          ok: false,
+          error: "no_api_key",
+          // Surface the key-store path so the UI can prompt the user to set it.
+          // The key value itself is never echoed.
+          hint: "Set your OpenRouter key in Settings first.",
+        });
+      }
+      if (!apiKey) {
+        return jsonResponse(res, 400, { ok: false, error: "no_api_key" });
+      }
+
+      // Run the pipeline. generatePet validates the atlas before writing,
+      // so a failed key or bad generation surfaces an error without leaving
+      // a half-written pet that would crash the renderer on next load.
+      try {
+        const result = await generatePet({
+          description,
+          displayName,
+          id: typeof data.id === "string" ? data.id : undefined,
+          style: typeof data.style === "string" ? data.style : undefined,
+          apiKey,
+        });
+        if (!result.ok) {
+          return jsonResponse(res, 500, {
+            ok: false,
+            error: "generation_failed",
+            detail: result.error,
+          });
+        }
+        log(`generated pet "${displayName}" -> ${result.petDir}`);
+        return jsonResponse(res, 200, {
+          ok: true,
+          petDir: result.petDir,
+        });
+      } catch (err) {
+        // Never include the API key in the error text.
+        return jsonResponse(res, 500, {
+          ok: false,
+          error: "generation_failed",
+          detail: (err as Error).message,
+        });
+      }
     }
 
     if (req.method === "GET" && url.pathname === "/update") {

@@ -1,0 +1,13 @@
+{
+  "name": "petdex-desktop-generation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "In-app pet generation pipeline (hatch-pet replication) for the Windows desktop app.",
+  "type": "module",
+  "scripts": {
+    "test": "bun test"
+  },
+  "dependencies": {
+    "sharp": "^0.34.5"
+  }
+}
