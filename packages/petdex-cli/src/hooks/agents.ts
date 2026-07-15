@@ -62,7 +62,7 @@ export type PostInstallNote = {
 };
 
 export type Agent = {
-  id: "claude-code" | "codex" | "gemini" | "opencode" | "antigravity";
+  id: "claude-code" | "codex" | "gemini" | "opencode" | "antigravity" | "zcode";
   displayName: string;
   configDir: string;
   configFile: string;
@@ -558,6 +558,84 @@ export const AGENTS: Agent[] = [
       ];
     },
   },
+  {
+    // ZCode (https://zcode.z.ai) — supports exactly 7 configuration-file
+    // hook events: SessionStart, UserPromptSubmit, PreToolUse,
+    // PermissionRequest, PostToolUse, PostToolUseFailure, Stop.
+    //
+    // It does NOT support Claude Code's Notification/SubagentStop events,
+    // and adds PostToolUseFailure + PermissionRequest. The mapping below
+    // substitutes PermissionRequest for the "waiting for user" state.
+    //
+    // Two ZCode specifics shape this entry (authoritative source:
+    // diagnosing-hooks skill, verified against this machine):
+    //   1. Configuration-file hooks are DISABLED by default — the emitted
+    //      object MUST set `hooks.enabled: true` or nothing fires.
+    //   2. Configuration-file hooks nest under `hooks.events.<Event>`
+    //      (NOT `hooks.<Event>` — that's the plugin-file shape). The
+    //      generic `mergeHooks` in install.ts flattens that nesting, so
+    //      installForAgent has a dedicated ZCode merge branch.
+    //
+    // CROSS-PLATFORM: ZCode runs `type:"command"` hooks through a shell,
+    // which breaks bubbleHookCommand's POSIX syntax on Windows. We emit
+    // `type:"process"` (an argv, no shell) invoking the persisted node
+    // binary directly. The killswitch + token gate both live INSIDE the
+    // bubble subcommand (bubble-runner.ts), so the process entry needs
+    // no inline guard — unlike the shell `bubbleHookCommand` form.
+    id: "zcode",
+    displayName: "ZCode",
+    docsUrl: "https://zcode.z.ai/docs",
+    // configDir is a dir that exists when ZCode is installed. ~/.zcode
+    // exists on every ZCode install (it holds cli/ runtime data + v2/
+    // config), so detectAgents() correctly reports ZCode as installed.
+    configDir: path.join(HOME, ".zcode"),
+    // User-scope configuration file. This is the path the authoritative
+    // zcode-guide skill docs specify for configuration-file hooks. The
+    // file may not exist until the first hooks write — installForAgent
+    // creates the parent dir and the file as needed.
+    configFile: path.join(HOME, ".zcode", "cli", "config.json"),
+    // ZCode's command discovery path is not confirmed across builds.
+    // We write the slash command to the documented candidate; if the
+    // running ZCode build reads commands from elsewhere the file is
+    // simply ignored (it's a markdown body, never harmful). The
+    // killswitch is still reachable via `petdex hooks toggle`.
+    slashCommandPath: path.join(HOME, ".zcode", "commands", "petdex.md"),
+    hookEntries: [
+      { event: "SessionStart", kind: "user.prompt" },
+      { event: "UserPromptSubmit", kind: "user.prompt" },
+      { event: "PreToolUse", kind: "tool.before" },
+      { event: "PostToolUse", kind: "tool.after" },
+      { event: "PostToolUseFailure", kind: "session.error" },
+      { event: "PermissionRequest", kind: "session.waiting" },
+      { event: "Stop", kind: "session.end" },
+    ],
+    build() {
+      // `hooks.events.<Event>` nesting + `enabled: true` are both
+      // mandatory for configuration-file hooks (see file header).
+      return {
+        hooks: {
+          enabled: true, // CRITICAL — config-file hooks are off by default
+          events: {
+            SessionStart: [
+              { hooks: [bubbleProcessHook("user-prompt", "jumping", 800)] },
+            ],
+            UserPromptSubmit: [
+              { hooks: [bubbleProcessHook("user-prompt", "jumping", 800)] },
+            ],
+            PreToolUse: [{ hooks: [bubbleProcessHook("pre", "running")] }],
+            PostToolUse: [{ hooks: [bubbleProcessHook("post", "idle")] }],
+            PostToolUseFailure: [
+              { hooks: [bubbleProcessHook("error", "failed")] },
+            ],
+            PermissionRequest: [
+              { hooks: [bubbleProcessHook("waiting", "waiting")] },
+            ],
+            Stop: [{ hooks: [bubbleProcessHook("stop", "waving", 1500)] }],
+          },
+        },
+      };
+    },
+  },
 ];
 
 /**
@@ -621,6 +699,62 @@ function curlOnlyState(
     `--data-raw '${body}'`,
     `>/dev/null 2>&1 || true`,
   ].join(" ");
+}
+
+/**
+ * Build a ZCode `"type":"process"` hook entry — an argument vector
+ * (no shell) invoking the persisted petdex binary's bubble subcommand.
+ *
+ * Why this exists separately from `bubbleHookCommand`: ZCode runs
+ * `type:"command"` hooks through a shell, and `bubbleHookCommand`
+ * emits POSIX syntax (`[ -f … ]`, `$HOME`, `if …; then … fi`) that
+ * breaks on Windows. `type:"process"` runs an argv directly with no
+ * shell, so it is portable across Windows/macOS/Linux.
+ *
+ * Field contract is strict (diagnosing-hooks skill, pitfall #7): a
+ * `process` hook accepts ONLY `command`, `args`, `timeoutMs`. Mixing
+ * in `shell`/`timeout`/`statusMessage` causes ZCode to silently DROP
+ * the entry. We therefore emit exactly those three keys.
+ *
+ * The killswitch + token gate are NOT inlined here — unlike the shell
+ * form. Both checks live INSIDE the `petdex bubble` subcommand
+ * (bubble-runner.ts): it exits 0 before any token read or fetch when
+ * ~/.petdex/runtime/hooks-disabled exists. So the process entry can
+ * stay a clean argv with no wrapper logic.
+ *
+ * `command` is the literal `node` — resolved by the agent's shell/env
+ * at hook fire time. `args[1]` is the persisted binary path
+ * (~/.petdex/bin/petdex.js), which is also the detection signal
+ * `isPetdexEntry` matches on (install.ts).
+ */
+function bubbleProcessHook(
+  phase: string,
+  fallbackState: PetState,
+  fallbackDuration?: number,
+): { type: "process"; command: string; args: string[]; timeoutMs: number } {
+  // The bubble subcommand reads the agent's hook payload from stdin and
+  // derives sprite state + bubble text itself. We pass the phase, the
+  // agent_source ("zcode"), and the fallback state/duration so the
+  // mascot animates correctly even when the payload lacks tool info
+  // (e.g. SessionStart/Stop carry no tool_name).
+  //
+  // PERSIST_PATH is intentionally a literal $HOME-prefixed path: it
+  // matches what `petdex hooks install` writes (~/.petdex/bin/petdex.js)
+  // and what isPetdexEntry detects. The phase ordering mirrors the
+  // shell bubbleHookCommand's argument order so bubble-runner.ts
+  // (which reads args[0]=phase, args[1]=agentSource) handles both.
+  const persistPath = path.join(HOME, ".petdex", "bin", "petdex.js");
+  const args = [persistPath, "bubble", phase, "zcode", fallbackState];
+  if (fallbackDuration != null) args.push(String(fallbackDuration));
+  return {
+    type: "process",
+    command: "node",
+    args,
+    // 60s ceiling matches ZCode's own default; the bubble subcommand
+    // internally bounds the fetch at 300ms, so this is just a safety
+    // cap against a wedged process.
+    timeoutMs: 60000,
+  };
 }
 
 function _curlCommand(

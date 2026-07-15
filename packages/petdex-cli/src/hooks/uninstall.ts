@@ -250,18 +250,48 @@ export function stripPetdexHooks(parsed: Record<string, unknown>): {
   }
 
   let changed = false;
-  const nextHooks: Record<string, unknown[]> = {};
-  for (const [event, entries] of Object.entries(
-    hooks as Record<string, unknown>,
-  )) {
-    if (!Array.isArray(entries)) {
-      // Pass through anything we don't recognize.
-      nextHooks[event] = entries as unknown[];
+  const nextHooks: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(hooks as Record<string, unknown>)) {
+    // ZCode nests events under `hooks.events.<Event>` (config-file form).
+    // Recurse into the events map so our process-form entries are
+    // stripped just like the flat-shape agents above. Other keys
+    // (`enabled`, `timeoutMs`, `maxOutputBytes`) are passed through.
+    if (
+      key === "events" &&
+      value &&
+      typeof value === "object" &&
+      !Array.isArray(value)
+    ) {
+      const events = value as Record<string, unknown[]>;
+      const nextEvents: Record<string, unknown[]> = {};
+      let eventsChanged = false;
+      for (const [event, entries] of Object.entries(events)) {
+        if (!Array.isArray(entries)) {
+          nextEvents[event] = entries;
+          continue;
+        }
+        const filtered = entries.filter((entry) => !isPetdexEntry(entry));
+        if (filtered.length !== entries.length) eventsChanged = true;
+        if (filtered.length > 0) nextEvents[event] = filtered;
+      }
+      if (eventsChanged) {
+        changed = true;
+        // Keep the `events` key only if any event remains; drop it if
+        // empty so we don't leave a stub behind.
+        if (Object.keys(nextEvents).length > 0) nextHooks.events = nextEvents;
+      } else {
+        nextHooks[key] = value;
+      }
       continue;
     }
-    const filtered = entries.filter((entry) => !isPetdexEntry(entry));
-    if (filtered.length !== entries.length) changed = true;
-    if (filtered.length > 0) nextHooks[event] = filtered;
+    if (!Array.isArray(value)) {
+      // Pass through anything we don't recognize.
+      nextHooks[key] = value;
+      continue;
+    }
+    const filtered = value.filter((entry) => !isPetdexEntry(entry));
+    if (filtered.length !== value.length) changed = true;
+    if (filtered.length > 0) nextHooks[key] = filtered;
   }
 
   if (!changed) return { value: out, changed: false };
@@ -279,10 +309,24 @@ export function stripPetdexHooks(parsed: Record<string, unknown>): {
 function isPetdexEntry(entry: unknown): boolean {
   if (typeof entry !== "object" || entry == null) return false;
   const cmds = collectCommands(entry);
-  return cmds.some(
-    (c) =>
-      c.includes(`localhost:${PETDEX_PORT}/state`) || c.includes(SIDECAR_URL),
+  if (
+    cmds.some(
+      (c) =>
+        c.includes(`localhost:${PETDEX_PORT}/state`) || c.includes(SIDECAR_URL),
+    )
+  ) {
+    return true;
+  }
+  // ZCode process-form hook: argv elements are split into separate
+  // collected strings, so match across the set — a `.petdex/bin/
+  // petdex.js` path AND the literal "bubble" arg (mirrors install.ts
+  // isPetdexEntry — plan §3.4-D). Without this uninstall/doctor
+  // silently miss ZCode hooks.
+  const hasPetdexBin = cmds.some((c) =>
+    /\.petdex[/\\]bin[/\\]petdex(\.js)?/.test(c),
   );
+  const hasBubble = cmds.includes("bubble");
+  return hasPetdexBin && hasBubble;
 }
 
 function collectCommands(entry: unknown): string[] {

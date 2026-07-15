@@ -364,3 +364,192 @@ describe("OpenCode config path resolution", () => {
     );
   });
 });
+
+// ─── ZCode agent (plan Workstream A) ────────────────────────────────
+//
+// ZCode differs from the other JSON-config agents in three ways that
+// these tests pin:
+//   1. Events nest under `hooks.events.<Event>` (NOT flat `hooks.<Event>`).
+//   2. `hooks.enabled: true` is mandatory (config-file hooks are off by default).
+//   3. Each hook is `type: "process"` (an argv, no shell) so it works on
+//      Windows — and its field set is strict (only command/args/timeoutMs;
+//      any extra key makes ZCode silently drop the entry).
+// All tests are pure-data (no shell execution) so they pass on every OS.
+
+describe("ZCode agent", () => {
+  function getZcode() {
+    const agent = AGENTS.find((a) => a.id === "zcode");
+    if (!agent) throw new Error("zcode agent missing from registry");
+    return agent;
+  }
+
+  // The shape the ZCode config-file schema expects. Note `hooks.events`
+  // (the nested form), not `hooks.<Event>` (the flat plugin-file form).
+  type ZcodeConfig = {
+    hooks: {
+      enabled: boolean;
+      timeoutMs?: number;
+      events: Record<
+        string,
+        Array<{
+          matcher?: string;
+          hooks: Array<{
+            type: string;
+            command: string;
+            args: string[];
+            timeoutMs: number;
+          }>;
+        }>
+      >;
+    };
+  };
+
+  function build(): ZcodeConfig {
+    return getZcode().build() as ZcodeConfig;
+  }
+
+  test("is present in the AGENTS registry", () => {
+    expect(getZcode()).toBeDefined();
+    expect(getZcode().displayName).toBe("ZCode");
+  });
+
+  test("configDir is ~/.zcode and configFile nests under cli/", () => {
+    const a = getZcode();
+    expect(a.configDir).toEndWith(join(".zcode"));
+    expect(a.configFile).toEndWith(join(".zcode", "cli", "config.json"));
+  });
+
+  test("registers exactly the 7 supported ZCode events", () => {
+    const a = getZcode();
+    const events = a.hookEntries.map((e) => e.event).sort();
+    expect(events).toEqual(
+      [
+        "PermissionRequest",
+        "PostToolUse",
+        "PostToolUseFailure",
+        "PreToolUse",
+        "SessionStart",
+        "Stop",
+        "UserPromptSubmit",
+      ].sort(),
+    );
+  });
+
+  test("does NOT register unsupported events (Notification, SubagentStop)", () => {
+    const events = getZcode().hookEntries.map((e) => e.event);
+    expect(events).not.toContain("Notification");
+    expect(events).not.toContain("SubagentStop");
+  });
+
+  test("events nest under hooks.events (NOT flat hooks.<Event>)", () => {
+    const cfg = build();
+    // The 7 events must live under hooks.events.*
+    expect(cfg.hooks.events).toBeDefined();
+    expect(Object.keys(cfg.hooks.events).sort()).toEqual(
+      [
+        "PermissionRequest",
+        "PostToolUse",
+        "PostToolUseFailure",
+        "PreToolUse",
+        "SessionStart",
+        "Stop",
+        "UserPromptSubmit",
+      ].sort(),
+    );
+  });
+
+  test("sets hooks.enabled = true (mandatory — config-file hooks are off by default)", () => {
+    const cfg = build();
+    expect(cfg.hooks.enabled).toBe(true);
+  });
+
+  test("every hook entry is type:process with command + args + timeoutMs only", () => {
+    // ZCode silently DROPS a process hook that carries any key besides
+    // command/args/timeoutMs (diagnosing-hooks pitfall #7). Assert the
+    // strict field set so a future edit can't quietly disable our hooks.
+    const cfg = build();
+    for (const entries of Object.values(cfg.hooks.events)) {
+      expect(entries.length).toBeGreaterThanOrEqual(1);
+      for (const entry of entries) {
+        for (const h of entry.hooks) {
+          expect(h.type).toBe("process");
+          expect(typeof h.command).toBe("string");
+          expect(Array.isArray(h.args)).toBe(true);
+          // Strict field set: exactly type/command/args/timeoutMs.
+          expect(Object.keys(h).sort()).toEqual(
+            ["args", "command", "timeoutMs", "type"].sort(),
+          );
+        }
+      }
+    }
+  });
+
+  test("command is the node interpreter (argv, no shell)", () => {
+    const cfg = build();
+    const allHooks = Object.values(cfg.hooks.events)
+      .flat()
+      .flatMap((e) => e.hooks);
+    for (const h of allHooks) {
+      expect(h.command).toBe("node");
+    }
+  });
+
+  test("args invoke the persisted petdex.js bubble subcommand with agent_source zcode", () => {
+    const cfg = build();
+    const allHooks = Object.values(cfg.hooks.events)
+      .flat()
+      .flatMap((e) => e.hooks);
+    expect(allHooks.length).toBeGreaterThan(0);
+    for (const h of allHooks) {
+      // args[0] = persisted binary path ending in petdex.js
+      expect(h.args[0]).toEndWith(join(".petdex", "bin", "petdex.js"));
+      // args[1] = "bubble" subcommand
+      expect(h.args[1]).toBe("bubble");
+      // args[3] = agent_source "zcode"
+      expect(h.args[3]).toBe("zcode");
+    }
+  });
+
+  test("args carry the phase as args[2] and a fallback PetState as args[4]", () => {
+    const cfg = build();
+    const preHook = cfg.hooks.events.PreToolUse[0].hooks[0];
+    expect(preHook.args[2]).toBe("pre");
+    expect(preHook.args[4]).toBe("running");
+
+    const errHook = cfg.hooks.events.PostToolUseFailure[0].hooks[0];
+    expect(errHook.args[2]).toBe("error");
+    expect(errHook.args[4]).toBe("failed");
+
+    const waitHook = cfg.hooks.events.PermissionRequest[0].hooks[0];
+    expect(waitHook.args[2]).toBe("waiting");
+    expect(waitHook.args[4]).toBe("waiting");
+
+    const stopHook = cfg.hooks.events.Stop[0].hooks[0];
+    expect(stopHook.args[2]).toBe("stop");
+    expect(stopHook.args[4]).toBe("waving");
+  });
+
+  test("the killswitch lives inside the bubble subcommand, not the argv", () => {
+    // Unlike the shell bubbleHookCommand (which inlines `[ -f … ] &&
+    // exit 0`), the process form must NOT carry a killswitch string in
+    // its args — the persisted bubble subcommand checks
+    // ~/.petdex/runtime/hooks-disabled itself (bubble-runner.ts).
+    const cfg = build();
+    const allArgs = Object.values(cfg.hooks.events)
+      .flat()
+      .flatMap((e) => e.hooks)
+      .flatMap((h) => h.args);
+    for (const a of allArgs) {
+      expect(a).not.toContain("hooks-disabled");
+      expect(a).not.toContain("exit 0");
+    }
+  });
+
+  test("survives JSON.stringify -> parse roundtrip", () => {
+    const cfg = build();
+    const serialized = JSON.stringify(cfg);
+    const reparsed = JSON.parse(serialized) as ZcodeConfig;
+    expect(reparsed.hooks.enabled).toBe(true);
+    expect(Object.keys(reparsed.hooks.events).length).toBe(7);
+  });
+});

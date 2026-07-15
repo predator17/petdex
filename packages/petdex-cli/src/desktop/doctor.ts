@@ -261,6 +261,16 @@ function checkHooksInstalled(): CheckResult[] {
         // instead of hook URLs. All other agents embed the sidecar URL.
         if (agent.id === "antigravity") {
           hookOk = text.includes('"petdex"') || text.includes("petdex");
+        } else if (agent.id === "zcode") {
+          // ZCode process-form hooks carry the persisted petdex.js path
+          // + "bubble" arg, NOT the sidecar URL (the URL is posted by
+          // the bubble subcommand at fire time). Match on the argv path
+          // + the "bubble" phase so doctor recognizes our ZCode hooks.
+          hookOk =
+            text.includes("petdex.js") && text.includes("bubble")
+              ? true
+              : text.includes("127.0.0.1:7777/state") ||
+                text.includes("/state");
         } else {
           hookOk =
             text.includes("127.0.0.1:7777/state") || text.includes("/state");

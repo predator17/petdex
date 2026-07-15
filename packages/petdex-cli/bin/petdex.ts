@@ -1750,11 +1750,7 @@ async function cmdDesktop(args: string[]) {
       {
         const startArgs = args.slice(1);
         await cmdDesktopStart(startArgs);
-        if (
-          !startArgs.some((arg) =>
-            ["--help", "-h", "help"].includes(arg),
-          )
-        ) {
+        if (!startArgs.some((arg) => ["--help", "-h", "help"].includes(arg))) {
           emit("cli_desktop_start_success", { cli_version: VERSION });
         }
       }

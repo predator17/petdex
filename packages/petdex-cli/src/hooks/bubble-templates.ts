@@ -17,7 +17,8 @@ export type BubbleEvent =
   | { kind: "tool"; phase: BubblePhase; toolName: string; toolInput?: unknown }
   | { kind: "session.start" } // user submitted a prompt
   | { kind: "session.end" } // assistant turned mic back to user
-  | { kind: "session.waiting" }; // permission/notification
+  | { kind: "session.waiting" } // permission/notification
+  | { kind: "session.error" }; // a tool failed (ZCode PostToolUseFailure)
 
 /**
  * Map agent-specific tool names to a canonical kind so a single
@@ -72,6 +73,7 @@ export function formatBubble(event: BubbleEvent): string {
   if (event.kind === "session.start") return "Thinking…";
   if (event.kind === "session.end") return "Done.";
   if (event.kind === "session.waiting") return "Waiting for you…";
+  if (event.kind === "session.error") return "Something went wrong.";
 
   const { toolName, phase, toolInput } = event;
   const kind = canonicalToolKind(toolName);

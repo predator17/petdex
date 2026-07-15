@@ -3,7 +3,7 @@ import { execFileSync, spawn } from "node:child_process";
 import {
   existsSync,
   mkdirSync,
-  openSync,
+  type openSync,
   rmSync,
   writeFileSync,
 } from "node:fs";

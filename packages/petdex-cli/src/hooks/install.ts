@@ -246,6 +246,18 @@ export async function installForAgent(
     return { backupPath: null };
   }
 
+  // ZCode configuration-file hooks nest under `hooks.events.<Event>`
+  // (plus `hooks.enabled`, `hooks.timeoutMs`, …). The generic
+  // `mergeHooks` below assumes the flat `hooks.<Event>` shape used by
+  // Claude Code/Codex/Gemini and would flatten `events` into the
+  // top-level hooks map — dropping the `enabled:true` that ZCode
+  // REQUIRES (config-file hooks are off by default) and replacing the
+  // user's whole `events` map instead of merging per-event. A custom
+  // merge is therefore mandatory, not optional (plan §3.4-B).
+  if (agent.id === "zcode") {
+    return installForZcode(agent, config);
+  }
+
   // JSON-based agents: merge our hooks into existing settings.
   // readJson distinguishes "missing" (treat as fresh config) from
   // "exists but unreadable / unparseable" (refuse to write — would
@@ -333,13 +345,32 @@ function mergeHooks(
 }
 
 /** Detects whether an existing hook entry was previously written by petdex. */
-function isPetdexEntry(entry: unknown): boolean {
+export function isPetdexEntry(entry: unknown): boolean {
   if (typeof entry !== "object" || entry == null) return false;
   const cmds = collectCommands(entry);
-  return cmds.some(
-    (c) =>
-      c.includes(`localhost:${PETDEX_PORT}/state`) || c.includes(SIDECAR_URL),
+  // Shell-form agents (claude-code/codex/gemini): the command string
+  // embeds the sidecar URL or :7777/state substring.
+  if (
+    cmds.some(
+      (c) =>
+        c.includes(`localhost:${PETDEX_PORT}/state`) || c.includes(SIDECAR_URL),
+    )
+  ) {
+    return true;
+  }
+  // ZCode process-form hook: the argv invokes the persisted petdex
+  // binary's `bubble` subcommand. collectCommands splits each argv
+  // element into its own string, so the path and "bubble" land in
+  // SEPARATE collected strings — we therefore match across the whole
+  // set: an entry is ours if it references a `.petdex/bin/petdex.js`
+  // path AND contains the literal "bubble" arg. Without this branch,
+  // re-install would duplicate ZCode hooks and uninstall/doctor would
+  // silently miss them (plan §3.4-D).
+  const hasPetdexBin = cmds.some((c) =>
+    /\.petdex[/\\]bin[/\\]petdex(\.js)?/.test(c),
   );
+  const hasBubble = cmds.includes("bubble");
+  return hasPetdexBin && hasBubble;
 }
 
 function collectCommands(entry: unknown): string[] {
@@ -359,6 +390,65 @@ function collectCommands(entry: unknown): string[] {
   }
   walk(entry);
   return acc;
+}
+
+/**
+ * Install/merge ZCode configuration-file hooks. ZCode nests events under
+ * `hooks.events.<Event>` (the generic `mergeHooks` flattens that nesting),
+ * so this dedicated path preserves the user's `hooks.enabled`,
+ * `hooks.timeoutMs`, `hooks.maxOutputBytes` and merges our entries
+ * per-event inside `hooks.events` (plan §3.4-B).
+ *
+ * Re-runs are idempotent: any prior petdex entry (recognized by
+ * `isPetdexEntry`, which matches both the shell and the ZCode
+ * process-form) is stripped before our fresh entry is appended, so
+ * re-install never accumulates duplicates.
+ */
+async function installForZcode(
+  agent: Agent,
+  config: unknown,
+): Promise<InstallResult> {
+  const existing = await readJson(agent.configFile);
+  if (existing.kind === "error") {
+    throw new Error(
+      `Refusing to overwrite ${agent.configFile}: ${existing.message}.\n   Fix the file (or rename it) and run \`petdex hooks install\` again.`,
+    );
+  }
+  const backupPath =
+    existing.kind === "ok" ? await maybeBackup(agent.configFile) : null;
+  const base =
+    existing.kind === "ok" ? (existing.value as Record<string, unknown>) : {};
+
+  const patch = config as Record<string, unknown>;
+  const patchHooks = (patch.hooks ?? {}) as Record<string, unknown>;
+  const baseHooks = (base.hooks ?? {}) as Record<string, unknown>;
+  const baseEvents = (baseHooks.events ?? {}) as Record<string, unknown[]>;
+  const patchEvents = (patchHooks.events ?? {}) as Record<string, unknown[]>;
+
+  // Merge per-event: strip our prior entries first (de-dup), then append.
+  const mergedEvents: Record<string, unknown[]> = { ...baseEvents };
+  for (const [event, entries] of Object.entries(patchEvents)) {
+    const prior = Array.isArray(mergedEvents[event])
+      ? (mergedEvents[event] as unknown[])
+      : [];
+    const filteredPrior = prior.filter((e) => !isPetdexEntry(e));
+    mergedEvents[event] = [...filteredPrior, ...entries];
+  }
+
+  const merged: Record<string, unknown> = {
+    ...base,
+    hooks: {
+      ...baseHooks,
+      ...patchHooks, // our enabled:true/timeoutMs win; user's other keys kept
+      events: mergedEvents,
+    },
+  };
+  await writeFile(
+    agent.configFile,
+    `${JSON.stringify(merged, null, 2)}\n`,
+    "utf8",
+  );
+  return { backupPath };
 }
 
 /**

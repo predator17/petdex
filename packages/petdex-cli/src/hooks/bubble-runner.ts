@@ -52,6 +52,7 @@ export function stateForEvent(
     return "running";
   }
   if (phase === "post") return "idle";
+  if (phase === "error") return "failed";
   if (phase === "stop" || phase === "session-end") return "waving";
   if (phase === "user-prompt" || phase === "session-start") return "jumping";
   if (phase === "waiting" || phase === "notification") return "waiting";
@@ -117,6 +118,8 @@ export function eventFromArgs(
     return { kind: "session.start" };
   if (phase === "waiting" || phase === "notification")
     return { kind: "session.waiting" };
+  // ZCode PostToolUseFailure fires "error" — maps to the failed state.
+  if (phase === "error") return { kind: "session.error" };
 
   // Tool events: "pre" → running, "post" → done
   const toolPhase: "running" | "done" | null =
