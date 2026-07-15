@@ -118,6 +118,21 @@ fn read_active_slug() -> Option<String> {
     val.get("slug").and_then(|v| v.as_str()).map(|s| s.to_string())
 }
 
+/// Write the active slug to ~/.petdex/active.json. Called from the picker
+/// (plan §4.5). Validates the slug resolves to an installed pet before
+/// writing so the file can never point at a missing pet.
+#[tauri::command]
+fn set_active_pet(slug: String) -> Result<(), String> {
+    // Confirm the slug is a real installed pet before committing.
+    if get_pet(slug.clone()).is_none() {
+        return Err(format!("pet '{}' is not installed", slug));
+    }
+    let home = dirs::home_dir().ok_or("no home directory")?;
+    let path = home.join(".petdex").join("active.json");
+    let body = serde_json::json!({ "slug": slug }).to_string();
+    fs::write(&path, body).map_err(|e| format!("write failed: {e}"))
+}
+
 // ── Sidecar helpers ───────────────────────────────────────────────────────────
 
 /// Resolve the node executable — tries common install locations so we work
@@ -469,6 +484,7 @@ pub fn run() {
             list_pets,
             get_pet,
             get_active_pet,
+            set_active_pet,
             read_file_as_base64,
             read_runtime_state,
             read_runtime_bubble,

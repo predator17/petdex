@@ -220,12 +220,136 @@ function showBubble(text) {
   el.classList.add("visible");
 }
 
-document.getElementById("root").addEventListener("mousedown", async () => {
-  try { await getCurrentWindow().startDragging(); } catch {}
+// ─── Momentum/throw drag physics (plan §4.5) ───────────────────────
+// Tauri's startDragging() moves the window but has no inertia — release
+// stops dead. We track pointer velocity during the drag and apply an
+// inertial coast (exponential decay) on release via setPosition, mirroring
+// the macOS Zig shell's momentum drag (main.zig:998-1077).
+const root = document.getElementById("root");
+const win = getCurrentWindow();
+let dragging = false;
+let lastPos = { x: 0, y: 0 };       // last pointer screen pos
+let lastTime = 0;                    // ms timestamp of last move
+let velocity = { x: 0, y: 0 };       // px/ms
+let rafId = 0;
+
+root.addEventListener("mousedown", async (e) => {
+  if (e.button !== 0) return;        // left button only
+  dragging = true;
+  cancelAnimationFrame(rafId);
+  // startDragging hands the move loop to the OS; we sample the window
+  // position on mousemove to derive velocity for the release coast.
+  lastPos = { x: e.screenX, y: e.screenY };
+  lastTime = performance.now();
+  velocity = { x: 0, y: 0 };
+  try { await win.startDragging(); } catch {}
+});
+
+document.addEventListener("mousemove", (e) => {
+  if (!dragging) return;
+  const now = performance.now();
+  const dt = Math.max(1, now - lastTime);
+  // Exponential moving average smooths jitter without lagging a fast fling.
+  const inst = { x: (e.screenX - lastPos.x) / dt, y: (e.screenY - lastPos.y) / dt };
+  velocity = { x: velocity.x * 0.6 + inst.x * 0.4, y: velocity.y * 0.6 + inst.y * 0.4 };
+  lastPos = { x: e.screenX, y: e.screenY };
+  lastTime = now;
+});
+
+document.addEventListener("mouseup", () => {
+  if (!dragging) return;
+  dragging = false;
+  // Only coast if there was a real flick; tiny drags just drop in place.
+  const speed = Math.hypot(velocity.x, velocity.y);
+  if (speed < 0.3) return;           // ~px/ms threshold
+  rafId = requestAnimationFrame(coast);
+});
+
+async function coast() {
+  // Decay velocity each frame and nudge the window by the per-frame delta.
+  // 0.92 gives a natural ~0.5s glide; stop when the speed is negligible.
+  velocity = { x: velocity.x * 0.92, y: velocity.y * 0.92 };
+  if (Math.hypot(velocity.x, velocity.y) < 0.05) return;
+  try {
+    const pos = await win.outerPosition();
+    // velocity is px/ms; ~16ms/frame → scale to frame delta.
+    const nx = Math.round(pos.x + velocity.x * 16);
+    const ny = Math.round(pos.y + velocity.y * 16);
+    await win.setPosition({ x: nx, y: ny });
+  } catch {}
+  rafId = requestAnimationFrame(coast);
+}
+
+// ─── Pet picker (plan §4.5) ────────────────────────────────────────
+// Shift+click opens a picker: the window expands to a 480×420 grid of
+// installed pets and the click selects the active one (written to
+// ~/.petdex/active.json by the sidecar via a POST). Mirrors main.zig's
+// picker window (1092-1095).
+const PICKER_W = 480, PICKER_H = 420;
+const NORMAL_W = 192, NORMAL_H = 288;
+
+async function openPicker() {
+  try {
+    // setSize accepts a LogicalSize in Tauri v2. With withGlobalTauri the
+    // constructor lives at window.__TAURI__.core.LogicalSize; fall back to
+    // a plain object {width,height,type} if the class isn't exposed.
+    const LS = window.__TAURI__?.core?.LogicalSize;
+    const size = LS ? new LS(PICKER_W, PICKER_H) : { width: PICKER_W, height: PICKER_H, type: "Logical" };
+    await win.setSize(size);
+    const slugs = await invoke("list_pets");
+    renderPicker(slugs);
+  } catch (e) { dbg(`picker err: ${String(e).slice(0, 30)}`); }
+}
+
+async function closePicker() {
+  try {
+    const LS = window.__TAURI__?.core?.LogicalSize;
+    const size = LS ? new LS(NORMAL_W, NORMAL_H) : { width: NORMAL_W, height: NORMAL_H, type: "Logical" };
+    await win.setSize(size);
+    document.getElementById("picker")?.remove();
+  } catch {}
+}
+
+function renderPicker(slugs) {
+  let el = document.getElementById("picker");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "picker";
+    el.style.cssText =
+      "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(20,20,25,0.96);color:#eee;overflow:auto;padding:12px;font:13px/1.4 system-ui,sans-serif";
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `<div style="margin-bottom:8px;font-weight:600">Pick a pet</div>`;
+  const grid = document.createElement("div");
+  grid.style.cssText = "display:grid;grid-template-columns:repeat(3,1fr);gap:8px";
+  for (const slug of slugs) {
+    const card = document.createElement("div");
+    card.textContent = slug;
+    card.style.cssText =
+      "padding:10px 8px;background:rgba(255,255,255,0.08);border-radius:6px;cursor:pointer;text-align:center;overflow:hidden;text-overflow:ellipsis";
+    card.onclick = async () => {
+      await invoke("set_active_pet", { slug });
+      await closePicker();
+      location.reload();   // reload the sprite for the new active pet
+    };
+    grid.appendChild(card);
+  }
+  el.appendChild(grid);
+  // Close button.
+  const close = document.createElement("div");
+  close.textContent = "✕ close";
+  close.style.cssText = "margin-top:10px;cursor:pointer;color:#999";
+  close.onclick = closePicker;
+  el.appendChild(close);
+}
+
+root.addEventListener("click", (e) => {
+  if (e.shiftKey) { e.preventDefault(); openPicker(); }
 });
 
 window.addEventListener("contextmenu", async (e) => {
   e.preventDefault();
+  // Right-click anywhere = quit (matches the existing contract).
   await invoke("stop_sidecar");
   await invoke("quit_app");
 });

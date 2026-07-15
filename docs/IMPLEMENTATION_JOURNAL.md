@@ -106,6 +106,25 @@ changes can be authored but not `cargo build`-verified locally.
 - `bun run typecheck` (CLI): clean. `bun test`: 161/166 (5 pre-existing).
 - biome: clean for changed files.
 
+### Unit B3: release pipeline (plan §4.8)
+- `scripts/release-desktop.ts`: new `buildWindows()` runs `cargo build
+  --release` in `src-tauri` and copies the `petdex-desktop-win32-x64.exe`
+  binary next to the macOS assets. `verifyArtifacts` now requires the
+  Windows asset (unless `buildWindows` skipped it via PETDEX_SKIP_WIN32
+  when cargo is absent, so a macOS-only host doesn't false-fail). The
+  asset name matches what CLI install.ts looks for. Wired into main().
+
+### Unit B4: UI feature ports (plan §4.5)
+- `ui/index.html` momentum/throw drag: samples pointer velocity during the
+  OS drag, then coasts on release with exponential decay (0.92/frame) via
+  setPosition — mirrors main.zig:998-1077.
+- Pet picker: shift+click expands the window to 480×420 and lists installed
+  pets; click selects (set_active_pet writes ~/.petdex/active.json).
+- `lib.rs`: new `set_active_pet` Tauri command (validates slug is installed
+  before writing active.json). Capabilities: added allow-outer-position.
+- JS verified by extraction + bun build (syntax-clean); Rust not compiled
+  locally (no cargo toolchain).
+
 ---
 
 ## Workstream C — In-App Pet Generation

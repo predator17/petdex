@@ -41,6 +41,11 @@ const REPO_ROOT = path.resolve(
 );
 const DESKTOP_DIR = path.join(REPO_ROOT, "packages", "petdex-desktop");
 const SIDECAR_DIR = path.join(DESKTOP_DIR, "sidecar");
+// Windows desktop shell (Tauri/WebView2). The Cargo binary name is
+// petdex-desktop-win32-x64 — exactly the asset name the CLI's install.ts
+// looks for (plan §4.8).
+const WINDOWS_DIR = path.join(REPO_ROOT, "packages", "petdex-desktop-windows");
+const WIN32_ASSET_NAME = "petdex-desktop-win32-x64.exe";
 
 type Args = {
   version: string;
@@ -293,6 +298,42 @@ function buildRelease(env: Record<string, string>): void {
   });
 }
 
+function buildWindows(): void {
+  // Build the Windows desktop shell (Tauri 2 / WebView2) via cargo. The
+  // Cargo [[bin]] name is petdex-desktop-win32-x64, so the release build
+  // emits target/release/petdex-desktop-win32-x64.exe. We then copy it
+  // next to the macOS assets so verifyArtifacts + ghRelease pick it up
+  // (plan §4.8). cargo is required on the release host; this is skipped
+  // on non-Windows hosts unless explicitly requested via the env override.
+  step("Build Windows desktop shell (cargo build --release)");
+  const tauriDir = path.join(WINDOWS_DIR, "src-tauri");
+  if (!existsSync(tauriDir)) {
+    console.log("  ! petdex-desktop-windows/src-tauri not found, skipping");
+    return;
+  }
+  // Skip when cargo is absent (e.g. a macOS-only release host). The
+  // Windows asset then isn't expected — see verifyArtifacts.
+  const cargoCheck = spawnSync("cargo", ["--version"], { encoding: "utf8" });
+  if (cargoCheck.status !== 0) {
+    console.log("  ! cargo not on PATH, skipping Windows build");
+    process.env.PETDEX_SKIP_WIN32 = "1";
+    return;
+  }
+  run("cargo", ["build", "--release"], { cwd: tauriDir });
+  const built = path.join(tauriDir, "target", "release", WIN32_ASSET_NAME);
+  if (!existsSync(built)) {
+    die(
+      `cargo build did not produce ${WIN32_ASSET_NAME} at ${built}. ` +
+        "Check the Cargo [[bin]] name matches petdex-desktop-win32-x64.",
+    );
+  }
+  // Copy the binary next to the macOS assets so the single verifyArtifacts
+  // + ghRelease loop picks up every platform's asset uniformly.
+  const dest = path.join(DESKTOP_DIR, WIN32_ASSET_NAME);
+  run("cp", [built, dest]);
+  console.log(`  ✓ ${WIN32_ASSET_NAME} (copied from src-tauri/target/release)`);
+}
+
 function verifyArtifacts(): string[] {
   step("Verify artifacts");
   const required = [
@@ -301,6 +342,12 @@ function verifyArtifacts(): string[] {
     "petdex-desktop-darwin-arm64",
     "petdex-desktop-darwin-x64",
   ];
+  // The Windows asset is required when buildWindows didn't skip it (i.e.
+  // cargo was available). PETDEX_SKIP_WIN32 is set by buildWindows when it
+  // bails, so a macOS-only release host doesn't fail this check (plan §4.8).
+  if (!process.env.PETDEX_SKIP_WIN32) {
+    required.push(WIN32_ASSET_NAME);
+  }
   const missing: string[] = [];
   const present: string[] = [];
   for (const name of required) {
@@ -411,8 +458,10 @@ async function main() {
   if (!args.skipBuild) {
     preflightDetachDmgVolumes();
     buildRelease(env);
+    buildWindows();
   } else {
     console.log("\n--skip-build: skipping zig build + notarize");
+    console.log("--skip-build: skipping windows cargo build");
   }
   const assets = verifyArtifacts();
 
