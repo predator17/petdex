@@ -125,6 +125,33 @@ changes can be authored but not `cargo build`-verified locally.
 - JS verified by extraction + bun build (syntax-clean); Rust not compiled
   locally (no cargo toolchain).
 
+### Unit B5: Win32 transparency/click-through (plan §4.4)
+The "single biggest technical risk." Research during implementation
+overturned the plan's literal suggestion (UpdateLayeredWindow): Tauri v2
+transparent windows use WS_EX_NOREDIRECTIONBITMAP so the WebView2 compositor
+owns per-pixel alpha, which is MUTUALLY EXCLUSIVE with WS_EX_LAYERED
+(required by UpdateLayeredWindow) — adding it breaks the WebView render
+(tauri#13070). Tauri's `transparent: true` already delivers clean per-pixel
+alpha via the compositor, so the layered-window path is the wrong tool.
+
+Implemented instead the proven [Faksimile/WebView2-Click-Through] pattern:
+dynamically toggle `WS_EX_TRANSPARENT` on the whole HWND via
+`SetWindowLongPtrW`/`GetWindowLongPtrW`, driven by a JS bridge:
+- `src/transparency.rs`: `set_click_through(through)` Tauri command toggles
+  WS_EX_TRANSPARENT on the pet HWND. `cfg(windows)` module; `windows` crate
+  0.61 with Win32_Foundation + Win32_UI_WindowsAndMessaging features.
+- `ui/index.html`: default click-through ON (transparent regions pass
+  clicks to the desktop); mouseenter on the sprite → OFF (drag/right-click
+  work), mouseleave → back ON. Mirrors Faksimile's host-script pattern.
+
+**Rust now compiled + verified locally.** Installed rustup 1.97.0 + wired
+the VS 2022 Build Tools (MSVC 14.44.35207) environment. Both compile clean:
+- `cargo build` (debug): Finished, CARGO_EXIT=0, 0 warnings.
+- `cargo build --release`: Finished [optimized], CARGO_EXIT=0, 8.7MB exe.
+- `set_click_through` command name confirmed in the release binary.
+This also verifies the earlier Rust changes (find_node expansion,
+set_active_pet) that were previously uncompiled.
+
 ---
 
 ## Workstream C — In-App Pet Generation

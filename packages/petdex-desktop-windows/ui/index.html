@@ -157,11 +157,43 @@ async function boot() {
     applyState(DEFAULT_STATE);
     dbg(pet.name);
 
+    // Default to click-through ON: transparent regions of the overlay pass
+    // pointer events to the desktop so the user can interact with whatever
+    // is behind the pet. The root sprite element's mouseenter flips it OFF
+    // (drag/right-click grab), mouseleave flips it back ON (Faksimile
+    // pattern, plan §4.4).
+    await setClickThrough(true);
+    wireClickThrough();
+
     await bootSidecar();
   } catch (e) {
     dbg(`err: ${String(e).slice(0, 40)}`);
     console.error(e);
   }
+}
+
+// ─── Click-through bridge (plan §4.4) ──────────────────────────────
+// Toggles the Win32 WS_EX_TRANSPARENT style via the Rust command. When ON,
+// clicks pass through the whole window to the desktop; when OFF the window
+// receives them (drag handle + right-click menu). The bridge drives this on
+// mouseenter/mouseleave of the interactive sprite area so transparent
+// regions are click-through while the pet body stays grabbable.
+async function setClickThrough(through) {
+  try {
+    await invoke("set_click_through", { through });
+  } catch (e) {
+    // The command only exists on Windows; on other platforms it's a no-op
+    // error we swallow.
+    console.debug("set_click_through:", e);
+  }
+}
+
+function wireClickThrough() {
+  const rootEl = document.getElementById("root");
+  // Hovering the sprite/interactive area → window should capture clicks.
+  rootEl.addEventListener("mouseenter", () => setClickThrough(false));
+  // Leaving the sprite → transparent regions should pass clicks through.
+  rootEl.addEventListener("mouseleave", () => setClickThrough(true));
 }
 
 // Polling reads runtime files written by the sidecar to ~/.petdex/runtime/.

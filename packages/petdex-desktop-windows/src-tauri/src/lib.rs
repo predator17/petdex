@@ -8,6 +8,10 @@ use tauri::State;
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
+// Win32 transparency/click-through (plan §4.4). Windows-only module.
+#[cfg(windows)]
+mod transparency;
+
 // ── Pet types ─────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -492,6 +496,10 @@ pub fn run() {
             spawn_sidecar,
             get_sidecar_port,
             stop_sidecar,
+            // Win32 click-through toggle (plan §4.4). Windows-only command;
+            // cfg'd out on other targets where transparency.rs is absent.
+            #[cfg(windows)]
+            transparency::set_click_through,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
