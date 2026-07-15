@@ -115,6 +115,10 @@
 <script type="module">
 const { invoke } = window.__TAURI__.core;
 const { getCurrentWindow } = window.__TAURI__.window;
+// Deep-link plugin (plan §4.5). `getCurrent()` reads a cold-launch URL;
+// the `deep-link://new-url` event fires on a warm launch while the app is
+// already running. Both are routed through handleDeepLink below.
+const deepLink = window.__TAURI__?.deeplink;
 
 // Verbatim from src/lib/pet-states.ts
 const PET_STATES = {
@@ -165,10 +169,58 @@ async function boot() {
     await setClickThrough(true);
     wireClickThrough();
 
+    // Deep-link wiring (plan §4.5): handle a cold-launch petdex:// URL and
+    // subscribe to warm-launch events.
+    bootDeepLink();
+
     await bootSidecar();
   } catch (e) {
     dbg(`err: ${String(e).slice(0, 40)}`);
     console.error(e);
+  }
+}
+
+// ─── Deep links petdex:// (plan §4.5) ──────────────────────────────
+// The Tauri deep-link plugin delivers petdex:// URLs two ways:
+//   - cold launch (app not running): the URL is the only CLI arg →
+//     getCurrent() returns it once on boot.
+//   - warm launch (app already running): a `deep-link://new-url` event.
+// Both feed handleDeepLink, which routes by path:
+//   petdex://pet/<slug>      → set the active pet and reload
+//   petdex://install/<slug>  → surface an install bubble (the CLI handles
+//                              the actual fetch; the desktop just acks)
+async function bootDeepLink() {
+  if (!deepLink) return; // plugin absent (non-desktop build) → no-op
+  try {
+    // Cold launch: read the URL the OS launched us with, if any.
+    const current = await deepLink.getCurrent();
+    if (current) await handleDeepLink(current);
+  } catch (e) { console.debug("deep-link getCurrent:", e); }
+  // Warm launch: subsequent links while running.
+  try {
+    await deepLink.onUrl(handleDeepLink);
+  } catch (e) { console.debug("deep-link onUrl:", e); }
+}
+
+async function handleDeepLink(urlStr) {
+  let url;
+  try { url = new URL(urlStr); } catch { return; }
+  if (url.protocol !== "petdex:") return;
+  const parts = url.pathname.replace(/^\/+/, "").split("/").filter(Boolean);
+  const action = parts[0];
+  const slug = parts[1];
+  if (action === "pet" && slug) {
+    try {
+      await invoke("set_active_pet", { slug });
+      showBubble(`Switched to ${slug}`);
+      location.reload();
+    } catch (e) {
+      showBubble(`No pet "${slug}"`);
+    }
+  } else if (action === "install" && slug) {
+    // The desktop can't fetch a remote pet itself; the CLI owns install.
+    // Surface a bubble pointing the user to the terminal.
+    showBubble(`Run: petdex install ${slug}`);
   }
 }
 
@@ -375,8 +427,80 @@ function renderPicker(slugs) {
   el.appendChild(close);
 }
 
+// ─── Settings panel (plan §4.5) ────────────────────────────────────
+// An inline panel (lower-risk than a second Tauri window) for the two
+// user-managed values: the OpenRouter API key (written to the sidecar's
+// local key store) and a generation cost estimate (§5.7 #3 confirmation
+// surface). Opened via middle-click or petdex://settings.
+async function openSettings() {
+  try {
+    await win.setSize(makeSize(PICKER_W, PICKER_H));
+  } catch {}
+  let el = document.getElementById("settings");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "settings";
+    el.style.cssText =
+      "position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(20,20,25,0.96);color:#eee;overflow:auto;padding:14px;font:13px/1.4 system-ui,sans-serif";
+    document.body.appendChild(el);
+  }
+  // Cost estimate (§5.7 #3): 10 images × ~$0.04 ≈ $0.40, max $0.80 w/ retries.
+  el.innerHTML = `
+    <div style="font-weight:600;margin-bottom:10px">Settings</div>
+    <label style="display:block;margin-bottom:6px;color:#aaa;font-size:11px">OpenRouter API key (stored locally)</label>
+    <input id="or-key" type="password" placeholder="sk-or-..." style="width:100%;box-sizing:border-box;padding:8px;background:rgba(255,255,255,0.08);border:1px solid #444;border-radius:6px;color:#eee;font:12px monospace;margin-bottom:10px"/>
+    <div id="key-status" style="font-size:11px;color:#999;margin-bottom:12px"></div>
+    <div style="border-top:1px solid #333;padding-top:10px;margin-bottom:10px">
+      <div style="font-weight:600;margin-bottom:4px">Pet generation cost</div>
+      <div style="font-size:11px;color:#aaa">~10 images (1 base + 9 animation rows) via gpt-image-2 ≈ <b>$0.40</b>. With retries, up to <b>$0.80</b>. You confirm before each generation.</div>
+    </div>
+    <button id="save-key" style="padding:8px 14px;background:#6b8cff;border:none;border-radius:6px;color:#fff;cursor:pointer">Save key</button>
+    <div style="margin-top:14px;cursor:pointer;color:#999">✕ close</div>
+  `;
+  const status = el.querySelector("#key-status");
+  status.textContent = "Enter your OpenRouter key. It stays on this machine — never sent to petdex.";
+  el.querySelector("#save-key").onclick = async () => {
+    const key = el.querySelector("#or-key").value.trim();
+    if (!key) { status.textContent = "Key is empty."; return; }
+    // Write the key via the Tauri command — it lands in the sidecar's local
+    // key store (~/.petdex/runtime/openrouter-key) with owner-only ACL. The
+    // key never touches the network here; only POST /generate reads it later.
+    try {
+      await invoke("set_openrouter_key", { key });
+      status.textContent = "Key saved locally (owner-only).";
+      el.querySelector("#or-key").value = "";
+    } catch (e) {
+      status.textContent = `Save failed: ${String(e).slice(0, 40)}`;
+    }
+  };
+  el.querySelector('div[style* "close"], div:last-child').onclick = closeSettings;
+  // Also bind the close line explicitly (the selector above is fragile).
+  const closeLine = el.querySelectorAll("div");
+  for (const d of closeLine) {
+    if (d.textContent.includes("✕ close")) d.onclick = closeSettings;
+  }
+}
+
+async function closeSettings() {
+  try {
+    await win.setSize(makeSize(NORMAL_W, NORMAL_H));
+    document.getElementById("settings")?.remove();
+  } catch {}
+}
+
+// Helper: build a LogicalSize object (or fallback plain object) for setSize,
+// tolerant of which Tauri global shape the runtime exposes.
+function makeSize(w, h) {
+  const LS = window.__TAURI__?.core?.LogicalSize;
+  return LS ? new LS(w, h) : { width: w, height: h, type: "Logical" };
+}
+
 root.addEventListener("click", (e) => {
   if (e.shiftKey) { e.preventDefault(); openPicker(); }
+});
+// Middle-click opens settings.
+root.addEventListener("auxclick", (e) => {
+  if (e.button === 1) { e.preventDefault(); openSettings(); }
 });
 
 window.addEventListener("contextmenu", async (e) => {

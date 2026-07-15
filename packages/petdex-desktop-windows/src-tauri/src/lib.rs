@@ -137,6 +137,51 @@ fn set_active_pet(slug: String) -> Result<(), String> {
     fs::write(&path, body).map_err(|e| format!("write failed: {e}"))
 }
 
+/// Write the user's OpenRouter API key to the local key store
+/// (~/.petdex/runtime/openrouter-key) with owner-only permissions.
+/// Called from the Settings panel (plan §4.5 + §5.7 #1). The key stays
+/// on this machine — the sidecar reads it for POST /generate, the web
+/// backend never sees it. We never log or echo the key value.
+#[tauri::command]
+fn set_openrouter_key(key: String) -> Result<(), String> {
+    let home = dirs::home_dir().ok_or("no home directory")?;
+    let dir = home.join(".petdex").join("runtime");
+    fs::create_dir_all(&dir).map_err(|e| format!("mkdir failed: {e}"))?;
+    let path = dir.join("openrouter-key");
+    fs::write(&path, key.trim()).map_err(|e| format!("write failed: {e}"))?;
+    // Tighten to owner-only. On Windows, icacls disables inheritance and
+    // grants only the current owner; on POSIX, chmod 0600. DPAPI-at-rest
+    // is the documented follow-up; owner-only is the v1 minimum.
+    restrict_file_owner(&path);
+    Ok(())
+}
+
+/// Best-effort owner-only file protection (plan §5.7 #1). Mirrors the
+/// sidecar's ensureKeyStoreOwnerOnly. A failure is non-fatal (the file is
+/// already written); we surface nothing about it to avoid leaking the path
+/// in error strings that might be logged.
+fn restrict_file_owner(path: &std::path::Path) {
+    #[cfg(windows)]
+    {
+        use std::process::Command;
+        let user = std::env::var("USERNAME").unwrap_or_default();
+        if user.is_empty() {
+            return;
+        }
+        let _ = Command::new("icacls")
+            .arg(path)
+            .args(["/inheritance:r", "/grant:r", &format!("{user}:F")])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
+    #[cfg(not(windows))]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let _ = fs::set_permissions(path, fs::Permissions::from_mode(0o600));
+    }
+}
+
 // ── Sidecar helpers ───────────────────────────────────────────────────────────
 
 /// Resolve the node executable — tries common install locations so we work
@@ -484,11 +529,20 @@ fn quit_app(app: tauri::AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .manage(Mutex::new(SidecarState::default()))
+        // Deep-link plugin (plan §4.5): registers the `petdex://` scheme.
+        // On Windows, statically-declared schemes (tauri.conf.json
+        // plugins.deep-link.desktop.schemes) are written to the registry
+        // (HKCR\petdex\shell\open\command) at install time, and a
+        // petdex:// link launched while the app is already running is
+        // delivered here as a `deep-link://new-url` event the JS bridge
+        // subscribes to. A cold launch carries the URL as a CLI arg.
+        .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
             list_pets,
             get_pet,
             get_active_pet,
             set_active_pet,
+            set_openrouter_key,
             read_file_as_base64,
             read_runtime_state,
             read_runtime_bubble,

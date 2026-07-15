@@ -152,8 +152,32 @@ the VS 2022 Build Tools (MSVC 14.44.35207) environment. Both compile clean:
 This also verifies the earlier Rust changes (find_node expansion,
 set_active_pet) that were previously uncompiled.
 
-### Unit C2: §5.7 security hardening (must-implement items)
-The plan marks §5.7 items "must implement, not optional." Completed:
+### Unit B6: deep-links + Settings panel (plan §4.5)
+Completed the two remaining §4.5 feature-gap items (picker + drag were
+done in B4):
+
+**Deep links (`petdex://`)** — first-party `tauri-plugin-deep-link` v2.4.9
+rather than hand-rolled `HKCR\petdex\shell\open\command` registry edits (the
+plugin writes the registry entry at install time and handles cross-platform
+delivery). Configured in `tauri.conf.json` (`plugins.deep-link.desktop.
+schemes: ["petdex"]`); registered in Rust via `Builder::plugin(...)`.
+- `ui/index.html`: `bootDeepLink()` reads a cold-launch URL via `getCurrent()`
+  and subscribes to warm-launch via `onUrl`. `handleDeepLink` routes by path:
+  `petdex://pet/<slug>` → set active pet + reload; `petdex://install/<slug>`
+  → surfaces an install bubble.
+- `capabilities/default.json`: added `deep-link:default` permission.
+
+**Settings panel** (the plan's "inline panel" option, lower-risk than a
+second Tauri window):
+- `ui/index.html` `openSettings()`: middle-click opens a 480×420 panel with
+  an OpenRouter-key input (password type), a save button, and the cost
+  estimate (§5.7 #3 confirmation surface: ~$0.40, max $0.80 with retries).
+- `lib.rs set_openrouter_key` command: writes the key to the local store
+  (~/.petdex/runtime/openrouter-key) with owner-only ACL via
+  `restrict_file_owner` (icacls on Windows, chmod 0600 on POSIX).
+
+Both cargo-build-verified: debug + release `CARGO_EXIT=0`, zero warnings.
+`set_openrouter_key` and the `petdex` scheme confirmed in the release binary.
 - **#1 Key at rest**: `ensureKeyStoreOwnerOnly()` tightens the key file to
   owner-only on every read — `icacls /inheritance:r /grant:r <owner>:F` on
   Windows, `chmod 0600` on POSIX. DPAPI-at-rest remains the documented

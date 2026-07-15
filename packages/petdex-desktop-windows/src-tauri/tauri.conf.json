@@ -32,6 +32,13 @@
       "csp": null
     }
   },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": ["petdex"]
+      }
+    }
+  },
   "bundle": {
     "active": false
   }
