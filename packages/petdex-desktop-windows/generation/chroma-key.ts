@@ -19,26 +19,27 @@ import sharp from "sharp";
 
 import { CHROMA_KEY_COLOR } from "./pet-contract.js";
 
+/**
+ * Reserved for future tuning. The current implementation uses green-dominance
+ * classification (constants above) which adapts to the subject color, so
+ * tolerance/feather are no longer needed — kept in the type for API stability.
+ */
 export interface ChromaKeyOptions {
-  /**
-   * Max Euclidean distance in RGB space from the chroma color at which a
-   * pixel is considered "background". Pixels within `feather` beyond this
-   * are partially transparent (anti-alias fringe). Defaults tuned for a
-   * pure #00FF00 key against typical sprite palettes.
-   */
   tolerance?: number;
-  /** Width of the alpha-feather band beyond `tolerance` (0..1 alpha ramp). */
   feather?: number;
 }
 
-// Tuned against real gpt-image-2 output on a #00FF00 prompt: the model emits
-// a ~30% band of green-tinted pixels at 180-300 distance (anti-alias halos,
-// compression noise, faint shadows) that are NOT the subject (subject sits
-// >300). A tolerance of 80 missed that whole band, leaving opaque green-tinted
-// regions that produced RGB residue under low alpha after composition. 190
-// captures the band; the subject (>300) stays fully opaque.
-const DEFAULT_TOLERANCE = 190;
-const DEFAULT_FEATHER = 110;
+// Tuned against real gpt-image-2 output on a #00FF00 prompt. A pure RGB-
+// distance tolerance can't cleanly separate the green background from a
+// warm-colored (orange/yellow) subject: the model's green-noise band
+// (180-300 distance) OVERLAPS the subject (264-306). So we key on GREEN
+// DOMINANCE — a pixel is background if G is the max channel AND notably
+// exceeds R and B. This keeps warm subjects (R-dominant) fully intact while
+// removing green noise, regardless of distance. A tight distance band
+// handles the pure-background core for speed.
+const GREEN_DOMINANCE_MARGIN = 25; // G must exceed R and B by this much
+const PURE_BG_DISTANCE = 120; // within this of #00FF00 → definitely bg
+const FEATHER_BAND = 40; // smooth the dominance-key boundary
 // Pixels whose feather-band alpha lands below this floor are zeroed fully
 // (RGB + alpha) so the validator's transparency invariant (no RGB residue
 // under low alpha, §5.8) holds. Must match validate-atlas.ts ALPHA_THRESHOLD.
@@ -51,10 +52,8 @@ const RESIDUE_ALPHA_FLOOR = 16;
  */
 export async function chromaKey(
   input: Buffer,
-  options: ChromaKeyOptions = {},
+  _options?: ChromaKeyOptions,
 ): Promise<Buffer> {
-  const tolerance = options.tolerance ?? DEFAULT_TOLERANCE;
-  const feather = options.feather ?? DEFAULT_FEATHER;
   const { r: kr, g: kg, b: kb } = CHROMA_KEY_COLOR;
 
   // Flatten to RGBA raw pixels. We force 4 channels so the alpha math is
@@ -69,33 +68,38 @@ export async function chromaKey(
   const raw: Buffer = await sharp(input).ensureAlpha().raw().toBuffer();
 
   // raw is width*height*4 bytes: [R,G,B,A, R,G,B,A, ...]
+  //
+  // GREEN-DOMINANCE KEY: classify each pixel as background if green is the
+  // dominant channel (G > R and G > B by a margin). This correctly separates
+  // green noise from warm-colored subjects that pure-distance can't (an
+  // orange pixel at 255,180,50 and a green-noise pixel at 90,200,80 are at
+  // similar distance from #00FF00, but only the latter has G dominant).
+  // The dominance margin ramps near the boundary for anti-aliased edges.
   for (let i = 0; i < raw.length; i += 4) {
     const r = raw[i];
     const g = raw[i + 1];
     const b = raw[i + 2];
 
-    // Euclidean distance from the chroma key color.
+    // Distance from pure green — used for the pure-background core only.
     const dr = r - kr;
     const dg = g - kg;
     const db = b - kb;
     const dist = Math.sqrt(dr * dr + dg * dg + db * db);
 
-    if (dist <= tolerance) {
-      // Fully background → fully transparent. Zero the RGB so the
-      // transparency invariant (no residue) holds for these pixels.
+    // Green dominance: how much G exceeds both R and B. Positive = bg.
+    const dominance = Math.min(g - r, g - b);
+
+    if (dist <= PURE_BG_DISTANCE || dominance >= GREEN_DOMINANCE_MARGIN) {
+      // Definitely background (pure green core OR green-dominant). Key out.
       raw[i] = 0;
       raw[i + 1] = 0;
       raw[i + 2] = 0;
       raw[i + 3] = 0;
-    } else if (dist <= tolerance + feather) {
-      // Fringe band → partial alpha ramp (anti-aliased edges).
-      const t = (dist - tolerance) / feather; // 0..1
+    } else if (dominance > GREEN_DOMINANCE_MARGIN - FEATHER_BAND) {
+      // Transition band: dominance is near the margin → partial alpha for
+      // anti-aliased edges between subject and background.
+      const t = (GREEN_DOMINANCE_MARGIN - dominance) / FEATHER_BAND; // 0..1, 1=keep
       const alpha = Math.round(t * 255);
-      // If the feather alpha lands below the residue threshold, treat the
-      // pixel as fully transparent — otherwise the 1/t RGB scaling below
-      // produces a large nonzero color under low alpha, which is exactly
-      // the "RGB residue under low alpha" defect the validator rejects.
-      // Zeroing keeps the transparency invariant (§5.8) satisfied.
       if (alpha < RESIDUE_ALPHA_FLOOR) {
         raw[i] = 0;
         raw[i + 1] = 0;
@@ -103,17 +107,9 @@ export async function chromaKey(
         raw[i + 3] = 0;
       } else {
         raw[i + 3] = alpha;
-        // Scale RGB toward full intensity by 1/t so premultiplied
-        // compositing keeps the edge color correct at partial alpha.
-        // (Avoids the dark fringe from straight-alpha over-darkening.)
-        if (t > 0) {
-          raw[i] = Math.min(255, Math.round(r / t));
-          raw[i + 1] = Math.min(255, Math.round(g / t));
-          raw[i + 2] = Math.min(255, Math.round(b / t));
-        }
       }
     }
-    // dist > tolerance + feather → keep original alpha (likely 255).
+    // else: subject (R-dominant or neutral) → keep original alpha (255).
   }
 
   // Re-encode the keyed raw buffer back to PNG (lossless, keeps alpha).
@@ -132,24 +128,30 @@ export async function chromaKey(
  */
 export async function chromaKeyWithStats(
   input: Buffer,
-  options?: ChromaKeyOptions,
 ): Promise<{ output: Buffer; keyedPixels: number; totalPixels: number }> {
-  const tolerance = options?.tolerance ?? DEFAULT_TOLERANCE;
   const { r: kr, g: kg, b: kb } = CHROMA_KEY_COLOR;
   const meta = await sharp(input).metadata();
   const width = meta.width ?? 0;
   const height = meta.height ?? 0;
   const raw: Buffer = await sharp(input).ensureAlpha().raw().toBuffer();
 
+  // Count background pixels using the same green-dominance classifier as
+  // chromaKey (a pixel is background if near pure-green OR green-dominant).
   let keyed = 0;
   for (let i = 0; i < raw.length; i += 4) {
-    const dr = raw[i] - kr;
-    const dg = raw[i + 1] - kg;
-    const db = raw[i + 2] - kb;
-    if (Math.sqrt(dr * dr + dg * dg + db * db) <= tolerance) keyed += 1;
+    const r = raw[i];
+    const g = raw[i + 1];
+    const b = raw[i + 2];
+    const dr = r - kr;
+    const dg = g - kg;
+    const db = b - kb;
+    const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+    const dominance = Math.min(g - r, g - b);
+    if (dist <= PURE_BG_DISTANCE || dominance >= GREEN_DOMINANCE_MARGIN)
+      keyed += 1;
   }
 
-  const output = await chromaKey(input, options);
+  const output = await chromaKey(input);
   return {
     output,
     keyedPixels: keyed,
