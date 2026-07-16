@@ -87,16 +87,17 @@ export function desktopBinPath(): string {
   //      → user dragged Petdex.app from the DMG into Applications
   //   2. ~/Applications/Petdex.app/Contents/MacOS/petdex-desktop
   //      → user dropped Petdex.app into their per-user Applications dir
-  //   3. ~/.petdex/bin/petdex-desktop[.exe]
+  //   3. ~/.petdex/bin/petdex-desktop-{platform}-{arch}[.exe]
   //      → user ran `petdex install desktop` (or never bothered with the
-  //        DMG); on Windows this is the only path
+  //        DMG); on Windows this is the only path. The asset name is
+  //        platform-suffixed (petdex-desktop-win32-x64.exe) to match the
+  //        release pipeline + the CLI's own download path (assetSuffix).
   //
   // Returning the first that exists lets `petdex up`, `petdex update`,
   // and `petdex desktop start` find the binary regardless of how the
   // user installed it. Net effect: DMG-only installs no longer need a
   // follow-up `npx petdex install desktop` to make the CLI commands
   // work.
-  const ext = nodePlatform() === "win32" ? ".exe" : "";
   if (nodePlatform() === "darwin") {
     const home = homeDir();
     const appCandidates = [
@@ -114,7 +115,24 @@ export function desktopBinPath(): string {
       if (existsSync(candidate)) return candidate;
     }
   }
-  return path.join(homedir(), ".petdex", "bin", `petdex-desktop${ext}`);
+  // Bare-binary path: the asset name is platform-suffixed to match the
+  // release pipeline (assetSuffix = `${osLabel}-${archLabel}`). On Windows
+  // that's petdex-desktop-win32-x64.exe; on macOS the .app bundle above is
+  // preferred but a bare petdex-desktop-darwin-arm64 is also valid.
+  const osLabel =
+    nodePlatform() === "win32"
+      ? "win32"
+      : nodePlatform() === "darwin"
+        ? "darwin"
+        : "linux";
+  const archLabel = nodeArch() === "arm64" ? "arm64" : "x64";
+  const ext = nodePlatform() === "win32" ? ".exe" : "";
+  return path.join(
+    homedir(),
+    ".petdex",
+    "bin",
+    `petdex-desktop-${osLabel}-${archLabel}${ext}`,
+  );
 }
 
 export function sidecarPath(): string {

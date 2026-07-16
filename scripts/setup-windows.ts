@@ -217,7 +217,18 @@ function stepStage(): void {
       writeFileSync(exeDst, readFileSync(exeSrc));
       ok("desktop exe staged", `~/.petdex/bin/${exeName}`);
     } catch (e) {
-      fail("stage desktop exe", (e as Error).message);
+      // EBUSY: the exe is locked (a desktop instance is still running). The
+      // existing copy is fine — treat as ok so re-running setup while the pet
+      // is visible doesn't show a spurious failure.
+      const msg = (e as Error).message;
+      if (existsSync(exeDst) && /EBUSY|EPERM|busy|locked/i.test(msg)) {
+        ok(
+          "desktop exe staged",
+          `~/.petdex/bin/${exeName} (already present; in use)`,
+        );
+      } else {
+        fail("stage desktop exe", msg);
+      }
     }
   } else {
     fail(
@@ -252,22 +263,33 @@ function stepStage(): void {
 async function stepStarterPet(): Promise<void> {
   log("\n[3.5/5] Starter pet");
   const petsRoot = join(PETDEX_DIR, "pets");
-  // If any pet is already installed, we're done.
-  if (existsSync(petsRoot)) {
+  // If a pet with a real (non-empty) spritesheet is already installed, done.
+  // Checking for the sprite (not just the dir) catches a half-written fallback
+  // from a prior run where the atlas generation failed and left only pet.json.
+  const hasUsablePet = (dir: string): boolean => {
     try {
-      const { readdirSync } = require("node:fs") as {
+      const { readdirSync, statSync } = require("node:fs") as {
         readdirSync: (p: string) => string[];
+        statSync: (p: string) => { size: number };
       };
-      if (readdirSync(petsRoot).length > 0) {
-        ok("starter pet", "already installed");
-        return;
+      for (const slug of readdirSync(dir)) {
+        for (const sprite of ["spritesheet.webp", "spritesheet.png"]) {
+          const sp = join(dir, slug, sprite);
+          if (existsSync(sp) && statSync(sp).size > 0) return true;
+        }
       }
     } catch {}
+    return false;
+  };
+  if (existsSync(petsRoot) && hasUsablePet(petsRoot)) {
+    ok("starter pet", "already installed");
+    return;
   }
-  // Try the CLI's install (hits the live petdex.dev manifest).
+  // Try the CLI's install (hits the live petdex.dev manifest). Use bun (not
+  // node) to run the CLI, since node isn't guaranteed on the host.
   const cliJs = join(REPO, "packages", "petdex-cli", "dist", "petdex.js");
   if (existsSync(cliJs)) {
-    const r = spawnSync("node", [cliJs, "install", "default"], {
+    const r = spawnSync(bunCmd(), [cliJs, "install", "default"], {
       encoding: "utf8",
       timeout: 30_000,
       env: {
@@ -381,11 +403,36 @@ function stepZcodeHooks(): void {
   try {
     mkdirSync(join(HOME, ".zcode", "cli"), { recursive: true });
     writeFileSync(cfgPath, `${JSON.stringify(config, null, 2)}\n`);
-    ok("ZCode hooks", "~/.zcode/cli/config.json (7 events, type:process)");
+    // Also drop the /petdex slash command (the killswitch shortcut) so
+    // `petdex doctor` reports fully installed. Plain markdown; harmless if
+    // the running ZCode build reads commands from elsewhere.
+    const cmdDir = join(HOME, ".zcode", "commands");
+    mkdirSync(cmdDir, { recursive: true });
+    writeFileSync(join(cmdDir, "petdex.md"), ZCODE_SLASH_CMD);
+    ok("ZCode hooks", "~/.zcode/cli/config.json + /petdex command");
   } catch (e) {
     fail("ZCode hooks", (e as Error).message);
   }
 }
+
+// Body of the /petdex slash command for ZCode. Mirrors slash-command.ts's
+// SLASH_COMMAND_BODY but invokes the persisted CLI via bun (no node dep).
+const ZCODE_SLASH_CMD = `---
+description: Wake or sleep the petdex mascot. Toggles the floating pet on/off
+---
+
+Run the matching command using the persisted petdex binary (always present after \`petdex hooks install\`):
+
+- \`/petdex\` (no args) -> run \`petdex toggle\`
+- \`/petdex up\` -> run \`petdex up\`
+- \`/petdex down\` -> run \`petdex down\`
+- \`/petdex status\` -> run \`petdex hooks status\`
+- \`/petdex doctor\` -> run \`petdex doctor\`
+
+Show the command output verbatim. Don't reinterpret.
+
+Arguments: \`$ARGUMENTS\`
+`;
 
 // ── 4. OpenRouter key ─────────────────────────────────────────────────
 function stepKey(): void {

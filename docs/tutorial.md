@@ -3,13 +3,14 @@
 This walks you through **ZCode hooks**, the **Windows desktop overlay**, and
 **in-app pet generation** — the three workstreams from `docs/implementation.md`.
 
-Two helper scripts do all the heavy lifting. You run everything from a
-terminal; the scripts handle building, staging, and launching.
+You run everything from **Command Prompt** (`cmd.exe`). Two bootstrap launchers
+(`setup.cmd`, `run.cmd`) handle the runtime: they find or install Bun, so you
+do **not** need Node, and you do not need Bun pre-installed or on your PATH.
 
-> **Terminal choice:** plain **Command Prompt** (`cmd.exe`), **PowerShell**,
-> or **Git Bash** all work. The examples below use `cmd.exe`. If a command
-> says `bun: not found`, close and reopen your terminal after the setup step
-> (it adds Bun to your PATH).
+> **One rule that matters most:** after `setup.cmd` finishes, **close and reopen
+> your terminal**. Setup writes `bun` and `petdex` to your User PATH, but PATH
+> changes only apply to terminals opened *after* the write. This is the #1 source
+> of "command not found" confusion.
 
 ---
 
@@ -21,67 +22,56 @@ terminal; the scripts handle building, staging, and launching.
    git clone https://github.com/predator17/petdex.git
    cd petdex
    ```
-3. **Rust + the MSVC Build Tools** — *only needed if you want to rebuild the
-   desktop exe yourself.* The repo ships a prebuilt exe via the setup step, so
-   you can **skip Rust** for a first run. To rebuild later: install
-   `rustup` (`https://rustup.rs`) and the "Desktop development with C++"
-   workload from Visual Studio Build Tools, then run
-   `cargo build --release` in `packages\petdex-desktop-windows\src-tauri`.
+3. **An OpenRouter API key** — *only for pet generation (Step 4).* Get one at
+   `https://openrouter.ai/keys`. Skip this if you only want the hooks + overlay.
 
-That's it. **Node.js is NOT required** — Bun (installed in Step 1) runs
-everything, and the setup step creates a `petdex` command that uses it.
+**You do NOT need:** Node.js, Bun (pre-installed), or Rust. `setup.cmd` installs
+Bun for you; the repo ships a prebuilt desktop exe. (Rust is only needed to
+*rebuild* the exe — see "Rebuilding the desktop exe" at the end.)
 
 ---
 
 ## Step 1 — One-command setup
 
-From the repo root:
+Open **Command Prompt** (`cmd.exe`) in the `petdex` folder (the repo root), then:
 
 ```cmd
-powershell -c "irm bun.sh/install.ps1 | iex"
+setup.cmd
 ```
 
-(Install Bun if you don't have it — the official installer. Then reopen your
-terminal so `bun` is on your PATH.)
-
-Now run the setup script. It is **idempotent** — safe to re-run any time:
-
-```cmd
-bun scripts\setup-windows.ts
-```
-
-You'll see nine steps, each with a ✓ or ✗:
+`setup.cmd` finds Bun (or installs it if missing) and runs the full setup. You'll
+see eleven steps, each with a ✓ or ✗:
 
 ```
-[1/5] Check Bun runtime               ✓ Bun — on PATH (1.3.x) + added to User PATH
-[2/5] Build petdex CLI + sidecar      ✓ petdex CLI / ✓ sidecar
-[3/5] Stage runtime files             ✓ sidecar / ✓ desktop exe
-[3.5/5] Starter pet                   ✓ starter pet
-[4/5] Install ZCode hooks             ✓ persisted CLI / ✓ ZCode hooks
-[5/5] OpenRouter API key              ✓ OpenRouter key (owner-only)
+[1/5]   Check Bun runtime        ✓ Bun
+[2/5]   Build CLI + sidecar      ✓ petdex CLI / ✓ sidecar
+[3/5]   Stage runtime files      ✓ sidecar / ✓ desktop exe / ✓ petdex shim / ✓ PATH
+[3.5/5] Starter pet              ✓ starter pet
+[4/5]   Install ZCode hooks      ✓ persisted CLI / ✓ ZCode hooks
+[5/5]   OpenRouter API key       ✓ OpenRouter key (or "not set" — see below)
 ```
 
 What it did:
-- Built the CLI (`packages\petdex-cli\dist\petdex.js`) and sidecar.
-- Staged them to `~\.petdex\` (the loader's expected locations).
-- Installed a starter pet so the overlay isn't empty.
+- Built the CLI + sidecar and staged them under `~\.petdex\` (the loader's expected locations).
+- Installed a starter pet so the overlay isn't empty on first launch.
 - Wrote the ZCode hooks to `~\.zcode\cli\config.json`.
-- Added Bun to your User PATH (reopen terminals to pick it up).
+- Created a `petdex` command shim and added `~\.bun\bin` + `~\.petdex\bin` to your User PATH.
 
-> **Add your OpenRouter key** (only needed for pet generation, Step 4):
-> create a file named `.env.local` in the repo root with one line:
+**Now close this cmd window and open a new one** (so `bun` and `petdex` are on PATH).
+
+> **Add your OpenRouter key** (only needed for Step 4 — pet generation):
+> In the repo root, create a file named `.env.local` with one line:
 > ```
 > OPENROUTER_API_KEY=sk-or-v1-...your key...
 > ```
-> `.env.local` is gitignored — it never gets committed. Get a key at
-> `https://openrouter.ai/keys`. Then re-run `bun scripts\setup-windows.ts`
-> so it copies the key into the local key store.
+> `.env.local` is gitignored — it never gets committed. Then re-run `setup.cmd`
+> so it copies the key into the local key store (`~\.petdex\runtime\openrouter-key`).
 
 ---
 
 ## Step 2 — Try the ZCode hooks
 
-This is pure config — no desktop needed. After setup, verify the hooks landed:
+Open a **fresh** cmd window (post-setup) and verify the hooks landed:
 
 ```cmd
 type "%USERPROFILE%\.zcode\cli\config.json"
@@ -92,24 +82,21 @@ events** (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`,
 `PostToolUseFailure`, `PermissionRequest`, `Stop`), each a `"type": "process"`
 argv pointing at `~\.petdex\bin\petdex.js bubble …`.
 
-Run the CLI's diagnostic to confirm detection:
+Confirm the CLI detects its own hooks:
 
 ```cmd
 petdex doctor
 ```
 
-Under **Agents**, ZCode should report "hooks + /petdex installed".
+Scroll to the **Agents** section — ZCode should show "hooks + /petdex installed".
 
-> `petdex` is a shim the setup step installed at `~\.petdex\bin\petdex.cmd`
-> (and added to your PATH). It runs the CLI via Bun — no separate `node`
-> install needed. If your terminal doesn't find it yet, **close and reopen
-> it** (PATH changes apply to new terminals), or call it directly:
-> `"%USERPROFILE%\.petdex\bin\petdex.cmd" doctor`.
+> If `petdex` isn't recognized, you skipped the terminal reopen. Close and reopen
+> cmd, or call the shim directly: `"%USERPROFILE%\.petdex\bin\petdex.cmd" doctor`.
 
-**See it react:** start the desktop (Step 3), then use ZCode normally — run a
-tool, send a prompt, etc. The pet flips states: `running` while a tool works,
-`idle` after, `failed` if a tool errors (`PostToolUseFailure` — new for ZCode),
-`waving` at turn end, `jumping` on a prompt.
+**See it react:** launch the desktop (Step 3), then use ZCode normally — run a
+tool, send a prompt. The pet flips states: `running` while a tool works, `idle`
+after, `failed` if a tool errors (`PostToolUseFailure` — new for ZCode), `waving`
+at turn end, `jumping` on a prompt.
 
 To uninstall just the ZCode hooks later:
 ```cmd
@@ -120,8 +107,10 @@ petdex hooks uninstall
 
 ## Step 3 — Launch the desktop overlay
 
+From the repo root (any cmd window — `run.cmd` finds Bun for you):
+
 ```cmd
-bun scripts\run-desktop.ts
+run.cmd
 ```
 
 A small floating pet appears on top of your windows. It's transparent and
@@ -136,31 +125,31 @@ always-on-top. Try these interactions:
 | **Middle-click the pet** | Opens the **Settings panel** (API key + cost estimate) |
 | **Right-click the pet** | Quit |
 
-> The click-through + transparency (§4.4) is the part most sensitive to your
-> GPU/driver. If you see a white box or hard color fringes instead of clean
-> edges, that's the known WebView2-transparency tuning surface.
-
-If the overlay shows nothing or "no pet found", install a real one:
+If the overlay shows nothing or "no pet found", install a real one (browse
+slugs at `https://petdex.dev`):
 ```cmd
 petdex install <slug>
 ```
-Browse slugs at `https://petdex.dev`.
+
+> **About the starter pet:** if your machine couldn't reach `petdex.dev` during
+> setup, the starter is a transparent placeholder — the overlay will look empty.
+> Install a real pet with `petdex install <slug>`, or generate one (Step 4).
 
 ---
 
 ## Step 4 — Generate a pet with gpt-image-2 (costs ~$0.40)
 
-Make sure your OpenRouter key is in `.env.local` (Step 1) and re-run setup so
-it's staged. Then:
+Make sure your key is in `.env.local` and you've re-run `setup.cmd` (Step 1).
+Then from the repo root:
 
 ```cmd
-bun scripts\run-desktop.ts --generate
+run.cmd --generate
 ```
 
 What happens:
-1. The script reads `OPENROUTER_API_KEY` from `.env.local`.
-2. It starts the sidecar, posts to `POST /generate` with the cost-confirmation
-   flag, and the server runs the full pipeline:
+1. `run-desktop.ts` reads `OPENROUTER_API_KEY` from `.env.local`.
+2. It starts the sidecar, posts to `POST /generate` with the mandatory
+   cost-confirmation flag, and the server runs the full pipeline:
    - 1 base portrait + 9 animation-row strips via **gpt-image-2** (identity-
      locked — every row references the base so the pet looks consistent).
    - Each strip is **chroma-keyed** (gpt-image-2 can't emit transparency, so
@@ -175,15 +164,15 @@ What happens:
 set PETDEX_PET_NAME=Bolt
 set PETDEX_PET_ID=bolt
 set PETDEX_PET_DESC=a small lightning spirit, electric blue, glowing
-bun scripts\run-desktop.ts --generate
+run.cmd --generate
 ```
 
 > **Cost guardrail:** the server hard-rejects generation unless the client
-> asserts `confirmCost:true`. The script always does. The estimate is ~$0.40
-> (10 images) up to ~$0.80 (with retries). You see this in the Settings panel.
+> asserts `confirmCost:true` (the script always does). Estimate: ~$0.40 (10
+> images) up to ~$0.80 (with retries). You'll see this in the Settings panel.
 
-This takes **2–4 minutes** (10 image generations). Watch the terminal for
-progress. If it fails, the error names the failing row; re-run to retry.
+This takes **2–4 minutes** (10 image generations). Watch the terminal. If it
+fails, the error names the failing row; re-run to retry.
 
 ---
 
@@ -191,14 +180,31 @@ progress. If it fails, the error names the failing row; re-run to retry.
 
 | Symptom | Fix |
 |---|---|
-| `bun: not found` | Close and reopen your terminal (setup added it to PATH). Or run the script as `"%USERPROFILE%\.bun\bin\bun.exe" scripts\setup-windows.ts` |
-| `'node' is not recognized` / `'petdex' is not recognized` | You don't need Node. For `petdex`, close and reopen your terminal (setup added `~\.petdex\bin` to PATH). If still missing, run setup again (`bun scripts\setup-windows.ts`) — it creates the `petdex.cmd` shim. Or call it directly: `"%USERPROFILE%\.petdex\bin\petdex.cmd" doctor` |
-| Overlay shows nothing / "no pet found" | `petdex install <slug>` (browse at petdex.dev) |
-| Overlay won't start | Ensure `~\.petdex\sidecar\server.js` and `~\.petdex\bin\petdex-desktop-win32-x64.exe` exist — re-run setup |
-| White box / hard edges around pet | The WebView2 transparency tuning surface (§4.4). Known risk; report your GPU/driver |
-| Generation: `no_api_key` | Put `OPENROUTER_API_KEY=...` in `.env.local`, re-run setup |
-| Generation: `cost_confirmation_required` | The script sets the flag automatically; if you call `/generate` manually, add `"confirmCost":true` to the body |
-| Generation: 2-4 min, looks stuck | It's not — 10 image gens are slow. Watch the terminal |
+| `'bun' is not recognized` after running setup.cmd | **Close and reopen your terminal.** Setup added `~\.bun\bin` to your User PATH, but it only applies to terminals opened *after* the write. |
+| `'petdex' is not recognized` | Same fix — reopen the terminal. Or call the shim directly: `"%USERPROFILE%\.petdex\bin\petdex.cmd" doctor`. |
+| `setup.cmd` says "Bun install failed" | Your network/proxy blocked the download. Install Bun manually from `https://bun.sh`, then re-run `setup.cmd`. |
+| Overlay shows nothing / "no pet found" | `petdex install <slug>` (browse at petdex.dev), or generate one (Step 4). |
+| Overlay won't start | Re-run `setup.cmd` — it re-stages `~\.petdex\sidecar\server.js` and the desktop exe. |
+| White box / hard edges around pet | The WebView2 transparency tuning surface (§4.4). Known risk; report your GPU/driver. |
+| Generation: `no_api_key` | Put `OPENROUTER_API_KEY=...` in `.env.local`, then re-run `setup.cmd`. |
+| Generation: `cost_confirmation_required` | Only happens if you call `/generate` manually — add `"confirmCost":true` to the body. `run.cmd --generate` does this automatically. |
+| Generation looks stuck for minutes | It's not — 10 image gens are slow. Wait 2–4 min. |
+
+---
+
+## Rebuilding the desktop exe (optional)
+
+The repo ships a prebuilt exe, so you can skip this. To rebuild from source:
+
+1. Install **`rustup`** (`https://rustup.rs`) and the **"Desktop development with
+   C++"** workload from Visual Studio Build Tools (provides the MSVC linker).
+2. Build it:
+   ```cmd
+   cd packages\petdex-desktop-windows\src-tauri
+   cargo build --release
+   ```
+   The exe lands at `target\release\petdex-desktop-win32-x64.exe`.
+3. Re-run `setup.cmd` to re-stage the fresh exe into `~\.petdex\bin\`.
 
 ---
 
