@@ -28,7 +28,8 @@ terminal; the scripts handle building, staging, and launching.
    workload from Visual Studio Build Tools, then run
    `cargo build --release` in `packages\petdex-desktop-windows\src-tauri`.
 
-That's it. Bun is installed for you by the setup step if it's missing.
+That's it. **Node.js is NOT required** — Bun (installed in Step 1) runs
+everything, and the setup step creates a `petdex` command that uses it.
 
 ---
 
@@ -94,10 +95,16 @@ argv pointing at `~\.petdex\bin\petdex.js bubble …`.
 Run the CLI's diagnostic to confirm detection:
 
 ```cmd
-node "%USERPROFILE%\.petdex\bin\petdex.js" doctor
+petdex doctor
 ```
 
 Under **Agents**, ZCode should report "hooks + /petdex installed".
+
+> `petdex` is a shim the setup step installed at `~\.petdex\bin\petdex.cmd`
+> (and added to your PATH). It runs the CLI via Bun — no separate `node`
+> install needed. If your terminal doesn't find it yet, **close and reopen
+> it** (PATH changes apply to new terminals), or call it directly:
+> `"%USERPROFILE%\.petdex\bin\petdex.cmd" doctor`.
 
 **See it react:** start the desktop (Step 3), then use ZCode normally — run a
 tool, send a prompt, etc. The pet flips states: `running` while a tool works,
@@ -106,7 +113,7 @@ tool, send a prompt, etc. The pet flips states: `running` while a tool works,
 
 To uninstall just the ZCode hooks later:
 ```cmd
-node "%USERPROFILE%\.petdex\bin\petdex.js" hooks uninstall
+petdex hooks uninstall
 ```
 
 ---
@@ -135,7 +142,7 @@ always-on-top. Try these interactions:
 
 If the overlay shows nothing or "no pet found", install a real one:
 ```cmd
-node "%USERPROFILE%\.petdex\bin\petdex.js" install <slug>
+petdex install <slug>
 ```
 Browse slugs at `https://petdex.dev`.
 
@@ -185,7 +192,8 @@ progress. If it fails, the error names the failing row; re-run to retry.
 | Symptom | Fix |
 |---|---|
 | `bun: not found` | Close and reopen your terminal (setup added it to PATH). Or run the script as `"%USERPROFILE%\.bun\bin\bun.exe" scripts\setup-windows.ts` |
-| Overlay shows nothing / "no pet found" | `node "%USERPROFILE%\.petdex\bin\petdex.js" install <slug>` (browse at petdex.dev) |
+| `'node' is not recognized` / `'petdex' is not recognized` | You don't need Node. For `petdex`, close and reopen your terminal (setup added `~\.petdex\bin` to PATH). If still missing, run setup again (`bun scripts\setup-windows.ts`) — it creates the `petdex.cmd` shim. Or call it directly: `"%USERPROFILE%\.petdex\bin\petdex.cmd" doctor` |
+| Overlay shows nothing / "no pet found" | `petdex install <slug>` (browse at petdex.dev) |
 | Overlay won't start | Ensure `~\.petdex\sidecar\server.js` and `~\.petdex\bin\petdex-desktop-win32-x64.exe` exist — re-run setup |
 | White box / hard edges around pet | The WebView2 transparency tuning surface (§4.4). Known risk; report your GPU/driver |
 | Generation: `no_api_key` | Put `OPENROUTER_API_KEY=...` in `.env.local`, re-run setup |

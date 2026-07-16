@@ -225,6 +225,27 @@ function stepStage(): void {
       "not built \u2014 run: cargo build --release in src-tauri (or skip if you only want hooks)",
     );
   }
+
+  // On Windows, drop a `petdex.cmd` shim next to the binary so the user can
+  // run `petdex doctor` / `petdex install <slug>` from any terminal without
+  // needing a separate node install — bun runs the CLI. The shim resolves
+  // bun via PATH then the well-known install location as a fallback.
+  if (process.platform === "win32") {
+    const bunExe = join(HOME, ".bun", "bin", "bun.exe").replace(/\\/g, "\\");
+    // %~dp0 resolves to the .cmd's own directory at runtime, so the shim
+    // finds petdex.js sitting next to it without an absolute path.
+    const shim = `@echo off\r\nsetlocal\r\nwhere bun >nul 2>nul && (bun "%~dp0petdex.js" %*) || (if exist "${bunExe}" ("${bunExe}" "%~dp0petdex.js" %*) else (echo petdex: bun not found. Install from bun.sh & exit /b 1))\r\n`;
+    const shimPath = join(BIN_DIR, "petdex.cmd");
+    try {
+      writeFileSync(shimPath, shim);
+      ok(
+        "petdex shim",
+        "~/.petdex/bin/petdex.cmd (run `petdex ...` from any terminal)",
+      );
+    } catch (e) {
+      fail("petdex shim", (e as Error).message);
+    }
+  }
 }
 
 // ── 3. Starter pet (so the overlay renders on first launch) ───────────
