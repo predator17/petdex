@@ -31,8 +31,18 @@ export interface ChromaKeyOptions {
   feather?: number;
 }
 
-const DEFAULT_TOLERANCE = 80; // ~0.31 of the 0-255 channel range
-const DEFAULT_FEATHER = 60;
+// Tuned against real gpt-image-2 output on a #00FF00 prompt: the model emits
+// a ~30% band of green-tinted pixels at 180-300 distance (anti-alias halos,
+// compression noise, faint shadows) that are NOT the subject (subject sits
+// >300). A tolerance of 80 missed that whole band, leaving opaque green-tinted
+// regions that produced RGB residue under low alpha after composition. 190
+// captures the band; the subject (>300) stays fully opaque.
+const DEFAULT_TOLERANCE = 190;
+const DEFAULT_FEATHER = 110;
+// Pixels whose feather-band alpha lands below this floor are zeroed fully
+// (RGB + alpha) so the validator's transparency invariant (no RGB residue
+// under low alpha, §5.8) holds. Must match validate-atlas.ts ALPHA_THRESHOLD.
+const RESIDUE_ALPHA_FLOOR = 16;
 
 /**
  * Key out the chroma background of a PNG/WEBP buffer, returning a PNG with
@@ -80,14 +90,27 @@ export async function chromaKey(
     } else if (dist <= tolerance + feather) {
       // Fringe band → partial alpha ramp (anti-aliased edges).
       const t = (dist - tolerance) / feather; // 0..1
-      raw[i + 3] = Math.round(t * 255);
-      // Scale RGB toward full intensity by 1/t so premultiplied
-      // compositing keeps the edge color correct at partial alpha.
-      // (Avoids the dark fringe from straight-alpha over-darkening.)
-      if (t > 0) {
-        raw[i] = Math.min(255, Math.round(r / t));
-        raw[i + 1] = Math.min(255, Math.round(g / t));
-        raw[i + 2] = Math.min(255, Math.round(b / t));
+      const alpha = Math.round(t * 255);
+      // If the feather alpha lands below the residue threshold, treat the
+      // pixel as fully transparent — otherwise the 1/t RGB scaling below
+      // produces a large nonzero color under low alpha, which is exactly
+      // the "RGB residue under low alpha" defect the validator rejects.
+      // Zeroing keeps the transparency invariant (§5.8) satisfied.
+      if (alpha < RESIDUE_ALPHA_FLOOR) {
+        raw[i] = 0;
+        raw[i + 1] = 0;
+        raw[i + 2] = 0;
+        raw[i + 3] = 0;
+      } else {
+        raw[i + 3] = alpha;
+        // Scale RGB toward full intensity by 1/t so premultiplied
+        // compositing keeps the edge color correct at partial alpha.
+        // (Avoids the dark fringe from straight-alpha over-darkening.)
+        if (t > 0) {
+          raw[i] = Math.min(255, Math.round(r / t));
+          raw[i + 1] = Math.min(255, Math.round(g / t));
+          raw[i + 2] = Math.min(255, Math.round(b / t));
+        }
       }
     }
     // dist > tolerance + feather → keep original alpha (likely 255).

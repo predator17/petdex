@@ -31,11 +31,13 @@ import * as os from "node:os";
 import { homedir, arch as nodeArch, tmpdir } from "node:os";
 import { basename, dirname, join } from "node:path";
 
-// In-app pet generation (plan Workstream C). Imported statically so the
-// CJS bundle inlines the pipeline + sharp (a dynamic import() would be
-// left as a runtime require against a file that doesn't ship alongside
-// server.js). The pipeline only does work when POST /generate is hit.
-import { generatePet } from "./generate-pet";
+// In-app pet generation (plan Workstream C). DYNAMICALLY imported inside the
+// POST /generate handler, NOT at module load: the pipeline pulls in `sharp`,
+// whose native .node binary can't be resolved from the bare ~/.petdex/sidecar/
+// deploy location. A static import would crash the sidecar on boot. Lazy-
+// loading means the sidecar boots clean; generation is only reachable when
+// invoked from a context that has sharp resolvable (e.g. run-desktop.ts runs
+// the pipeline directly — see scripts/run-desktop.ts).
 import { sanitizePromptText } from "./prompt-sanitize";
 import { nextRunningVariant } from "./running-variant";
 import { StateQueue } from "./state-queue";
@@ -1285,10 +1287,13 @@ const server = http.createServer(async (req, res) => {
         return jsonResponse(res, 400, { ok: false, error: "no_api_key" });
       }
 
-      // Run the pipeline. generatePet validates the atlas before writing,
-      // so a failed key or bad generation surfaces an error without leaving
-      // a half-written pet that would crash the renderer on next load.
+      // Run the pipeline. Lazy-imported: sharp's native binary isn't
+      // resolvable from the bare sidecar deploy, so this only works when
+      // sharp is available (e.g. the sidecar runs from the repo root, or
+      // the caller uses scripts/run-desktop.ts which runs the pipeline
+      // directly). If sharp can't load, surface a clear error.
       try {
+        const { generatePet } = await import("./generate-pet");
         const result = await generatePet({
           description,
           displayName,

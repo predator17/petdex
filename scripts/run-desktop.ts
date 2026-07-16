@@ -67,7 +67,6 @@ async function generatePet(): Promise<string | null> {
   const key = ensureKey();
   if (!key) return null;
 
-  // Prompt for a description (keep it simple — no inquisitive wizard).
   const slug = (process.env.PETDEX_PET_ID || "my-pet").trim();
   const name = process.env.PETDEX_PET_NAME || "My Pet";
   const desc =
@@ -80,70 +79,38 @@ async function generatePet(): Promise<string | null> {
     "  (set PETDEX_PET_NAME / PETDEX_PET_ID / PETDEX_PET_DESC to customize)\n",
   );
 
-  // The sidecar must be reachable. Start it in the background.
-  const sidecarJs = join(SIDECAR_DIR, "server.js");
-  if (!existsSync(sidecarJs)) {
-    console.log("\u2717 Sidecar not staged. Run: bun scripts/setup-windows.ts");
-    return null;
-  }
-  console.log("  starting sidecar (port 7777)...");
-  const sidecar = spawn("node", [sidecarJs], { stdio: "ignore", shell: false });
-  // Give it a moment to bind + write the token.
-  await new Promise((r) => setTimeout(r, 2500));
-
-  // Read the token the sidecar wrote.
-  const tokenPath = join(RUNTIME_DIR, "update-token");
-  if (!existsSync(tokenPath)) {
-    console.log(
-      "\u2717 Sidecar did not write update-token. Check ~/.petdex/runtime/sidecar.log",
-    );
-    sidecar.kill();
-    return null;
-  }
-  const token = readFileSync(tokenPath, "utf8").trim();
-
+  // Run the pipeline DIRECTLY (not via the sidecar). The generation modules
+  // need `sharp`, whose native .node binary is resolvable from the repo's
+  // node_modules — but NOT from the bare ~/.petdex/sidecar/ deploy location.
+  // Running here (repo root, under bun) keeps sharp working and avoids the
+  // sidecar's bundled-sharp crash. The pipeline writes the pet to
+  // ~/.petdex/pets/<slug>/ and we then launch sidecar+desktop to display it.
   console.log("  generating (this takes ~2-4 min for 10 images)...");
-  const body = JSON.stringify({
-    id: slug,
-    displayName: name,
-    description: desc,
-    confirmCost: true,
-  });
   try {
-    const res = await fetch("http://127.0.0.1:7777/generate", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Petdex-Update-Token": token,
+    const { generatePet: runPipeline } = await import(
+      "../packages/petdex-desktop-windows/generation/generate-pet.ts"
+    );
+    const result = await runPipeline(
+      {
+        id: slug,
+        displayName: name,
+        description: desc,
+        apiKey: key,
       },
-      body,
-    });
-    const json = (await res.json()) as {
-      ok?: boolean;
-      petDir?: string;
-      error?: string;
-      detail?: string;
-      estimate?: unknown;
-    };
-    if (!res.ok || !json.ok) {
-      console.log(
-        `\u2717 Generation failed (HTTP ${res.status}): ${json.error ?? ""}`,
-      );
-      if (json.detail) console.log(`  ${json.detail}`);
-      if (json.error === "cost_confirmation_required") {
-        console.log(
-          "  (the server requires cost confirmation; this client already sets confirmCost:true)",
-        );
-      }
-      sidecar.kill();
+      // Surface per-step progress so the long generation isn't a silent wait.
+      (p) => {
+        if (p.phase === "error") console.log(`  \u2717 ${p.message}`);
+        else console.log(`  \u2022 ${p.message}`);
+      },
+    );
+    if (!result.ok) {
+      console.log(`\u2717 Generation failed: ${result.error}`);
       return null;
     }
-    console.log(`\u2713 Pet generated at ${json.petDir}`);
-    sidecar.kill();
+    console.log(`\u2713 Pet generated at ${result.petDir}`);
     return slug;
   } catch (e) {
-    console.log(`\u2717 Request error: ${(e as Error).message}`);
-    sidecar.kill();
+    console.log(`\u2717 Pipeline error: ${(e as Error).message}`);
     return null;
   }
 }

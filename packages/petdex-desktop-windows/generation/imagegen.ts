@@ -54,9 +54,11 @@ export async function generateImage(
     apiKey,
     prompt,
     referenceDataUrl,
-    quality = "high",
+    // medium is the pragmatic default: ~50s/image vs ~90s for high, and a
+    // full pet is 10 images. Override to "high" per-call for final quality.
+    quality = "medium",
     outputFormat = "png",
-    timeoutMs = 120_000,
+    timeoutMs = 180_000,
   } = params;
 
   if (!apiKey) throw new Error("generateImage: missing OpenRouter API key");
@@ -72,8 +74,12 @@ export async function generateImage(
   };
   if (referenceDataUrl) {
     // Identity lock: pass the canonical base so every row strip stays
-    // visually consistent. input_references accepts up to 16 data URLs.
-    body.input_references = [{ image_url: referenceDataUrl }];
+    // visually consistent. OpenRouter's input_references schema requires
+    // the OpenAI-style object form: { type: "image_url", image_url: { url } }.
+    // (A bare { image_url: "data:..." } is rejected with HTTP 400 ZodError.)
+    body.input_references = [
+      { type: "image_url", image_url: { url: referenceDataUrl } },
+    ];
   }
 
   const controller = new AbortController();
