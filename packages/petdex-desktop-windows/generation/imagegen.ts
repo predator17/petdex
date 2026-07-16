@@ -107,6 +107,15 @@ export async function generateImage(
   if (!res.ok) {
     // Sanitize: the provider error body might echo the key in rare cases.
     const text = await res.text().catch(() => "");
+    // Detect the OpenAI safety-system rejection (HTTP 400) and surface a
+    // clear, actionable message — the raw JSON dump is unhelpful and the
+    // fix is always "rephrase the description". Never include the key.
+    if (res.status === 400 && /safety system|rejected/i.test(text)) {
+      throw new Error(
+        "The pet description was rejected by the image model's safety system. " +
+          "Rephrase PETDEX_PET_DESC (avoid unusual/edgy terms) and retry.",
+      );
+    }
     throw new Error(
       `OpenRouter image request failed: HTTP ${res.status} ${res.statusText}${text ? ` — ${text.slice(0, 200)}` : ""}`,
     );
