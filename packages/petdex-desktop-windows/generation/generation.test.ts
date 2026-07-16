@@ -240,15 +240,54 @@ describe("composeAtlas + validateAtlas", () => {
     expect(result.errors.some((e) => e.includes("8x9"))).toBe(true);
   });
 
-  test("validateAtlas flags RGB residue under low alpha", async () => {
-    // Build a 1536×1872 image where many pixels are low-alpha but have
-    // non-zero RGB — exactly the halo defect the invariant catches.
+  test("validateAtlas cleans invisible RGB residue under low alpha (no fail)", async () => {
+    // Low-alpha residue is visually invisible and causes no halos — the
+    // validator now CLEANS it (zeroes RGB) rather than failing. Build a
+    // 1536×1872 image where all pixels are low-alpha with non-zero RGB.
     const raw = Buffer.alloc(ATLAS_WIDTH * ATLAS_HEIGHT * 4);
     for (let i = 0; i < raw.length; i += 4) {
       raw[i] = 255; // R residue
       raw[i + 1] = 0;
       raw[i + 2] = 0;
       raw[i + 3] = 1; // alpha below threshold, but RGB != 0 → residue
+    }
+    const residued = await sharp(raw, {
+      raw: { width: ATLAS_WIDTH, height: ATLAS_HEIGHT, channels: 4 },
+    })
+      .png()
+      .toBuffer();
+    const result = await validateAtlas(residued);
+    // Residue was detected + cleaned → not a failure.
+    expect(result.residuePixels).toBeGreaterThan(0);
+    expect(result.ok).toBe(true);
+    // The cleaned atlas should have zero residue now.
+    const recheckRaw = await sharp(result.cleanedAtlas)
+      .ensureAlpha()
+      .raw()
+      .toBuffer();
+    let residueAfter = 0;
+    for (let i = 0; i < recheckRaw.length; i += 4) {
+      if (
+        recheckRaw[i + 3] < 16 &&
+        (recheckRaw[i] !== 0 ||
+          recheckRaw[i + 1] !== 0 ||
+          recheckRaw[i + 2] !== 0)
+      )
+        residueAfter++;
+    }
+    expect(residueAfter).toBe(0);
+  });
+
+  test("validateAtlas fails on visible green-background bleed into subject", async () => {
+    // Real defect: the green background bled into VISIBLE (high-alpha)
+    // subject regions. Build a 1536×1872 image where most pixels are opaque
+    // green-dominant (g >> r,b) — the key leaked into the subject.
+    const raw = Buffer.alloc(ATLAS_WIDTH * ATLAS_HEIGHT * 4);
+    for (let i = 0; i < raw.length; i += 4) {
+      raw[i] = 50; // R low
+      raw[i + 1] = 200; // G dominant (green bleed)
+      raw[i + 2] = 50; // B low
+      raw[i + 3] = 255; // fully visible
     }
     const bad = await sharp(raw, {
       raw: { width: ATLAS_WIDTH, height: ATLAS_HEIGHT, channels: 4 },
@@ -257,9 +296,9 @@ describe("composeAtlas + validateAtlas", () => {
       .toBuffer();
     const result = await validateAtlas(bad);
     expect(result.ok).toBe(false);
-    expect(result.residuePixels).toBeGreaterThan(0);
+    expect(result.greenBleedPixels).toBeGreaterThan(0);
     expect(
-      result.errors.some((e) => e.includes("transparency invariant")),
+      result.errors.some((e) => e.includes("green-background bleed")),
     ).toBe(true);
   });
 });

@@ -165,11 +165,15 @@ export async function generatePet(
         error: `Atlas validation failed: ${validation.errors.join("; ")}`,
       };
     }
+    // Write the CLEANED atlas (validateAtlas zeroes invisible RGB residue
+    // under low alpha as part of satisfying the invariant). Writing the raw
+    // atlas would persist the residue the validator just cleaned.
+    const finalAtlas = validation.cleanedAtlas;
 
     // ── Phase 5: write to ~/.petdex/pets/<id>/ ─────────────────────
     onProgress?.({ phase: "done", message: `Writing pet to ${petDir}…` });
     await mkdir(petDir, { recursive: true });
-    await writeFile(path.join(petDir, "spritesheet.webp"), atlas);
+    await writeFile(path.join(petDir, "spritesheet.webp"), finalAtlas);
     const petJson: PetJson = {
       id,
       displayName: params.displayName,
