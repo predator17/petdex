@@ -68,7 +68,7 @@ function fail(label: string, detail?: string) {
   log(`  \u2717 ${label}${detail ? ` \u2014 ${detail}` : ""}`);
 }
 
-// ── 0. Bun + PATH ────────────────────────────────────────────────────
+// ── 0. Bun ────────────────────────────────────────────────────────────
 function stepBun(): boolean {
   log("\n[1/5] Check Bun runtime");
   // Resolve via the well-known install location (PATH may not have it).
@@ -86,39 +86,7 @@ function stepBun(): boolean {
   if (existsSync(candidate)) {
     const v = run(candidate, ["--version"]);
     if (v.status === 0) {
-      // Bun exists but isn't on PATH — add it so plain cmd.exe / a fresh
-      // terminal can find `bun`. setx writes the User PATH permanently on
-      // Windows (new shells pick it up; the current one doesn't until reopen).
-      if (process.platform === "win32") {
-        try {
-          // setx truncates at 1024 chars; read current User PATH first and
-          // append only if .bun\bin isn't already there.
-          const cur = run("powershell", [
-            "-NoProfile",
-            "-Command",
-            "[Environment]::GetEnvironmentVariable('Path','User')",
-          ]).stdout.trim();
-          if (
-            !cur
-              .toLowerCase()
-              .split(/[;]/)
-              .includes(candidate.replace(/\//g, "\\").toLowerCase()) &&
-            !cur.toLowerCase().includes(".bun\\bin")
-          ) {
-            const next = `${cur};${join(HOME, ".bun", "bin")}`;
-            run("setx", ["PATH", next]);
-            ok(
-              "Bun",
-              `${candidate} (${v.stdout.trim()}) + added to User PATH (reopen your terminal)`,
-            );
-            return true;
-          }
-        } catch {}
-      }
-      ok(
-        "Bun",
-        `${candidate} (${v.stdout.trim()}) \u2014 not on PATH, scripts use the full path`,
-      );
+      ok("Bun", `${candidate} (${v.stdout.trim()})`);
       return true;
     }
   }
@@ -127,6 +95,38 @@ function stepBun(): boolean {
     'not found. Install: powershell -c "irm bun.sh/install.ps1 | iex"',
   );
   return false;
+}
+
+// ── 0b. Persist PATH (so a fresh terminal finds bun + petdex) ─────────
+// Runs unconditionally on Windows — writes ~/.bun/bin AND ~/.petdex/bin
+// to the User PATH via .NET (idempotent, no shell-string parsing). This
+// MUST be reliable: without it, `petdex` / `bun` aren't recognized in a
+// newly-opened cmd window.
+function stepPersistPath(): void {
+  if (process.platform !== "win32") return;
+  const ps = [
+    "$bun = Join-Path $env:USERPROFILE '.bun\\bin'",
+    "$pet = Join-Path $env:USERPROFILE '.petdex\\bin'",
+    "$cur = [Environment]::GetEnvironmentVariable('Path','User')",
+    "if ($cur -eq $null) { $cur = '' }",
+    "$parts = $cur.Split(';') | Where-Object { $_ -ne '' }",
+    "$add = @()",
+    "if ($parts -notcontains $bun) { $add += $bun }",
+    "if ($parts -notcontains $pet) { $add += $pet }",
+    "if ($add.Count -gt 0) { $new = ($parts + $add) -join ';'; [Environment]::SetEnvironmentVariable('Path', $new, 'User'); Write-Output ('ADDED:' + ($add -join ',')) } else { Write-Output 'PRESENT' }",
+  ].join("; ");
+  const r = run("powershell", ["-NoProfile", "-Command", ps]);
+  const out = r.stdout.trim();
+  if (r.status === 0 && out.startsWith("ADDED:")) {
+    ok(
+      "PATH",
+      `added ${out.slice(6)} to User PATH (reopen terminals to use bun / petdex)`,
+    );
+  } else if (r.status === 0 && out === "PRESENT") {
+    ok("PATH", "~/.bun/bin + ~/.petdex/bin already in User PATH");
+  } else {
+    fail("PATH", `could not persist PATH: ${r.stderr.trim() || out}`);
+  }
 }
 
 function bunCmd(): string {
@@ -436,6 +436,7 @@ async function main() {
   }
   stepBuild();
   stepStage();
+  stepPersistPath(); // after stage so ~/.petdex/bin exists
   await stepStarterPet();
   stepZcodeHooks();
   stepKey();
