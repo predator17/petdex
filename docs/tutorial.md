@@ -1,221 +1,213 @@
-# Tutorial: Try the three new features on Windows
+# Petdex Desktop — Quick Start Guide
 
-This walks you through **ZCode hooks**, the **Windows desktop overlay**, and
-**in-app pet generation** — the three workstreams from `docs/implementation.md`.
-
-You run everything from **Command Prompt** (`cmd.exe`). Two bootstrap launchers
-(`setup.cmd`, `run.cmd`) handle the runtime: they find or install Bun, so you
-do **not** need Node, and you do not need Bun pre-installed or on your PATH.
-
-> **One rule that matters most:** after `setup.cmd` finishes, **close and reopen
-> your terminal**. Setup writes `bun` and `petdex` to your User PATH, but PATH
-> changes only apply to terminals opened *after* the write. This is the #1 source
-> of "command not found" confusion.
+A floating pet that lives on your Windows desktop and reacts to your coding
+activity. This guide assumes **zero technical background** — every step is
+ spelled out.
 
 ---
 
-## Prerequisites
+## What you'll get
 
-1. **Windows 11** (the desktop shell is Windows-only).
-2. **Git**, to clone the repo:
-   ```cmd
-   git clone https://github.com/predator17/petdex.git
-   cd petdex
-   ```
-3. **An OpenRouter API key** — *only for pet generation (Step 4).* Get one at
-   `https://openrouter.ai/keys`. Skip this if you only want the hooks + overlay.
-
-**You do NOT need:** Node.js, Bun (pre-installed), or Rust. `setup.cmd` installs
-Bun for you; the repo ships a prebuilt desktop exe. (Rust is only needed to
-*rebuild* the exe — see "Rebuilding the desktop exe" at the end.)
+- A small animated character that floats on top of your windows
+- It **reacts to ZCode**: jumps when you send a prompt, runs when a tool
+  works, waves when a turn ends
+- You can **drag it** around your screen (drag fast for a special effect!)
+- You can **swap pets** from the online library (3700+ available, all free)
 
 ---
 
-## Step 1 — One-command setup
+## Before you start
 
-Open **Command Prompt** (`cmd.exe`) in the `petdex` folder (the repo root), then:
+You need two things:
 
-```cmd
+1. **Git** — to download the project. If you don't have it, get it from
+   https://git-scm.com (download → install → keep clicking Next).
+
+2. **Windows 11** — the desktop pet only runs on Windows.
+
+That's it. Everything else is installed automatically.
+
+---
+
+## Step 1 — Download the project
+
+Open **Command Prompt** (press the Windows key, type `cmd`, press Enter) and
+run:
+
+```
+git clone https://github.com/predator17/petdex.git
+cd petdex
+```
+
+This downloads the project and moves you into its folder.
+
+---
+
+## Step 2 — One-click setup
+
+Still in Command Prompt, run:
+
+```
 setup.cmd
 ```
 
-`setup.cmd` finds Bun (or installs it if missing) and runs the full setup. You'll
-see eleven steps, each with a ✓ or ✗:
+This single command does everything:
+- Installs Bun (the tool that runs the project — you don't need to know what it is)
+- Builds the desktop pet app
+- Connects it to ZCode (so the pet reacts to your coding)
+- Sets everything up so you can just launch it
 
-```
-[1/5]   Check Bun runtime        ✓ Bun
-[2/5]   Build CLI + sidecar      ✓ petdex CLI / ✓ sidecar
-[3/5]   Stage runtime files      ✓ sidecar / ✓ desktop exe / ✓ petdex shim / ✓ PATH
-[3.5/5] Starter pet              ✓ starter pet
-[4/5]   Install ZCode hooks      ✓ persisted CLI / ✓ ZCode hooks
-[5/5]   OpenRouter API key       ✓ OpenRouter key (or "not set" — see below)
-```
+You'll see a list of green checkmarks as each step completes. If everything
+shows ✓, you're ready.
 
-What it did:
-- Built the CLI + sidecar and staged them under `~\.petdex\` (the loader's expected locations).
-- Installed a starter pet so the overlay isn't empty on first launch.
-- Wrote the ZCode hooks to `~\.zcode\cli\config.json`.
-- Created a `petdex` command shim and added `~\.bun\bin` + `~\.petdex\bin` to your User PATH.
-
-**Now close this cmd window and open a new one** (so `bun` and `petdex` are on PATH).
-
-> **Add your OpenRouter key** (only needed for Step 4 — pet generation):
-> In the repo root, create a file named `.env.local` with one line:
-> ```
-> OPENROUTER_API_KEY=sk-or-v1-...your key...
-> ```
-> `.env.local` is gitignored — it never gets committed. Then re-run `setup.cmd`
-> so it copies the key into the local key store (`~\.petdex\runtime\openrouter-key`).
+**Important:** after setup finishes, **close your Command Prompt window and
+open a new one**. This is needed for Windows to recognize the new commands.
+(It's like restarting after installing an app.)
 
 ---
 
-## Step 2 — Try the ZCode hooks
+## Step 3 — Get a pet from the library
 
-Open a **fresh** cmd window (post-setup) and verify the hooks landed:
+There are thousands of free pets online. Browse them at
+https://petdex.dev — pick any name you like.
 
-```cmd
-type "%USERPROFILE%\.zcode\cli\config.json"
+To install one, in your **new** Command Prompt:
+
+```
+petdex install aurelion-sol
 ```
 
-You should see `"hooks": { "enabled": true, "events": { ... } }` with **seven
-events** (`SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`,
-`PostToolUseFailure`, `PermissionRequest`, `Stop`), each a `"type": "process"`
-argv pointing at `~\.petdex\bin\petdex.js bubble …`.
+(Replace `aurelion-sol` with any pet name you found on the website.)
 
-Confirm the CLI detects its own hooks:
+You can install as many as you want:
 
-```cmd
-petdex doctor
 ```
-
-Scroll to the **Agents** section — ZCode should show "hooks + /petdex installed".
-
-> If `petdex` isn't recognized, you skipped the terminal reopen. Close and reopen
-> cmd, or call the shim directly: `"%USERPROFILE%\.petdex\bin\petdex.cmd" doctor`.
-
-**See it react:** launch the desktop (Step 3), then use ZCode normally — run a
-tool, send a prompt. The pet flips states: `running` while a tool works, `idle`
-after, `failed` if a tool errors (`PostToolUseFailure` — new for ZCode), `waving`
-at turn end, `jumping` on a prompt.
-
-To uninstall just the ZCode hooks later:
-```cmd
-petdex hooks uninstall
+petdex install firefly
+petdex install geometry-dash-cube
 ```
 
 ---
 
-## Step 3 — Launch the desktop overlay
+## Step 4 — Launch the pet
 
-From the repo root (any cmd window — `run.cmd` finds Bun for you):
-
-```cmd
+```
 run.cmd
 ```
 
-A small floating pet appears on top of your windows. It's transparent and
-always-on-top. Try these interactions:
+A small floating character appears on your screen (usually near the
+top-left corner). It's alive!
 
-| Action | Effect |
+### Things to try:
+
+| Action | What happens |
 |---|---|
-| **Drag the pet** | It follows your cursor, then **coasts** with momentum on release |
-| **Move cursor off the pet** | Transparent areas become **click-through** — clicks pass to the desktop |
-| **Hover the pet** | It's grabbable again (drag works) |
-| **Shift+click the pet** | Opens the **pet picker** (480×420 grid of installed pets) |
-| **Middle-click the pet** | Opens the **Settings panel** (API key + cost estimate) |
-| **Right-click the pet** | Quit |
-
-If the overlay shows nothing or "no pet found", install a real one (browse
-slugs at `https://petdex.dev`):
-```cmd
-petdex install <slug>
-```
-
-> **About the starter pet:** if your machine couldn't reach `petdex.dev` during
-> setup, the starter is a transparent placeholder — the overlay will look empty.
-> Install a real pet with `petdex install <slug>`, or generate one (Step 4).
+| **Click and drag the character** | It follows your mouse. Drag **fast** for a glow effect! |
+| **Red ✕ button** (top-right of the pet) | Closes the pet |
+| **Right-click** the pet | Also closes it |
+| **Use ZCode normally** | The pet reacts: runs when you use tools, waves when you finish, jumps when you send a prompt |
 
 ---
 
-## Step 4 — Generate a pet with gpt-image-2 (costs ~$0.40)
+## Step 5 — Connect it to ZCode (automatic!)
 
-Make sure your key is in `.env.local` and you've re-run `setup.cmd` (Step 1).
-Then from the repo root:
+The setup in Step 2 already connected the pet to ZCode. Once both ZCode and
+the pet are running, the pet will **automatically react** to what you do:
 
-```cmd
-run.cmd --generate
+| You do in ZCode | The pet does |
+|---|---|
+| Send a message / prompt | 🐰 **Jumps** (excited!) |
+| ZCode reads or edits a file | 🏃 **Runs** (working hard) |
+| A tool finishes | 😌 **Idle** (taking a breath) |
+| A tool hits an error | 💥 **Shows the error state** |
+| ZCode needs your permission | 🙋 **Waits** for you |
+| ZCode finishes its response | 👋 **Waves** (done!) |
+
+You don't need to do anything special — just use ZCode as normal and watch
+the pet react in real-time.
+
+---
+
+## Switching pets
+
+To switch to a different pet you've installed:
+
+1. Make sure the pet is running (`run.cmd`)
+2. **Shift+click** the pet → a grid of all your installed pets appears
+3. Click the one you want
+
+Or from Command Prompt:
+
+```
+petdex install <new-pet-name>
+run.cmd
 ```
 
-What happens:
-1. `run-desktop.ts` reads `OPENROUTER_API_KEY` from `.env.local`.
-2. It starts the sidecar, posts to `POST /generate` with the mandatory
-   cost-confirmation flag, and the server runs the full pipeline:
-   - 1 base portrait + 9 animation-row strips via **gpt-image-2** (identity-
-     locked — every row references the base so the pet looks consistent).
-   - Each strip is **chroma-keyed** (gpt-image-2 can't emit transparency, so
-     we generate on flat green and key it out in post).
-   - Frames are composed into a 1536×1872 (8×9) atlas and **validated** (grid
-     ratio + transparency invariant — no RGB residue under low alpha).
-3. The pet lands in `~\.petdex\pets\my-pet\` and is set active.
-4. The desktop launches and renders your generated pet.
+---
 
-**Customize** the pet by setting env vars before the command:
-```cmd
-set PETDEX_PET_NAME=Bolt
-set PETDEX_PET_ID=bolt
-set PETDEX_PET_DESC=a small lightning spirit, electric blue, glowing
-run.cmd --generate
-```
+## Shutting down
 
-> **Cost guardrail:** the server hard-rejects generation unless the client
-> asserts `confirmCost:true` (the script always does). Estimate: ~$0.40 (10
-> images) up to ~$0.80 (with retries). You'll see this in the Settings panel.
-
-This takes **2–4 minutes** (10 image generations). Watch the terminal. If it
-fails, the error names the failing row; re-run to retry.
+- **To close the pet**: click the red ✕ button, or right-click it
+- **To temporarily disable ZCode reactions** (pet stays but stops reacting):
+  ```
+  petdex down
+  ```
+- **To re-enable reactions**:
+  ```
+  petdex up
+  ```
 
 ---
 
 ## Troubleshooting
 
-| Symptom | Fix |
+| Problem | Solution |
 |---|---|
-| `'bun' is not recognized` after running setup.cmd | **Close and reopen your terminal.** Setup added `~\.bun\bin` to your User PATH, but it only applies to terminals opened *after* the write. |
-| `'petdex' is not recognized` | Same fix — reopen the terminal. Or call the shim directly: `"%USERPROFILE%\.petdex\bin\petdex.cmd" doctor`. |
-| `setup.cmd` says "Bun install failed" | Your network/proxy blocked the download. Install Bun manually from `https://bun.sh`, then re-run `setup.cmd`. |
-| Overlay shows nothing / "no pet found" | `petdex install <slug>` (browse at petdex.dev), or generate one (Step 4). |
-| Overlay won't start | Re-run `setup.cmd` — it re-stages `~\.petdex\sidecar\server.js` and the desktop exe. |
-| White box / hard edges around pet | The WebView2 transparency tuning surface (§4.4). Known risk; report your GPU/driver. |
-| Generation: `no_api_key` | Put `OPENROUTER_API_KEY=...` in `.env.local`, then re-run `setup.cmd`. |
-| Generation: `cost_confirmation_required` | Only happens if you call `/generate` manually — add `"confirmCost":true` to the body. `run.cmd --generate` does this automatically. |
-| Generation looks stuck for minutes | It's not — 10 image gens are slow. Wait 2–4 min. |
+| `'bun' is not recognized` | Close and reopen Command Prompt. If that doesn't work, run `setup.cmd` again. |
+| `'petdex' is not recognized` | Same — close and reopen Command Prompt. |
+| `'run.cmd' is not recognized` | Make sure you're in the `petdex` folder: `cd petdex` |
+| Pet doesn't appear | Wait 5 seconds after `run.cmd`. If still nothing, run `setup.cmd` again. |
+| Pet appears but is blank/dark | The pet's image might be too large. Try a different pet: `petdex install firefly` |
+| Pet doesn't react to ZCode | Make sure the sidecar is running. In Command Prompt: `"%USERPROFILE%\.bun\bin\bun.exe" "%USERPROFILE%\.petdex\sidecar\server.js"` |
+| Setup says "Bun install failed" | Your internet connection or proxy may be blocking the download. Try a VPN, or install Bun manually from https://bun.sh |
 
 ---
 
-## Rebuilding the desktop exe (optional)
+## Quick reference (all commands)
 
-The repo ships a prebuilt exe, so you can skip this. To rebuild from source:
-
-1. Install **`rustup`** (`https://rustup.rs`) and the **"Desktop development with
-   C++"** workload from Visual Studio Build Tools (provides the MSVC linker).
-2. Build it:
-   ```cmd
-   cd packages\petdex-desktop-windows\src-tauri
-   cargo build --release
-   ```
-   The exe lands at `target\release\petdex-desktop-win32-x64.exe`.
-3. Re-run `setup.cmd` to re-stage the fresh exe into `~\.petdex\bin\`.
+| Command | What it does |
+|---|---|
+| `setup.cmd` | First-time setup (installs everything) |
+| `run.cmd` | Launch the floating pet |
+| `petdex install <name>` | Download a pet from the library |
+| `petdex up` | Enable ZCode reactions |
+| `petdex down` | Disable ZCode reactions |
+| `petdex toggle` | Toggle reactions on/off |
+| `petdex doctor` | Check if everything is working |
 
 ---
 
-## What each feature maps to in the plan
+## FAQ
 
-| Feature | Plan section | Where in code |
-|---|---|---|
-| ZCode hooks (7 events, `type:process`) | §3 | `packages\petdex-cli\src\hooks\agents.ts` |
-| doctor.ts Windows fixes + find_node | §4.6–4.7 | `packages\petdex-cli\src\desktop\doctor.ts`, `src-tauri\src\lib.rs` |
-| Transparency + click-through | §4.4 | `src-tauri\src\transparency.rs` |
-| Drag physics, picker, settings, deep-links | §4.5 | `ui\index.html`, `src-tauri\src\lib.rs` |
-| Release pipeline | §4.8 | `scripts\release-desktop.ts` |
-| Chroma-key + generation pipeline | §5.4–5.6 | `packages\petdex-desktop-windows\generation\` |
-| Security (token-gate, cost, sanitize, key ACL) | §5.7 | `sidecar\server.ts`, `sidecar\prompt-sanitize.ts` |
+**Q: Do I need to know programming to use this?**
+No. Follow Steps 1–4 above. The setup handles everything.
+
+**Q: Does this cost money?**
+No. All pets in the library are free. (Generating your own pet with AI costs
+a few cents, but that's an optional advanced feature.)
+
+**Q: Will the pet slow down my computer?**
+No. It's a tiny window with a small animation — lighter than a browser tab.
+
+**Q: Can I use this with Claude Code or Codex instead of ZCode?**
+Yes! Run `petdex init` and select which agents you use. The pet reacts to
+all of them.
+
+**Q: How do I generate my own custom pet with AI?**
+That's an advanced feature. Put your OpenRouter API key in a file called
+`.env.local` in the project folder, then:
+```
+set PETDEX_PET_NAME=My Pet
+set PETDEX_PET_DESC=a friendly robot cat, blue and silver
+run.cmd --generate
+```
+This costs about $0.40 per pet (10 AI-generated images).

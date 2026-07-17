@@ -530,12 +530,6 @@ pub fn run() {
     tauri::Builder::default()
         .manage(Mutex::new(SidecarState::default()))
         // Deep-link plugin (plan §4.5): registers the `petdex://` scheme.
-        // On Windows, statically-declared schemes (tauri.conf.json
-        // plugins.deep-link.desktop.schemes) are written to the registry
-        // (HKCR\petdex\shell\open\command) at install time, and a
-        // petdex:// link launched while the app is already running is
-        // delivered here as a `deep-link://new-url` event the JS bridge
-        // subscribes to. A cold launch carries the URL as a CLI arg.
         .plugin(tauri_plugin_deep_link::init())
         .invoke_handler(tauri::generate_handler![
             list_pets,
