@@ -242,6 +242,75 @@ function loadActivePet() {
 }
 loadActivePet();
 
+// === BACKGROUND MANIFEST SYNC ===
+// Fetch the manifest from petdex.dev on app launch and cache it in
+// localStorage so the gallery opens instantly. Re-syncs every 30 min
+// to pick up new pets while the app is running.
+function startBackgroundSync() {
+  if (!window.__TAURI__ || !window.__TAURI__.core) {
+    setTimeout(startBackgroundSync, 500);
+    return;
+  }
+  // Initial sync on launch
+  syncManifestQuiet();
+  // Re-sync every 30 minutes
+  setInterval(syncManifestQuiet, 30 * 60 * 1000);
+}
+
+function syncManifestQuiet() {
+  fetch("https://petdex.dev/api/manifest")
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      var fresh = (data.pets || []).map(function (p) {
+        return {
+          slug: p.slug,
+          name: p.displayName || p.slug,
+          kind: p.kind || "unknown",
+          sprite: p.spritesheetUrl || "",
+        };
+      });
+      // Only update + cache if something changed
+      if (fresh.length !== allPets.length ||
+          (fresh.length > 0 && fresh[0].slug !== (allPets[0] || {}).slug)) {
+        allPets = fresh;
+        manifestCacheTime = Date.now();
+        try {
+          localStorage.setItem(MANIFEST_CACHE_KEY, JSON.stringify(allPets));
+          localStorage.setItem(MANIFEST_CACHE_TIME_KEY, String(manifestCacheTime));
+        } catch (e) {}
+        // If gallery is open, refresh it
+        if (document.getElementById("gallery") &&
+            document.getElementById("gallery").classList.contains("visible")) {
+          galleryFiltered = filterByCategory(allPets);
+          galleryShown = 0;
+          renderGalleryPage();
+        }
+      } else {
+        // Same count — just update the cache timestamp
+        manifestCacheTime = Date.now();
+        try {
+          localStorage.setItem(MANIFEST_CACHE_TIME_KEY, String(manifestCacheTime));
+        } catch (e) {}
+      }
+    })
+    .catch(function () {
+      // Network error — keep using cached data
+    });
+}
+
+// Also try loading cached manifest immediately on boot (instant gallery)
+try {
+  var cachedTime = parseInt(localStorage.getItem(MANIFEST_CACHE_TIME_KEY) || "0");
+  var cached = localStorage.getItem(MANIFEST_CACHE_KEY);
+  if (cached && cachedTime > 0) {
+    allPets = JSON.parse(cached);
+    manifestCacheTime = cachedTime;
+  }
+} catch (e) {}
+
+// Start background sync after a short delay (let loadActivePet go first)
+setTimeout(startBackgroundSync, 2000);
+
 // === ANIMATION STATES ===
 var ROWS = {
   idle: { row: 0, frames: 6, dur: 1100 },
