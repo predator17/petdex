@@ -422,54 +422,66 @@ function loadSwitcher() {
   var invoke = window.__TAURI__.core.invoke;
   var grid = document.getElementById("switcher-grid");
   if (!grid) return;
-  grid.innerHTML = '<div class="loading">Loading...</div>';
+  grid.innerHTML = '<div class="loading">Loading installed pets...</div>';
   invoke("list_installed_pets").then(function (pets) {
     grid.innerHTML = "";
     if (!pets || pets.length === 0) {
       grid.innerHTML =
-        '<div class="loading">No pets installed. Use the gallery to install some.</div>';
+        '<div class="loading">No pets installed. Use the gallery (blue eye button) to install some.</div>';
       return;
     }
+    var _loop_1 = function (p) {
+      // Get the pet's sprite path via get_pet, then load it as base64
+      invoke("get_pet", { slug: p.slug }).then(function (meta) {
+        if (!meta || !meta.sprite_path) return;
+        invoke("read_file_as_base64", { path: meta.sprite_path }).then(function (b64) {
+          var card = document.createElement("div");
+          card.className = "pet-card";
+          var anim = document.createElement("div");
+          anim.className = "pet-anim";
+          var inner = document.createElement("div");
+          inner.className = "pet-anim-inner";
+          // Compact the sprite for the thumbnail
+          inner.style.backgroundImage =
+            "url(data:image/png;base64," + b64 + ")";
+          anim.appendChild(inner);
+          var nm = document.createElement("div");
+          nm.className = "pname";
+          nm.textContent = p.name;
+          var sl = document.createElement("div");
+          sl.className = "pslug";
+          sl.textContent = p.slug;
+          var btn = document.createElement("button");
+          btn.className = "pet-btn";
+          btn.textContent = "Activate";
+          btn.addEventListener("click", function (e) {
+            e.stopPropagation();
+            btn.textContent = "Switching...";
+            invoke("set_active_pet", { slug: p.slug })
+              .then(function () {
+                showBubble("Switched to " + p.name);
+                closePanel("switcher");
+                // Reload the page so the new pet's sprite loads
+                setTimeout(function () { location.reload(); }, 300);
+              })
+              .catch(function (err) {
+                btn.textContent = "Activate";
+                showBubble("Switch failed: " + String(err).slice(0, 30));
+              });
+          });
+          card.appendChild(anim);
+          card.appendChild(nm);
+          card.appendChild(sl);
+          card.appendChild(btn);
+          grid.appendChild(card);
+        }).catch(function () {});
+      }).catch(function () {});
+    };
     for (var i = 0; i < pets.length; i++) {
-      (function (p) {
-        var card = document.createElement("div");
-        card.className = "pet-card";
-        var anim = document.createElement("div");
-        anim.className = "pet-anim";
-        var inner = document.createElement("div");
-        inner.className = "pet-anim-inner";
-        // Use the installed sprite (via Tauri asset protocol)
-        invoke("read_file_as_base64", { path: "" }).catch(function () {}); // dummy
-        // Just show the name for now — sprite loading per installed pet is complex
-        var nm = document.createElement("div");
-        nm.className = "pname";
-        nm.textContent = p.name;
-        var sl = document.createElement("div");
-        sl.className = "pslug";
-        sl.textContent = p.slug;
-        var btn = document.createElement("button");
-        btn.className = "pet-btn";
-        btn.textContent = "Activate";
-        btn.style.background = "#6b8cff";
-        btn.addEventListener("click", function (e) {
-          e.stopPropagation();
-          invoke("set_active_pet", { slug: p.slug })
-            .then(function () {
-              showBubble("Switched to " + p.name);
-              closePanel("switcher");
-            })
-            .catch(function (e) {
-              showBubble("Switch failed");
-            });
-        });
-        anim.appendChild(inner);
-        card.appendChild(anim);
-        card.appendChild(nm);
-        card.appendChild(sl);
-        card.appendChild(btn);
-        grid.appendChild(card);
-      })(pets[i]);
+      _loop_1(pets[i]);
     }
+  }).catch(function (e) {
+    grid.innerHTML = '<div class="loading">Failed to load pets.</div>';
   });
 }
 
