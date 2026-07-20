@@ -54,17 +54,22 @@ body.expanded{overflow:auto}
 }
 #gallery.visible{display:block}
 #gallery-header{
-  position:absolute;top:0;left:0;right:0;z-index:60;
-  background:#12122a;padding:8px 10px 6px;
-  border-bottom:1px solid #2a2a4a
+  position:absolute;top:0;left:0;right:0;height:34px;z-index:60;
+  background:#12122a;padding:8px 10px 0;
+  border-bottom:1px solid #2a2a4a;cursor:grab
 }
-#gallery h3{font-size:14px;margin-bottom:6px;color:#6b8cff}
-#gallery .close-btn{position:absolute;top:8px;right:8px;width:32px;height:32px;background:#e74c3c;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font:bold 18px sans-serif;z-index:50;border:2px solid #c0392b}
+#gallery-header:active{cursor:grabbing}
+#gallery h3{font-size:14px;margin:0;color:#6b8cff}
+#gallery-controls{
+  position:absolute;top:34px;left:0;right:0;z-index:55;
+  background:#12122a;padding:4px 10px 6px
+}
+#gallery .close-btn{position:absolute;top:4px;right:8px;width:28px;height:28px;background:#e74c3c;border-radius:5px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font:bold 16px sans-serif;z-index:50;border:2px solid #c0392b}
 #gallery .close-btn:hover{background:#ff5555;transform:scale(1.1)}
 #gallery .search{width:calc(100% - 45px);padding:8px;background:#1e1e3a;border:1px solid #444;border-radius:6px;color:#eee;font:13px sans-serif;margin-bottom:6px}
 #gallery .cat-tabs{display:flex;gap:6px;margin-bottom:0;flex-wrap:wrap}
 #gallery-scroll{
-  position:absolute;top:110px;left:0;right:0;bottom:0;
+  position:absolute;top:100px;left:0;right:0;bottom:0;
   overflow:auto;padding:10px
 }
 #gallery .cat-tab{padding:4px 12px;background:#1e1e3a;border-radius:12px;font-size:11px;color:#888;cursor:pointer;user-select:none;transition:background .2s,color .2s}
@@ -79,6 +84,14 @@ body.expanded{overflow:auto}
   background-repeat:no-repeat;background-size:768px 936px;
   image-rendering:pixelated;
   animation:gallery-idle 1100ms steps(6) infinite;
+  background-color:#1a1a3a;
+}
+#gallery .pet-card .pet-anim-inner:not([style*="background-image"]){
+  display:flex;align-items:center;justify-content:center;
+  animation:none;
+}
+#gallery .pet-card .pet-anim-inner:not([style*="background-image"])::before{
+  content:"🎨";font-size:28px;opacity:0.3
 }
 @keyframes gallery-idle{from{background-position:0 0}to{background-position:-576px 0}}
 #gallery .pet-card .pname{font-size:11px;color:#ccc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
@@ -91,10 +104,12 @@ body.expanded{overflow:auto}
 /* Switcher panel (reuses gallery card styles) */
 #switcher{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:#12122a;z-index:30;overflow:hidden;font:12px/1.4 system-ui,sans-serif;color:#ddd}
 #switcher.visible{display:block}
-#switcher-header{position:absolute;top:0;left:0;right:0;z-index:60;background:#12122a;padding:8px 10px 6px;border-bottom:1px solid #2a2a4a}
-#switcher h3{font-size:14px;margin-bottom:6px;color:#6b8cff}
-#switcher .close-btn{position:absolute;top:8px;right:8px;width:32px;height:32px;background:#e74c3c;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font:bold 18px sans-serif;z-index:50;border:2px solid #c0392b}
-#switcher-scroll{position:absolute;top:50px;left:0;right:0;bottom:0;overflow:auto;padding:10px}
+#switcher-header{position:absolute;top:0;left:0;right:0;height:34px;z-index:60;background:#12122a;padding:8px 10px 0;border-bottom:1px solid #2a2a4a;cursor:grab}
+#switcher-header:active{cursor:grabbing}
+#switcher h3{font-size:14px;margin:0;color:#6b8cff}
+#switcher-controls{position:absolute;top:34px;left:0;right:0;z-index:55;background:#12122a;padding:4px 10px 6px}
+#switcher .close-btn{position:absolute;top:4px;right:8px;width:28px;height:28px;background:#e74c3c;border-radius:5px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font:bold 16px sans-serif;z-index:50;border:2px solid #c0392b}
+#switcher-scroll{position:absolute;top:70px;left:0;right:0;bottom:0;overflow:auto;padding:10px}
 #switcher .grid{display:grid;gap:10px;padding-bottom:20px}
 #switcher .pet-card{background:#1e1e3a;border-radius:8px;padding:8px;cursor:pointer;text-align:center;overflow:hidden;transition:background .2s;border:1px solid #2a2a4a}
 #switcher .pet-card:hover{background:#2a4a6a;border-color:#4a7aaa}
@@ -132,15 +147,16 @@ body.expanded{overflow:auto}
 </div>
 
 <div id="gallery">
-  <div id="gallery-header">
-    <div class="close-btn" id="gallery-close">X</div>
+  <div id="gallery-header" data-tauri-drag-region>
     <h3>Pet Library</h3>
+  </div>
+  <div id="gallery-controls">
+    <div class="close-btn" id="gallery-close">X</div>
     <div class="cat-tabs">
       <div class="cat-tab active" data-cat="all">All</div>
       <div class="cat-tab" data-cat="character">Characters</div>
       <div class="cat-tab" data-cat="creature">Creatures</div>
       <div class="cat-tab" data-cat="object">Objects</div>
-    </div>
     <input type="text" class="search" id="pet-search" placeholder="Search 3700+ pets..."/>
   </div>
   <div id="gallery-scroll">
@@ -149,9 +165,11 @@ body.expanded{overflow:auto}
 </div>
 
 <div id="switcher">
-  <div id="switcher-header">
-    <div class="close-btn" id="switcher-close">X</div>
+  <div id="switcher-header" data-tauri-drag-region>
     <h3>Switch Pet</h3>
+  </div>
+  <div id="switcher-controls">
+    <div class="close-btn" id="switcher-close">X</div>
   </div>
   <div id="switcher-scroll">
     <div class="grid" id="switcher-grid" style="grid-template-columns:repeat(2,1fr)"><div class="loading">Loading...</div></div>
@@ -159,36 +177,42 @@ body.expanded{overflow:auto}
 </div>
 
 <script>// === DRAG: manual startDragging on mousedown (no data-tauri-drag-region) ===
-// data-tauri-drag-region on #root captures ALL clicks, preventing buttons
-// from working. Instead, we listen for mousedown on the background areas
-// (not on buttons) and call Tauri's startDragging() manually. This is
-// exactly how the macOS main.zig does it.
+// data-tauri-drag-region captures ALL clicks at the native level, preventing
+// buttons from working. Instead, we listen for mousedown on background areas
+// and call Tauri's startDragging() manually.
 function setupManualDrag() {
   if (!window.__TAURI__ || !window.__TAURI__.window) {
     setTimeout(setupManualDrag, 200);
     return;
   }
   var win = window.__TAURI__.window.getCurrentWindow();
-  var root = document.getElementById("root");
-  root.addEventListener("mousedown", function (e) {
-    // Only start drag for left-click on background (not buttons/sprite)
-    if (e.button !== 0) return;
-    var target = e.target;
-    // Don't drag if clicking on interactive elements
-    if (
-      target.id === "quit" ||
-      target.id === "switch-btn" ||
-      target.id === "gallery-btn" ||
-      target.closest(".pet-btn") ||
-      target.closest(".close-btn") ||
-      target.closest(".cat-tab") ||
-      target.tagName === "INPUT" ||
-      target.tagName === "BUTTON"
-    ) {
-      return;
-    }
-    win.startDragging().catch(function () {});
-  });
+
+  // Elements that should trigger window dragging when clicked
+  var dragZones = ["root", "gallery-header", "switcher-header"];
+
+  for (var zi = 0; zi < dragZones.length; zi++) {
+    var el = document.getElementById(dragZones[zi]);
+    if (!el) continue;
+    (function (zone) {
+      zone.addEventListener("mousedown", function (e) {
+        if (e.button !== 0) return;
+        var target = e.target;
+        // Don't drag if clicking on interactive elements
+        if (
+          target.tagName === "BUTTON" ||
+          target.tagName === "INPUT" ||
+          target.closest(".pet-btn") ||
+          target.closest(".close-btn") ||
+          target.closest(".cat-tab") ||
+          target.closest("button") ||
+          target.closest("input")
+        ) {
+          return;
+        }
+        win.startDragging().catch(function () {});
+      });
+    })(el);
+  }
 }
 setupManualDrag();
 
@@ -280,13 +304,7 @@ loadActivePet();
 // localStorage so the gallery opens instantly. Re-syncs every 30 min
 // to pick up new pets while the app is running.
 function startBackgroundSync() {
-  if (!window.__TAURI__ || !window.__TAURI__.core) {
-    setTimeout(startBackgroundSync, 500);
-    return;
-  }
-  // Initial sync on launch
   syncManifestQuiet();
-  // Re-sync every 30 minutes
   setInterval(syncManifestQuiet, 30 * 60 * 1000);
 }
 
@@ -331,18 +349,18 @@ function syncManifestQuiet() {
     });
 }
 
-// Also try loading cached manifest immediately on boot (instant gallery)
+// Load cached manifest from localStorage at boot — INSTANT gallery access.
+// The background sync refreshes it silently every 30 min.
 try {
-  var cachedTime = parseInt(localStorage.getItem(MANIFEST_CACHE_TIME_KEY) || "0");
   var cached = localStorage.getItem(MANIFEST_CACHE_KEY);
-  if (cached && cachedTime > 0) {
+  if (cached && cached.length > 100) {
     allPets = JSON.parse(cached);
-    manifestCacheTime = cachedTime;
+    manifestCacheTime = parseInt(localStorage.getItem(MANIFEST_CACHE_TIME_KEY) || "0");
   }
 } catch (e) {}
 
-// Start background sync after a short delay (let loadActivePet go first)
-setTimeout(startBackgroundSync, 2000);
+// Start background sync 5s after boot (doesn't block gallery — it uses cache)
+setTimeout(startBackgroundSync, 5000);
 
 // === ANIMATION STATES ===
 var ROWS = {
@@ -435,45 +453,22 @@ var CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 async function loadGallery() {
   var grid = document.getElementById("pet-grid");
 
-  // 1. Try to load from localStorage cache FIRST (instant)
-  try {
-    var cachedTime = parseInt(localStorage.getItem(MANIFEST_CACHE_TIME_KEY) || "0");
-    var cached = localStorage.getItem(MANIFEST_CACHE_KEY);
-    if (cached && cachedTime > 0) {
-      allPets = JSON.parse(cached);
-      manifestCacheTime = cachedTime;
-      var age = Date.now() - cachedTime;
-      if (age < CACHE_TTL_MS) {
-        // Cache is fresh — show immediately
-        await refreshInstalled();
-        galleryFiltered = filterByCategory(allPets);
-        galleryShown = 0;
-        renderGalleryPage();
-        // Still sync in background for any new pets
-        syncManifestInBackground();
-        return;
-      }
-      // Cache is stale — show it while fetching fresh
-      grid.innerHTML = '<div class="loading">Showing cached list. Syncing...</div>';
-      await refreshInstalled();
-      galleryFiltered = filterByCategory(allPets);
-      galleryShown = 0;
-      renderGalleryPage();
-    } else {
-      grid.innerHTML = '<div class="loading">Fetching pets...</div>';
-    }
-  } catch (e) {
-    grid.innerHTML = '<div class="loading">Fetching pets...</div>';
+  // 1. Load from localStorage cache IMMEDIATELY — render instantly.
+  // allPets is already loaded from localStorage at boot (see startup code).
+  // If it has data, show it RIGHT NOW without any network call.
+  if (allPets.length > 0) {
+    await refreshInstalled();
+    galleryFiltered = filterByCategory(allPets);
+    galleryShown = 0;
+    renderGalleryPage();
+    // Sync fresh data in background (silently, no loading indicator)
+    syncManifestQuiet();
+    return;
   }
 
-  // 2. Fetch fresh manifest
+  // 2. No cache at all — must fetch (first-ever open)
+  grid.innerHTML = '<div class="loading">Fetching pets...</div>';
   await syncManifest();
-
-  // 3. Render
-  await refreshInstalled();
-  galleryFiltered = filterByCategory(allPets);
-  galleryShown = 0;
-  renderGalleryPage();
 }
 
 async function syncManifest() {
@@ -510,8 +505,9 @@ async function syncManifest() {
   }
 }
 
-function syncManifestInBackground() {
-  // Silently fetch fresh data. Only re-render if pets count changed.
+function syncManifestQuiet() {
+  // Silently fetch fresh data. No loading indicators, no blocking.
+  // Only re-render if the data actually changed.
   fetch("https://petdex.dev/api/manifest")
     .then(function (r) { return r.json(); })
     .then(function (data) {
@@ -523,13 +519,16 @@ function syncManifestInBackground() {
           sprite: p.spritesheetUrl || "",
         };
       });
-      if (fresh.length !== allPets.length) {
-        allPets = fresh;
-        manifestCacheTime = Date.now();
-        try {
-          localStorage.setItem(MANIFEST_CACHE_KEY, JSON.stringify(allPets));
-          localStorage.setItem(MANIFEST_CACHE_TIME_KEY, String(manifestCacheTime));
-        } catch (e) {}
+      // Always update cache
+      allPets = fresh;
+      manifestCacheTime = Date.now();
+      try {
+        localStorage.setItem(MANIFEST_CACHE_KEY, JSON.stringify(allPets));
+        localStorage.setItem(MANIFEST_CACHE_TIME_KEY, String(manifestCacheTime));
+      } catch (e) {}
+      // Re-render gallery if it's currently open
+      if (document.getElementById("gallery") &&
+          document.getElementById("gallery").classList.contains("visible")) {
         galleryFiltered = filterByCategory(allPets);
         galleryShown = 0;
         renderGalleryPage();
@@ -566,19 +565,57 @@ async function refreshInstalled() {
   } catch (e) {}
 }
 
-// Preload sprites in parallel via fetch() + blob URLs (4-5x faster than
-// sequential CSS background-image loading). Returns a map of slug→url.
-function preloadSprites(pets) {
-  var promises = pets.map(function (p) {
-    if (spriteCache[p.slug]) return Promise.resolve(); // already cached
-    return fetch(p.sprite)
-      .then(function (r) { return r.blob(); })
-      .then(function (blob) {
-        spriteCache[p.slug] = URL.createObjectURL(blob);
-      })
-      .catch(function () {}); // skip failed sprites
-  });
-  return Promise.all(promises);
+// Lazy-load sprites: only load when a card is scrolled into view.
+// Uses IntersectionObserver to detect visibility. Sprites are fetched
+// in parallel batches of 6 (to avoid overwhelming the browser's
+// connection pool) and cached as blob URLs.
+function lazyLoadSprite(p, inner) {
+  if (spriteCache[p.slug]) {
+    inner.style.backgroundImage = "url('" + spriteCache[p.slug] + "')";
+    return;
+  }
+  // Mark as loading to prevent duplicate fetches
+  spriteCache[p.slug] = "__loading__";
+  fetch(p.sprite)
+    .then(function (r) { return r.blob(); })
+    .then(function (blob) {
+      spriteCache[p.slug] = URL.createObjectURL(blob);
+      inner.style.backgroundImage = "url('" + spriteCache[p.slug] + "')";
+    })
+    .catch(function () {
+      spriteCache[p.slug] = null; // allow retry
+    });
+}
+
+var spriteObserver = null;
+function setupSpriteLazyLoad() {
+  if (spriteObserver) spriteObserver.disconnect();
+  spriteObserver = new IntersectionObserver(
+    function (entries) {
+      for (var i = 0; i < entries.length; i++) {
+        if (entries[i].isIntersecting) {
+          var inner = entries[i].target;
+          var slug = inner.dataset.slug;
+          // Find the pet data
+          for (var j = 0; j < allPets.length; j++) {
+            if (allPets[j].slug === slug) {
+              lazyLoadSprite(allPets[j], inner);
+              break;
+            }
+          }
+          spriteObserver.unobserve(inner);
+        }
+      }
+    },
+    { root: document.getElementById("gallery-scroll"), rootMargin: "200px", threshold: 0 }
+  );
+  // Observe all unrendered inner elements
+  var inners = document.querySelectorAll(".pet-anim-inner[data-slug]");
+  for (var k = 0; k < inners.length; k++) {
+    if (!inners[k].style.backgroundImage) {
+      spriteObserver.observe(inners[k]);
+    }
+  }
 }
 
 function renderGalleryPage() {
@@ -587,8 +624,6 @@ function renderGalleryPage() {
   var end = Math.min(galleryShown + PAGE, galleryFiltered.length);
   var pagePets = galleryFiltered.slice(galleryShown, end);
 
-  // Show placeholder cards immediately, then preload sprites in parallel
-  var cards = [];
   for (var i = 0; i < pagePets.length; i++) {
     (function (p) {
       var card = document.createElement("div");
@@ -598,8 +633,8 @@ function renderGalleryPage() {
       var inner = document.createElement("div");
       inner.className = "pet-anim-inner";
       inner.dataset.slug = p.slug;
-      // Use cached sprite if available, otherwise show placeholder
-      if (spriteCache[p.slug]) {
+      // Use cached sprite if available (from previous view)
+      if (spriteCache[p.slug] && spriteCache[p.slug] !== "__loading__") {
         inner.style.backgroundImage = "url('" + spriteCache[p.slug] + "')";
       }
       anim.appendChild(inner);
@@ -623,20 +658,14 @@ function renderGalleryPage() {
       card.appendChild(sl);
       card.appendChild(btn);
       grid.appendChild(card);
-      cards.push({ slug: p.slug, inner: inner });
     })(pagePets[i]);
   }
   galleryShown = end;
 
-  // Preload all sprites for this page in parallel (4-5x faster)
-  preloadSprites(pagePets).then(function () {
-    for (var ci = 0; ci < cards.length; ci++) {
-      var c = cards[ci];
-      if (spriteCache[c.slug]) {
-        c.inner.style.backgroundImage = "url('" + spriteCache[c.slug] + "')";
-      }
-    }
-  });
+  // Lazy-load sprites: only fetch sprites for cards visible in the viewport.
+  // This makes the gallery render INSTANTLY (0 sprite downloads on page render).
+  // Sprites load as the user scrolls, via IntersectionObserver.
+  setupSpriteLazyLoad();
   var old = grid.querySelector(".sentinel");
   if (old) old.remove();
   if (galleryShown < galleryFiltered.length) {

@@ -129,8 +129,6 @@ function startBackgroundSync() {
   syncManifestQuiet();
   setInterval(syncManifestQuiet, 30 * 60 * 1000);
 }
-  setInterval(syncManifestQuiet, 30 * 60 * 1000);
-}
 
 function syncManifestQuiet() {
   fetch("https://petdex.dev/api/manifest")
