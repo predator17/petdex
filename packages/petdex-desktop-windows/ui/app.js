@@ -120,13 +120,9 @@ loadActivePet();
 // localStorage so the gallery opens instantly. Re-syncs every 30 min
 // to pick up new pets while the app is running.
 function startBackgroundSync() {
-  if (!window.__TAURI__ || !window.__TAURI__.core) {
-    setTimeout(startBackgroundSync, 500);
-    return;
-  }
-  // Initial sync on launch
   syncManifestQuiet();
-  // Re-sync every 30 minutes
+  setInterval(syncManifestQuiet, 30 * 60 * 1000);
+}
   setInterval(syncManifestQuiet, 30 * 60 * 1000);
 }
 
@@ -171,18 +167,18 @@ function syncManifestQuiet() {
     });
 }
 
-// Also try loading cached manifest immediately on boot (instant gallery)
+// Load cached manifest from localStorage at boot — INSTANT gallery access.
+// The background sync refreshes it silently every 30 min.
 try {
-  var cachedTime = parseInt(localStorage.getItem(MANIFEST_CACHE_TIME_KEY) || "0");
   var cached = localStorage.getItem(MANIFEST_CACHE_KEY);
-  if (cached && cachedTime > 0) {
+  if (cached && cached.length > 100) {
     allPets = JSON.parse(cached);
-    manifestCacheTime = cachedTime;
+    manifestCacheTime = parseInt(localStorage.getItem(MANIFEST_CACHE_TIME_KEY) || "0");
   }
 } catch (e) {}
 
-// Start background sync after a short delay (let loadActivePet go first)
-setTimeout(startBackgroundSync, 2000);
+// Start background sync 5s after boot (doesn't block gallery — it uses cache)
+setTimeout(startBackgroundSync, 5000);
 
 // === ANIMATION STATES ===
 var ROWS = {
@@ -275,45 +271,22 @@ var CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 async function loadGallery() {
   var grid = document.getElementById("pet-grid");
 
-  // 1. Try to load from localStorage cache FIRST (instant)
-  try {
-    var cachedTime = parseInt(localStorage.getItem(MANIFEST_CACHE_TIME_KEY) || "0");
-    var cached = localStorage.getItem(MANIFEST_CACHE_KEY);
-    if (cached && cachedTime > 0) {
-      allPets = JSON.parse(cached);
-      manifestCacheTime = cachedTime;
-      var age = Date.now() - cachedTime;
-      if (age < CACHE_TTL_MS) {
-        // Cache is fresh — show immediately
-        await refreshInstalled();
-        galleryFiltered = filterByCategory(allPets);
-        galleryShown = 0;
-        renderGalleryPage();
-        // Still sync in background for any new pets
-        syncManifestInBackground();
-        return;
-      }
-      // Cache is stale — show it while fetching fresh
-      grid.innerHTML = '<div class="loading">Showing cached list. Syncing...</div>';
-      await refreshInstalled();
-      galleryFiltered = filterByCategory(allPets);
-      galleryShown = 0;
-      renderGalleryPage();
-    } else {
-      grid.innerHTML = '<div class="loading">Fetching pets...</div>';
-    }
-  } catch (e) {
-    grid.innerHTML = '<div class="loading">Fetching pets...</div>';
+  // 1. Load from localStorage cache IMMEDIATELY — render instantly.
+  // allPets is already loaded from localStorage at boot (see startup code).
+  // If it has data, show it RIGHT NOW without any network call.
+  if (allPets.length > 0) {
+    await refreshInstalled();
+    galleryFiltered = filterByCategory(allPets);
+    galleryShown = 0;
+    renderGalleryPage();
+    // Sync fresh data in background (silently, no loading indicator)
+    syncManifestQuiet();
+    return;
   }
 
-  // 2. Fetch fresh manifest
+  // 2. No cache at all — must fetch (first-ever open)
+  grid.innerHTML = '<div class="loading">Fetching pets...</div>';
   await syncManifest();
-
-  // 3. Render
-  await refreshInstalled();
-  galleryFiltered = filterByCategory(allPets);
-  galleryShown = 0;
-  renderGalleryPage();
 }
 
 async function syncManifest() {
@@ -350,8 +323,9 @@ async function syncManifest() {
   }
 }
 
-function syncManifestInBackground() {
-  // Silently fetch fresh data. Only re-render if pets count changed.
+function syncManifestQuiet() {
+  // Silently fetch fresh data. No loading indicators, no blocking.
+  // Only re-render if the data actually changed.
   fetch("https://petdex.dev/api/manifest")
     .then(function (r) { return r.json(); })
     .then(function (data) {
@@ -363,13 +337,16 @@ function syncManifestInBackground() {
           sprite: p.spritesheetUrl || "",
         };
       });
-      if (fresh.length !== allPets.length) {
-        allPets = fresh;
-        manifestCacheTime = Date.now();
-        try {
-          localStorage.setItem(MANIFEST_CACHE_KEY, JSON.stringify(allPets));
-          localStorage.setItem(MANIFEST_CACHE_TIME_KEY, String(manifestCacheTime));
-        } catch (e) {}
+      // Always update cache
+      allPets = fresh;
+      manifestCacheTime = Date.now();
+      try {
+        localStorage.setItem(MANIFEST_CACHE_KEY, JSON.stringify(allPets));
+        localStorage.setItem(MANIFEST_CACHE_TIME_KEY, String(manifestCacheTime));
+      } catch (e) {}
+      // Re-render gallery if it's currently open
+      if (document.getElementById("gallery") &&
+          document.getElementById("gallery").classList.contains("visible")) {
         galleryFiltered = filterByCategory(allPets);
         galleryShown = 0;
         renderGalleryPage();
