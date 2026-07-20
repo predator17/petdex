@@ -1,34 +1,40 @@
 // === DRAG: manual startDragging on mousedown (no data-tauri-drag-region) ===
-// data-tauri-drag-region on #root captures ALL clicks, preventing buttons
-// from working. Instead, we listen for mousedown on the background areas
-// (not on buttons) and call Tauri's startDragging() manually. This is
-// exactly how the macOS main.zig does it.
+// data-tauri-drag-region captures ALL clicks at the native level, preventing
+// buttons from working. Instead, we listen for mousedown on background areas
+// and call Tauri's startDragging() manually.
 function setupManualDrag() {
   if (!window.__TAURI__ || !window.__TAURI__.window) {
     setTimeout(setupManualDrag, 200);
     return;
   }
   var win = window.__TAURI__.window.getCurrentWindow();
-  var root = document.getElementById("root");
-  root.addEventListener("mousedown", function (e) {
-    // Only start drag for left-click on background (not buttons/sprite)
-    if (e.button !== 0) return;
-    var target = e.target;
-    // Don't drag if clicking on interactive elements
-    if (
-      target.id === "quit" ||
-      target.id === "switch-btn" ||
-      target.id === "gallery-btn" ||
-      target.closest(".pet-btn") ||
-      target.closest(".close-btn") ||
-      target.closest(".cat-tab") ||
-      target.tagName === "INPUT" ||
-      target.tagName === "BUTTON"
-    ) {
-      return;
-    }
-    win.startDragging().catch(function () {});
-  });
+
+  // Elements that should trigger window dragging when clicked
+  var dragZones = ["root", "gallery-header", "switcher-header"];
+
+  for (var zi = 0; zi < dragZones.length; zi++) {
+    var el = document.getElementById(dragZones[zi]);
+    if (!el) continue;
+    (function (zone) {
+      zone.addEventListener("mousedown", function (e) {
+        if (e.button !== 0) return;
+        var target = e.target;
+        // Don't drag if clicking on interactive elements
+        if (
+          target.tagName === "BUTTON" ||
+          target.tagName === "INPUT" ||
+          target.closest(".pet-btn") ||
+          target.closest(".close-btn") ||
+          target.closest(".cat-tab") ||
+          target.closest("button") ||
+          target.closest("input")
+        ) {
+          return;
+        }
+        win.startDragging().catch(function () {});
+      });
+    })(el);
+  }
 }
 setupManualDrag();
 
