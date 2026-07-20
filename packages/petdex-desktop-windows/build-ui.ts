@@ -43,8 +43,8 @@ body.expanded{overflow:auto}
   --sprite-y:calc(var(--sprite-row) * -208px);
   --sprite-end-x:calc(var(--sprite-frames) * -192px);
   position:absolute;bottom:0;left:0;width:192px;height:208px;
-  background-image:url(data:image/webp;base64,${b64});
-  background-repeat:no-repeat;background-size:1536px ${gridH}px;
+  background-image:none;
+  background-repeat:no-repeat;background-size:1536px 1872px;
   image-rendering:pixelated;
   animation:pet-state var(--sprite-duration) steps(var(--sprite-frames)) infinite;
   pointer-events:none;transition:transform .15s ease,filter .2s ease

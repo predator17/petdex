@@ -53,6 +53,34 @@ function setupDragPoll() {
 }
 setupDragPoll();
 
+// === LOAD ACTIVE PET SPRITE DYNAMICALLY (not baked in CSS) ===
+// The sprite is loaded at runtime via Tauri invoke, so switching pets
+// actually changes the visible image without rebuilding HTML.
+function loadActivePet() {
+  if (!window.__TAURI__ || !window.__TAURI__.core) {
+    setTimeout(loadActivePet, 200);
+    return;
+  }
+  var invoke = window.__TAURI__.core.invoke;
+  invoke("get_active_pet").then(function (pet) {
+    if (!pet) {
+      document.getElementById("label").textContent = "no pet";
+      return;
+    }
+    document.getElementById("label").textContent = pet.name || pet.slug;
+    invoke("read_file_as_base64", { path: pet.sprite_path }).then(function (b64) {
+      var sprite = document.getElementById("sprite");
+      if (sprite) {
+        sprite.style.backgroundImage =
+          "url(data:image/png;base64," + b64 + ")";
+      }
+    }).catch(function () {});
+  }).catch(function () {
+    setTimeout(loadActivePet, 500);
+  });
+}
+loadActivePet();
+
 // === ANIMATION STATES ===
 var ROWS = {
   idle: { row: 0, frames: 6, dur: 1100 },
@@ -330,8 +358,8 @@ function loadSwitcher() {
               .then(function () {
                 showBubble("Switched to " + p.name);
                 closePanel("switcher");
-                // Reload the page so the new pet's sprite loads
-                setTimeout(function () { location.reload(); }, 300);
+                // Reload the sprite dynamically (no page reload needed)
+                setTimeout(function () { loadActivePet(); }, 200);
               })
               .catch(function (err) {
                 btn.textContent = "Activate";
