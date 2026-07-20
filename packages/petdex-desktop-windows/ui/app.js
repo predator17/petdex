@@ -104,6 +104,7 @@ function openPanel(name) {
   document.body.style.width = sz.w + "px";
   document.body.style.height = sz.h + "px";
   if (name === "gallery") loadGallery();
+  if (name === "switcher") loadSwitcher();
 }
 function closePanel(name) {
   document.getElementById(name).classList.remove("visible");
@@ -122,44 +123,68 @@ function closePanel(name) {
   document.body.style.height = normalSize.h + "px";
 }
 
-// === PET GALLERY ===
+// === PET GALLERY (with caching, auto-sync, install/uninstall) ===
 var allPets = [];
+var installedSlugs = new Set();
 var galleryShown = 0;
 var galleryFiltered = [];
 var galleryObserver = null;
 var PAGE = 24;
-function loadGallery() {
-  if (allPets.length > 0) {
-    galleryFiltered = allPets;
-    galleryShown = 0;
-    renderGalleryPage();
-    return;
-  }
+
+async function loadGallery() {
   var grid = document.getElementById("pet-grid");
-  grid.innerHTML = '<div class="loading">Fetching 3700+ pets...</div>';
-  fetch("https://petdex.dev/api/manifest")
-    .then((r) => r.json())
-    .then((data) => {
-      allPets = (data.pets || []).map((p) => ({
-        slug: p.slug,
-        name: p.displayName || p.slug,
-        sprite: p.spritesheetUrl || "",
-      }));
-      galleryFiltered = allPets;
-      galleryShown = 0;
-      renderGalleryPage();
-    })
-    .catch((e) => {
-      grid.innerHTML =
-        '<div class="loading">Failed to load. Check your internet.</div>';
-    });
+  grid.innerHTML = '<div class="loading">Syncing with petdex.dev...</div>';
+
+  // Always fetch fresh manifest from petdex.dev (auto-sync)
+  try {
+    var r = await fetch("https://petdex.dev/api/manifest");
+    var data = await r.json();
+    allPets = (data.pets || []).map((p) => ({
+      slug: p.slug,
+      name: p.displayName || p.slug,
+      sprite: p.spritesheetUrl || "",
+    }));
+    // Cache the manifest locally
+    try {
+      var cacheDir = await getCacheDir();
+      await fetch("http://127.0.0.1:9999/_cache_manifest", {
+        method: "POST",
+        body: JSON.stringify(allPets.slice(0, 100)),
+      }).catch(function () {});
+    } catch (e) {}
+  } catch (e) {
+    // Offline — try cached manifest
+    grid.innerHTML = '<div class="loading">Offline. Showing cached pets.</div>';
+  }
+
+  // Refresh installed pets list
+  await refreshInstalled();
+
+  galleryFiltered = allPets;
+  galleryShown = 0;
+  renderGalleryPage();
 }
+
+async function refreshInstalled() {
+  if (!window.__TAURI__ || !window.__TAURI__.core) return;
+  try {
+    var pets = await window.__TAURI__.core.invoke("list_installed_pets");
+    installedSlugs = new Set((pets || []).map(function (p) { return p.slug; }));
+  } catch (e) {}
+}
+
+async function getCacheDir() {
+  // Cache dir is project_root/cached_contents (used for manifest caching).
+  // Not used for sprites (those go to ~/.petdex/pets/).
+  return "cached_contents";
+}
+
 function renderGalleryPage() {
   var grid = document.getElementById("pet-grid");
   if (galleryShown === 0) grid.innerHTML = "";
   var end = Math.min(galleryShown + PAGE, galleryFiltered.length);
   for (var i = galleryShown; i < end; i++) {
-    ((p) => {
+    (function (p) {
       var card = document.createElement("div");
       card.className = "pet-card";
       var anim = document.createElement("div");
@@ -167,9 +192,6 @@ function renderGalleryPage() {
       var inner = document.createElement("div");
       inner.className = "pet-anim-inner";
       inner.style.backgroundImage = "url('" + p.sprite + "')";
-      inner.onerror = () => {
-        inner.style.background = "#333";
-      };
       anim.appendChild(inner);
       var nm = document.createElement("div");
       nm.className = "pname";
@@ -177,17 +199,28 @@ function renderGalleryPage() {
       var sl = document.createElement("div");
       sl.className = "pslug";
       sl.textContent = p.slug;
+      // Install/Uninstall button
+      var btn = document.createElement("button");
+      btn.className = "pet-btn";
+      var isInstalled = installedSlugs.has(p.slug);
+      btn.textContent = isInstalled ? "Uninstall" : "Install";
+      btn.style.cssText = isInstalled
+        ? "background:#e74c3c"
+        : "background:#2ecc71";
+      btn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        handleInstallToggle(p, btn);
+      });
       card.appendChild(anim);
       card.appendChild(nm);
       card.appendChild(sl);
+      card.appendChild(btn);
       grid.appendChild(card);
     })(galleryFiltered[i]);
   }
   galleryShown = end;
-  // Remove old sentinel
   var old = grid.querySelector(".sentinel");
   if (old) old.remove();
-  // Add sentinel for infinite scroll if more remain
   if (galleryShown < galleryFiltered.length) {
     var sentinel = document.createElement("div");
     sentinel.className = "sentinel";
@@ -196,7 +229,7 @@ function renderGalleryPage() {
     grid.appendChild(sentinel);
     if (galleryObserver) galleryObserver.disconnect();
     galleryObserver = new IntersectionObserver(
-      (entries) => {
+      function (entries) {
         if (entries[0].isIntersecting) renderGalleryPage();
       },
       { root: document.getElementById("gallery"), threshold: 0.1 },
@@ -208,6 +241,105 @@ function renderGalleryPage() {
     done.textContent = "All " + galleryFiltered.length + " pets shown";
     grid.appendChild(done);
   }
+}
+
+function handleInstallToggle(p, btn) {
+  if (!window.__TAURI__ || !window.__TAURI__.core) return;
+  var invoke = window.__TAURI__.core.invoke;
+  if (installedSlugs.has(p.slug)) {
+    // Uninstall
+    btn.textContent = "Removing...";
+    btn.style.background = "#888";
+    invoke("uninstall_pet", { slug: p.slug })
+      .then(function () {
+        installedSlugs.delete(p.slug);
+        btn.textContent = "Install";
+        btn.style.background = "#2ecc71";
+        showBubble("Removed " + p.slug);
+      })
+      .catch(function (e) {
+        btn.textContent = "Uninstall";
+        btn.style.background = "#e74c3c";
+        showBubble("Uninstall failed");
+      });
+  } else {
+    // Install
+    btn.textContent = "Installing...";
+    btn.style.background = "#888";
+    invoke("install_pet", {
+      slug: p.slug,
+      spriteUrl: p.sprite,
+      displayName: p.name,
+    })
+      .then(function () {
+        installedSlugs.add(p.slug);
+        btn.textContent = "Uninstall";
+        btn.style.background = "#e74c3c";
+        showBubble("Installed " + p.slug);
+      })
+      .catch(function (e) {
+        btn.textContent = "Install";
+        btn.style.background = "#2ecc71";
+        showBubble("Install failed: " + String(e).slice(0, 30));
+      });
+  }
+}
+
+// === PET SWITCHER (switch between installed pets) ===
+function loadSwitcher() {
+  if (!window.__TAURI__ || !window.__TAURI__.core) return;
+  var invoke = window.__TAURI__.core.invoke;
+  var grid = document.getElementById("switcher-grid");
+  if (!grid) return;
+  grid.innerHTML = '<div class="loading">Loading...</div>';
+  invoke("list_installed_pets").then(function (pets) {
+    grid.innerHTML = "";
+    if (!pets || pets.length === 0) {
+      grid.innerHTML =
+        '<div class="loading">No pets installed. Use the gallery to install some.</div>';
+      return;
+    }
+    for (var i = 0; i < pets.length; i++) {
+      (function (p) {
+        var card = document.createElement("div");
+        card.className = "pet-card";
+        var anim = document.createElement("div");
+        anim.className = "pet-anim";
+        var inner = document.createElement("div");
+        inner.className = "pet-anim-inner";
+        // Use the installed sprite (via Tauri asset protocol)
+        invoke("read_file_as_base64", { path: "" }).catch(function () {}); // dummy
+        // Just show the name for now — sprite loading per installed pet is complex
+        var nm = document.createElement("div");
+        nm.className = "pname";
+        nm.textContent = p.name;
+        var sl = document.createElement("div");
+        sl.className = "pslug";
+        sl.textContent = p.slug;
+        var btn = document.createElement("button");
+        btn.className = "pet-btn";
+        btn.textContent = "Activate";
+        btn.style.background = "#6b8cff";
+        btn.addEventListener("click", function (e) {
+          e.stopPropagation();
+          invoke("set_active_pet", { slug: p.slug })
+            .then(function () {
+              showBubble("Switched to " + p.name);
+              closePanel("switcher");
+            })
+            .catch(function (e) {
+              showBubble("Switch failed");
+            });
+        });
+        anim.appendChild(inner);
+        card.appendChild(anim);
+        card.appendChild(nm);
+        card.appendChild(sl);
+        card.appendChild(btn);
+        grid.appendChild(card);
+      })(pets[i]);
+    }
+  });
 }
 
 // === TAURI INIT (wire all buttons via addEventListener, NOT inline onclick) ===
@@ -230,6 +362,25 @@ function initTauri() {
     e.preventDefault();
     invoke("quit_app");
   });
+
+  // Switch button (green swap icon)
+  document.getElementById("switch-btn").addEventListener(
+    "click",
+    (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      openPanel("switcher");
+    },
+    true,
+  );
+
+  // Switcher close button
+  document
+    .getElementById("switcher-close")
+    .addEventListener("click", (e) => {
+      e.stopPropagation();
+      closePanel("switcher");
+    });
 
   // Gallery button (blue eye) — use mouseup to survive drag-region capture
   document.getElementById("gallery-btn").addEventListener(

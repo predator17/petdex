@@ -29,6 +29,7 @@ tauri = { version = "2.11.1", features = [] }
 tauri-plugin-log = "2"
 tauri-plugin-deep-link = "2"
 dirs = "5"
+reqwest = { version = "0.12", features = ["json"] }
 
 # Win32 layered-window / hit-test APIs for per-pixel-alpha transparency and
 # click-through (plan §4.4). Target-gated to windows so non-Windows hosts

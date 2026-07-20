@@ -141,6 +141,83 @@ fn load_pet_from_dir(slug: &str, dir: &std::path::Path) -> Option<PetMeta> {
         sprite_path: sprite_path.to_string_lossy().to_string(),
     })
 }
+/// Download a pet sprite from a URL and install it to ~/.petdex/pets/<slug>/.
+/// Called from the gallery's install button. Downloads the sprite + pet.json.
+#[tauri::command]
+async fn install_pet(slug: String, sprite_url: String, display_name: String) -> Result<(), String> {
+    let home = dirs::home_dir().ok_or("no home")?;
+    let pet_dir = home.join(".petdex").join("pets").join(&slug);
+    fs::create_dir_all(&pet_dir).map_err(|e| format!("mkdir: {e}"))?;
+
+    // Download sprite via async reqwest
+    let resp = reqwest::get(&sprite_url).await.map_err(|e| format!("download: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("download failed: HTTP {}", resp.status()));
+    }
+    let body = resp.bytes().await.map_err(|e| format!("read body: {e}"))?;
+    fs::write(pet_dir.join("spritesheet.webp"), &body).map_err(|e| format!("write sprite: {e}"))?;
+
+    // Write pet.json
+    let pet_json = serde_json::json!({
+        "id": slug,
+        "displayName": display_name,
+        "description": "",
+        "spritesheetPath": "spritesheet.webp"
+    });
+    fs::write(pet_dir.join("pet.json"), serde_json::to_string_pretty(&pet_json).unwrap())
+        .map_err(|e| format!("write pet.json: {e}"))?;
+
+    Ok(())
+}
+
+/// Remove a pet from ~/.petdex/pets/<slug>/.
+#[tauri::command]
+fn uninstall_pet(slug: String) -> Result<(), String> {
+    let home = dirs::home_dir().ok_or("no home")?;
+    let pet_dir = home.join(".petdex").join("pets").join(&slug);
+    if !pet_dir.exists() {
+        return Err(format!("pet '{}' not installed", slug));
+    }
+    fs::remove_dir_all(&pet_dir).map_err(|e| format!("remove: {e}"))?;
+
+    // If this was the active pet, clear active.json
+    let active_path = home.join(".petdex").join("active.json");
+    if let Ok(active) = fs::read_to_string(&active_path) {
+        if active.contains(&slug) {
+            let _ = fs::write(&active_path, "{}");
+        }
+    }
+    Ok(())
+}
+
+/// Return list of installed pet slugs + display names.
+#[derive(Serialize)]
+struct InstalledPet {
+    slug: String,
+    name: String,
+}
+
+#[tauri::command]
+fn list_installed_pets() -> Vec<InstalledPet> {
+    let mut result = Vec::new();
+    for root in pet_roots() {
+        if let Ok(entries) = fs::read_dir(&root) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() && find_valid_sprite(&path).is_some() {
+                    let slug = entry.file_name().to_string_lossy().to_string();
+                    let name = fs::read_to_string(path.join("pet.json"))
+                        .ok()
+                        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())
+                        .and_then(|v| v.get("displayName").or_else(|| v.get("name")).and_then(|n| n.as_str()).map(|s| s.to_string()))
+                        .unwrap_or_else(|| slug.clone());
+                    result.push(InstalledPet { slug, name });
+                }
+            }
+        }
+    }
+    result
+}
 
 /// Read the active slug from ~/.petdex/active.json ({"slug":"<slug>"}).
 /// Returns None if the file is absent, unreadable, or malformed.
@@ -660,6 +737,9 @@ pub fn run() {
             get_active_pet,
             set_active_pet,
             set_openrouter_key,
+            install_pet,
+            uninstall_pet,
+            list_installed_pets,
             get_drag_result,
             reset_drag,
             read_file_as_base64,

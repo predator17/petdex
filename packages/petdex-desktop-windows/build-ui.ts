@@ -56,6 +56,8 @@ body.expanded{overflow:auto}
 #quit:hover{background:#ff5555;transform:scale(1.1)}
 #gallery-btn{position:absolute;top:4px;right:34px;width:24px;height:24px;background:#2a4a8a;border-radius:5px;z-index:10;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;pointer-events:auto;border:1px solid #3a5a9a}
 #gallery-btn:hover{background:#3a6abb;transform:scale(1.1)}
+#switch-btn{position:absolute;top:4px;right:64px;width:24px;height:24px;background:#2a8a4a;border-radius:5px;z-index:10;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;pointer-events:auto;border:1px solid #3a9a5a}
+#switch-btn:hover{background:#3abb6a;transform:scale(1.1)}
 #bubble{position:absolute;bottom:218px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.95);color:#111;font:11px/1.4 system-ui,sans-serif;padding:6px 10px;border-radius:8px;max-width:180px;box-shadow:0 2px 8px rgba(0,0,0,.3);opacity:0;transition:opacity .25s ease;pointer-events:none;white-space:pre-wrap;z-index:20}
 #bubble.visible{opacity:1}
 #label{position:absolute;top:5px;left:8px;font:10px monospace;color:rgba(255,215,0,.45);pointer-events:none;z-index:5}
@@ -99,11 +101,30 @@ body.expanded{overflow:auto}
 #gallery .pet-card .pslug{font-size:9px;color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #gallery .loading{text-align:center;padding:30px;color:#666;font-size:13px}
 #gallery .sentinel{height:60px;display:flex;align-items:center;justify-content:center;color:#555;font-size:11px}
+#gallery .pet-btn{width:100%;padding:4px;margin-top:4px;border:none;border-radius:4px;color:#fff;font:11px sans-serif;cursor:pointer}
+#gallery .pet-btn:hover{opacity:0.85}
+
+/* Switcher panel (reuses gallery card styles) */
+#switcher{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:#12122a;z-index:30;overflow:auto;padding:10px;font:12px/1.4 system-ui,sans-serif;color:#ddd}
+#switcher.visible{display:block}
+#switcher h3{font-size:14px;margin-bottom:8px;color:#6b8cff}
+#switcher .close-btn{position:fixed;top:8px;right:8px;width:32px;height:32px;background:#e74c3c;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font:bold 18px sans-serif;z-index:50;border:2px solid #c0392b}
+#switcher .grid{display:grid;gap:10px;padding-bottom:20px}
+#switcher .pet-card{background:#1e1e3a;border-radius:8px;padding:8px;cursor:pointer;text-align:center;overflow:hidden;transition:background .2s;border:1px solid #2a2a4a}
+#switcher .pet-card:hover{background:#2a4a6a;border-color:#4a7aaa}
+#switcher .pet-card .pet-anim{width:96px;height:104px;margin:0 auto 6px;overflow:hidden;position:relative;border-radius:6px;background:#0a0a1a}
+#switcher .pet-card .pet-anim-inner{width:96px;height:104px;background-repeat:no-repeat;background-size:768px 936px;image-rendering:pixelated;animation:gallery-idle 1100ms steps(6) infinite}
+#switcher .pet-card .pname{font-size:11px;color:#ccc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
+#switcher .pet-card .pslug{font-size:9px;color:#666;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#switcher .pet-btn{width:100%;padding:4px;margin-top:4px;border:none;border-radius:4px;color:#fff;font:11px sans-serif;cursor:pointer;background:#6b8cff}
+#switcher .pet-btn:hover{opacity:0.85}
+#switcher .loading{text-align:center;padding:30px;color:#666;font-size:13px}
 </style>
 </head>
 <body>
 <div id="root" data-tauri-drag-region>
   <div id="quit">X</div>
+  <div id="switch-btn">&#128259;</div>
   <div id="gallery-btn">&#128064;</div>
   <div id="label">${name}</div>
   <div class="pet-sprite" id="sprite"></div>
@@ -129,6 +150,12 @@ body.expanded{overflow:auto}
   <h3>Pet Library</h3>
   <input type="text" class="search" id="pet-search" placeholder="Search 3700+ pets..."/>
   <div class="grid" id="pet-grid"><div class="loading">Loading...</div></div>
+</div>
+
+<div id="switcher">
+  <div class="close-btn" id="switcher-close">X</div>
+  <h3>Switch Pet</h3>
+  <div class="grid" id="switcher-grid" style="grid-template-columns:repeat(2,1fr)"><div class="loading">Loading...</div></div>
 </div>
 
 <script>${readFileSync(join(here, "ui", "app.js"), "utf8")}</script>
