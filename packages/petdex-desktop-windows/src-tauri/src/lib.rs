@@ -2,7 +2,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
-use tauri::State;
+use tauri::{Manager, State, WindowEvent};
 
 // Bring in the Windows-only CommandExt trait so we can set creation_flags.
 #[cfg(windows)]
@@ -11,6 +11,35 @@ use std::os::windows::process::CommandExt;
 // Win32 transparency/click-through (plan §4.4). Windows-only module.
 #[cfg(windows)]
 mod transparency;
+
+// ── Drag tracker (Rust-side, survives JS freeze) ────────────────────────────
+// data-tauri-drag-region freezes the JS event loop during drag, so JS can't
+// measure direction/speed. Instead, Rust tracks window position changes via
+// the on_window_event Moved callback and records the drag result. JS polls
+// get_drag_result() after release to get the direction + speed.
+#[derive(Debug, Clone, Default)]
+struct DragTracker {
+    /// Position before the last drag started
+    start_x: i32,
+    start_y: i32,
+    /// Position after the last drag ended
+    end_x: i32,
+    end_y: i32,
+    /// Net horizontal movement (positive = right)
+    dx: i32,
+    /// Net vertical movement
+    dy: i32,
+    /// Total distance moved
+    dist: f64,
+    /// Timestamp when drag started (ms)
+    start_t: u64,
+    /// Timestamp of last position update (ms)
+    last_t: u64,
+    /// True if the window has moved since last reset
+    moved: bool,
+    /// Monotonically increasing ID — JS compares to detect new drags
+    drag_id: u32,
+}
 
 // ── Pet types ─────────────────────────────────────────────────────────────────
 
@@ -515,6 +544,72 @@ fn stop_sidecar(state: State<Mutex<SidecarState>>) {
     s.token = String::new();
 }
 
+/// Return the last drag result: direction, distance, speed, and a
+/// monotonically increasing drag_id. JS polls this every 100ms; when
+/// drag_id changes, a new drag was detected.
+#[derive(Serialize)]
+struct DragResult {
+    drag_id: u32,
+    dx: i32,
+    dy: i32,
+    dist: f64,
+    speed: f64,
+    direction: String,
+    moved: bool,
+}
+
+#[tauri::command]
+fn get_drag_result(app: tauri::AppHandle) -> Result<DragResult, String> {
+    let tracker = app.state::<Mutex<DragTracker>>();
+    let t = tracker.lock().unwrap();
+    let dx = t.end_x - t.start_x;
+    let dy = t.end_y - t.start_y;
+    let dist = ((dx * dx + dy * dy) as f64).sqrt();
+    let direction = if dx.abs() > dy.abs() {
+        if dx > 5 { "right".into() }
+        else if dx < -5 { "left".into() }
+        else { "none".into() }
+    } else {
+        if dy > 5 { "down".into() }
+        else if dy < -5 { "up".into() }
+        else { "none".into() }
+    };
+    let elapsed_ms = t.last_t.saturating_sub(t.start_t).max(1);
+    let speed = dist / (elapsed_ms as f64);
+    Ok(DragResult {
+        drag_id: t.drag_id,
+        dx,
+        dy,
+        dist,
+        speed,
+        direction,
+        moved: t.moved,
+    })
+}
+
+/// Called by JS after it has processed a drag result. Resets the tracker
+/// for the next drag and records the CURRENT window position as the start
+/// position for the next drag (so the first Moved event doesn't overwrite
+/// it with an already-moved position).
+#[tauri::command]
+fn reset_drag(app: tauri::AppHandle) -> Result<(), String> {
+    let main = app.get_webview_window("pet").ok_or("no window")?;
+    let cur = main.outer_position().map_err(|e| format!("{e}"))?;
+    let tracker = app.state::<Mutex<DragTracker>>();
+    let mut t = tracker.lock().unwrap();
+    t.drag_id += 1;
+    t.moved = false;
+    t.dx = 0;
+    t.dy = 0;
+    t.dist = 0.0;
+    // Record current position as the start for the NEXT drag
+    t.start_x = cur.x;
+    t.start_y = cur.y;
+    t.end_x = cur.x;
+    t.end_y = cur.y;
+    Ok(())
+}
+
 // ── Tauri commands — app ──────────────────────────────────────────────────────
 
 /// Exit the application cleanly (triggered by right-click).
@@ -529,14 +624,44 @@ fn quit_app(app: tauri::AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .manage(Mutex::new(SidecarState::default()))
+        .manage(Mutex::new(DragTracker::default()))
         // Deep-link plugin (plan §4.5): registers the `petdex://` scheme.
         .plugin(tauri_plugin_deep_link::init())
+        .on_window_event(|window, event| {
+            // Track window position changes for drag detection.
+            // Rust gets these events even when JS is frozen by the OS drag.
+            if let WindowEvent::Moved(pos) = event {
+                let app = window.app_handle();
+                let tracker = app.state::<Mutex<DragTracker>>();
+                let mut t = tracker.lock().unwrap();
+                let now = std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .unwrap_or_default()
+                    .as_millis() as u64;
+
+                if !t.moved {
+                    // First Moved event of this drag — mark as started.
+                    // start_x/start_y were already set by reset_drag() to the
+                    // pre-drag position, so we don't overwrite them here.
+                    // (Previously we overwrote with the current position, which
+                    // was already moved, causing wrong direction detection.)
+                    t.start_t = now;
+                    t.moved = true;
+                }
+
+                t.end_x = pos.x;
+                t.end_y = pos.y;
+                t.last_t = now;
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             list_pets,
             get_pet,
             get_active_pet,
             set_active_pet,
             set_openrouter_key,
+            get_drag_result,
+            reset_drag,
             read_file_as_base64,
             read_runtime_state,
             read_runtime_bubble,
