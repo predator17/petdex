@@ -387,7 +387,7 @@ function renderGalleryPage() {
       function (entries) {
         if (entries[0].isIntersecting) renderGalleryPage();
       },
-      { root: document.getElementById("gallery"), threshold: 0.1 },
+      { root: document.getElementById("gallery-scroll"), threshold: 0.1 },
     );
     galleryObserver.observe(sentinel);
   } else {
