@@ -712,12 +712,15 @@ function loadSwitcher() {
           var sl = document.createElement("div");
           sl.className = "pslug";
           sl.textContent = p.slug;
-          var btn = document.createElement("button");
-          btn.className = "pet-btn";
-          btn.textContent = "Activate";
-          btn.addEventListener("click", function (e) {
+          var btnRow = document.createElement("div");
+          btnRow.style.cssText = "display:flex;gap:4px;margin-top:4px";
+          var actBtn = document.createElement("button");
+          actBtn.className = "pet-btn";
+          actBtn.textContent = "Activate";
+          actBtn.style.flex = "1";
+          actBtn.addEventListener("click", function (e) {
             e.stopPropagation();
-            btn.textContent = "Switching...";
+            actBtn.textContent = "Switching...";
             invoke("set_active_pet", { slug: p.slug })
               .then(function () {
                 showBubble("Switched to " + p.name);
@@ -725,14 +728,33 @@ function loadSwitcher() {
                 setTimeout(function () { loadActivePet(); }, 200);
               })
               .catch(function (err) {
-                btn.textContent = "Activate";
+                actBtn.textContent = "Activate";
                 showBubble("Switch failed: " + String(err).slice(0, 30));
               });
           });
+          var rmBtn = document.createElement("button");
+          rmBtn.className = "pet-btn";
+          rmBtn.textContent = "Remove";
+          rmBtn.style.cssText = "flex:0 0 auto;background:#e74c3c;width:60px";
+          rmBtn.addEventListener("click", function (e) {
+            e.stopPropagation();
+            rmBtn.textContent = "...";
+            invoke("uninstall_pet", { slug: p.slug })
+              .then(function () {
+                showBubble("Removed " + p.name);
+                card.remove();
+              })
+              .catch(function (err) {
+                rmBtn.textContent = "Remove";
+                showBubble("Remove failed");
+              });
+          });
+          btnRow.appendChild(actBtn);
+          btnRow.appendChild(rmBtn);
           card.appendChild(anim);
           card.appendChild(nm);
           card.appendChild(sl);
-          card.appendChild(btn);
+          card.appendChild(btnRow);
           grid.appendChild(card);
         }).catch(function () {});
       }).catch(function () {});
