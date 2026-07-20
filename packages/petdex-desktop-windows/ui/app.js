@@ -613,13 +613,13 @@ function loadSwitcher() {
           rmBtn.addEventListener("click", function (e) {
             e.preventDefault();
             e.stopPropagation();
-            rmBtn.textContent = "...";
+                        rmBtn.textContent = "...";
             invoke("uninstall_pet", { slug: p.slug })
-              .then(function () {
-                showBubble("Removed " + p.name);
+              .then(function () {showBubble("Removed " + p.name);
                 card.remove();
               })
               .catch(function (err) {
+                if (label) label.textContent = "RM:ERR:" + String(err).slice(0, 20);
                 rmBtn.textContent = "Remove";
                 showBubble("Remove failed");
               });
@@ -650,6 +650,9 @@ function initTauri() {
     return;
   }
   var invoke = t.core.invoke;
+  // Diagnostic: write INIT:OK to label so we can confirm initTauri ran
+  var lbl = document.getElementById("label");
+  if (lbl) lbl.textContent = "INIT:OK";
 
   // Quit button (red X)
   document.getElementById("quit").addEventListener("click", (e) => {
@@ -669,8 +672,7 @@ function initTauri() {
     (e) => {
       e.stopPropagation();
       e.preventDefault();
-      openPanel("switcher");
-    },
+      openPanel("switcher");},
     true,
   );
 
@@ -688,8 +690,7 @@ function initTauri() {
     (e) => {
       e.stopPropagation();
       e.preventDefault();
-      openPanel("gallery");
-    },
+      openPanel("gallery");},
     true,
   );
   document.getElementById("gallery-btn").addEventListener(
