@@ -440,7 +440,7 @@ function handleInstallToggle(p, btn) {
   }
 }
 
-// === PET SWITCHER (switch between installed pets) ===
+// === PET SWITCHER (switch between installed pets, deduplicated) ===
 function loadSwitcher() {
   if (!window.__TAURI__ || !window.__TAURI__.core) return;
   var invoke = window.__TAURI__.core.invoke;
@@ -451,11 +451,19 @@ function loadSwitcher() {
     grid.innerHTML = "";
     if (!pets || pets.length === 0) {
       grid.innerHTML =
-        '<div class="loading">No pets installed. Use the gallery (blue eye button) to install some.</div>';
+        '<div class="loading">No pets installed. Use the gallery to install some.</div>';
       return;
     }
+    // Deduplicate by slug (pet_roots checks both ~/.petdex/pets and ~/.codex/pets)
+    var seen = {};
+    var unique = [];
+    for (var i = 0; i < pets.length; i++) {
+      if (!seen[pets[i].slug]) {
+        seen[pets[i].slug] = true;
+        unique.push(pets[i]);
+      }
+    }
     var _loop_1 = function (p) {
-      // Get the pet's sprite path via get_pet, then load it as base64
       invoke("get_pet", { slug: p.slug }).then(function (meta) {
         if (!meta || !meta.sprite_path) return;
         invoke("read_file_as_base64", { path: meta.sprite_path }).then(function (b64) {
@@ -465,7 +473,6 @@ function loadSwitcher() {
           anim.className = "pet-anim";
           var inner = document.createElement("div");
           inner.className = "pet-anim-inner";
-          // Compact the sprite for the thumbnail
           inner.style.backgroundImage =
             "url(data:image/png;base64," + b64 + ")";
           anim.appendChild(inner);
@@ -485,7 +492,6 @@ function loadSwitcher() {
               .then(function () {
                 showBubble("Switched to " + p.name);
                 closePanel("switcher");
-                // Reload the sprite dynamically (no page reload needed)
                 setTimeout(function () { loadActivePet(); }, 200);
               })
               .catch(function (err) {
@@ -501,8 +507,8 @@ function loadSwitcher() {
         }).catch(function () {});
       }).catch(function () {});
     };
-    for (var i = 0; i < pets.length; i++) {
-      _loop_1(pets[i]);
+    for (var i = 0; i < unique.length; i++) {
+      _loop_1(unique[i]);
     }
   }).catch(function (e) {
     grid.innerHTML = '<div class="loading">Failed to load pets.</div>';

@@ -90,10 +90,12 @@ body.expanded{overflow:auto}
 #gallery .pet-btn:hover{opacity:0.85}
 
 /* Switcher panel (reuses gallery card styles) */
-#switcher{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:#12122a;z-index:30;overflow:auto;padding:10px;font:12px/1.4 system-ui,sans-serif;color:#ddd}
+#switcher{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:#12122a;z-index:30;overflow:hidden;font:12px/1.4 system-ui,sans-serif;color:#ddd}
 #switcher.visible{display:block}
-#switcher h3{font-size:14px;margin-bottom:8px;color:#6b8cff}
-#switcher .close-btn{position:fixed;top:8px;right:8px;width:32px;height:32px;background:#e74c3c;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font:bold 18px sans-serif;z-index:50;border:2px solid #c0392b}
+#switcher-header{position:absolute;top:0;left:0;right:0;z-index:60;background:#12122a;padding:8px 10px 6px;border-bottom:1px solid #2a2a4a}
+#switcher h3{font-size:14px;margin-bottom:6px;color:#6b8cff}
+#switcher .close-btn{position:absolute;top:8px;right:8px;width:32px;height:32px;background:#e74c3c;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font:bold 18px sans-serif;z-index:50;border:2px solid #c0392b}
+#switcher-scroll{position:absolute;top:50px;left:0;right:0;bottom:0;overflow:auto;padding:10px}
 #switcher .grid{display:grid;gap:10px;padding-bottom:20px}
 #switcher .pet-card{background:#1e1e3a;border-radius:8px;padding:8px;cursor:pointer;text-align:center;overflow:hidden;transition:background .2s;border:1px solid #2a2a4a}
 #switcher .pet-card:hover{background:#2a4a6a;border-color:#4a7aaa}
@@ -148,9 +150,13 @@ body.expanded{overflow:auto}
 </div>
 
 <div id="switcher">
-  <div class="close-btn" id="switcher-close">X</div>
-  <h3>Switch Pet</h3>
-  <div class="grid" id="switcher-grid" style="grid-template-columns:repeat(2,1fr)"><div class="loading">Loading...</div></div>
+  <div id="switcher-header" data-tauri-drag-region>
+    <div class="close-btn" id="switcher-close">X</div>
+    <h3>Switch Pet</h3>
+  </div>
+  <div id="switcher-scroll">
+    <div class="grid" id="switcher-grid" style="grid-template-columns:repeat(2,1fr)"><div class="loading">Loading...</div></div>
+  </div>
 </div>
 
 <script>// === DRAG REACTION (Rust-side tracker, survives JS freeze) ===
@@ -595,7 +601,7 @@ function handleInstallToggle(p, btn) {
   }
 }
 
-// === PET SWITCHER (switch between installed pets) ===
+// === PET SWITCHER (switch between installed pets, deduplicated) ===
 function loadSwitcher() {
   if (!window.__TAURI__ || !window.__TAURI__.core) return;
   var invoke = window.__TAURI__.core.invoke;
@@ -606,11 +612,19 @@ function loadSwitcher() {
     grid.innerHTML = "";
     if (!pets || pets.length === 0) {
       grid.innerHTML =
-        '<div class="loading">No pets installed. Use the gallery (blue eye button) to install some.</div>';
+        '<div class="loading">No pets installed. Use the gallery to install some.</div>';
       return;
     }
+    // Deduplicate by slug (pet_roots checks both ~/.petdex/pets and ~/.codex/pets)
+    var seen = {};
+    var unique = [];
+    for (var i = 0; i < pets.length; i++) {
+      if (!seen[pets[i].slug]) {
+        seen[pets[i].slug] = true;
+        unique.push(pets[i]);
+      }
+    }
     var _loop_1 = function (p) {
-      // Get the pet's sprite path via get_pet, then load it as base64
       invoke("get_pet", { slug: p.slug }).then(function (meta) {
         if (!meta || !meta.sprite_path) return;
         invoke("read_file_as_base64", { path: meta.sprite_path }).then(function (b64) {
@@ -620,7 +634,6 @@ function loadSwitcher() {
           anim.className = "pet-anim";
           var inner = document.createElement("div");
           inner.className = "pet-anim-inner";
-          // Compact the sprite for the thumbnail
           inner.style.backgroundImage =
             "url(data:image/png;base64," + b64 + ")";
           anim.appendChild(inner);
@@ -640,7 +653,6 @@ function loadSwitcher() {
               .then(function () {
                 showBubble("Switched to " + p.name);
                 closePanel("switcher");
-                // Reload the sprite dynamically (no page reload needed)
                 setTimeout(function () { loadActivePet(); }, 200);
               })
               .catch(function (err) {
@@ -656,8 +668,8 @@ function loadSwitcher() {
         }).catch(function () {});
       }).catch(function () {});
     };
-    for (var i = 0; i < pets.length; i++) {
-      _loop_1(pets[i]);
+    for (var i = 0; i < unique.length; i++) {
+      _loop_1(unique[i]);
     }
   }).catch(function (e) {
     grid.innerHTML = '<div class="loading">Failed to load pets.</div>';

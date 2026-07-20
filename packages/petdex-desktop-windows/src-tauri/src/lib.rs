@@ -200,12 +200,18 @@ struct InstalledPet {
 #[tauri::command]
 fn list_installed_pets() -> Vec<InstalledPet> {
     let mut result = Vec::new();
+    let mut seen = std::collections::HashSet::new();
     for root in pet_roots() {
         if let Ok(entries) = fs::read_dir(&root) {
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.is_dir() && find_valid_sprite(&path).is_some() {
                     let slug = entry.file_name().to_string_lossy().to_string();
+                    // Deduplicate: skip if we already saw this slug from
+                    // another root (e.g. ~/.codex/pets is a fallback for
+                    // ~/.petdex/pets and may contain the same pet).
+                    if seen.contains(&slug) { continue; }
+                    seen.insert(slug.clone());
                     let name = fs::read_to_string(path.join("pet.json"))
                         .ok()
                         .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok())

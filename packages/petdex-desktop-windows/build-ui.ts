@@ -119,10 +119,12 @@ body.expanded{overflow:auto}
 #gallery .pet-btn:hover{opacity:0.85}
 
 /* Switcher panel (reuses gallery card styles) */
-#switcher{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:#12122a;z-index:30;overflow:auto;padding:10px;font:12px/1.4 system-ui,sans-serif;color:#ddd}
+#switcher{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:#12122a;z-index:30;overflow:hidden;font:12px/1.4 system-ui,sans-serif;color:#ddd}
 #switcher.visible{display:block}
-#switcher h3{font-size:14px;margin-bottom:8px;color:#6b8cff}
-#switcher .close-btn{position:fixed;top:8px;right:8px;width:32px;height:32px;background:#e74c3c;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font:bold 18px sans-serif;z-index:50;border:2px solid #c0392b}
+#switcher-header{position:absolute;top:0;left:0;right:0;z-index:60;background:#12122a;padding:8px 10px 6px;border-bottom:1px solid #2a2a4a}
+#switcher h3{font-size:14px;margin-bottom:6px;color:#6b8cff}
+#switcher .close-btn{position:absolute;top:8px;right:8px;width:32px;height:32px;background:#e74c3c;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font:bold 18px sans-serif;z-index:50;border:2px solid #c0392b}
+#switcher-scroll{position:absolute;top:50px;left:0;right:0;bottom:0;overflow:auto;padding:10px}
 #switcher .grid{display:grid;gap:10px;padding-bottom:20px}
 #switcher .pet-card{background:#1e1e3a;border-radius:8px;padding:8px;cursor:pointer;text-align:center;overflow:hidden;transition:background .2s;border:1px solid #2a2a4a}
 #switcher .pet-card:hover{background:#2a4a6a;border-color:#4a7aaa}
@@ -177,9 +179,13 @@ body.expanded{overflow:auto}
 </div>
 
 <div id="switcher">
-  <div class="close-btn" id="switcher-close">X</div>
-  <h3>Switch Pet</h3>
-  <div class="grid" id="switcher-grid" style="grid-template-columns:repeat(2,1fr)"><div class="loading">Loading...</div></div>
+  <div id="switcher-header" data-tauri-drag-region>
+    <div class="close-btn" id="switcher-close">X</div>
+    <h3>Switch Pet</h3>
+  </div>
+  <div id="switcher-scroll">
+    <div class="grid" id="switcher-grid" style="grid-template-columns:repeat(2,1fr)"><div class="loading">Loading...</div></div>
+  </div>
 </div>
 
 <script>${readFileSync(join(here, "ui", "app.js"), "utf8")}</script>
