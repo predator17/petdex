@@ -556,10 +556,11 @@ function loadSwitcher() {
           var actBtn = document.createElement("button");
           actBtn.className = "pet-btn";
           actBtn.textContent = "Activate";
-          actBtn.style.flex = "1";
+          actBtn.style.cssText = "flex:1;pointer-events:auto;position:relative;z-index:5";
           actBtn.addEventListener("click", function (e) {
+            e.preventDefault();
             e.stopPropagation();
-            actBtn.textContent = "Switching...";
+            actBtn.textContent = "...";
             invoke("set_active_pet", { slug: p.slug })
               .then(function () {
                 showBubble("Switched to " + p.name);
@@ -568,14 +569,15 @@ function loadSwitcher() {
               })
               .catch(function (err) {
                 actBtn.textContent = "Activate";
-                showBubble("Switch failed: " + String(err).slice(0, 30));
+                showBubble("Switch failed");
               });
           });
           var rmBtn = document.createElement("button");
           rmBtn.className = "pet-btn";
           rmBtn.textContent = "Remove";
-          rmBtn.style.cssText = "flex:0 0 auto;background:#e74c3c;width:60px";
+          rmBtn.style.cssText = "flex:0 0 auto;background:#e74c3c;width:60px;pointer-events:auto;position:relative;z-index:5";
           rmBtn.addEventListener("click", function (e) {
+            e.preventDefault();
             e.stopPropagation();
             rmBtn.textContent = "...";
             invoke("uninstall_pet", { slug: p.slug })
