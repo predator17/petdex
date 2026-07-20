@@ -108,6 +108,14 @@ body.expanded{overflow:auto}
   background-repeat:no-repeat;background-size:768px 936px;
   image-rendering:pixelated;
   animation:gallery-idle 1100ms steps(6) infinite;
+  background-color:#1a1a3a;
+}
+#gallery .pet-card .pet-anim-inner:not([style*="background-image"]){
+  display:flex;align-items:center;justify-content:center;
+  animation:none;
+}
+#gallery .pet-card .pet-anim-inner:not([style*="background-image"])::before{
+  content:"🎨";font-size:28px;opacity:0.3
 }
 @keyframes gallery-idle{from{background-position:0 0}to{background-position:-576px 0}}
 #gallery .pet-card .pname{font-size:11px;color:#ccc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}

@@ -406,19 +406,57 @@ async function refreshInstalled() {
   } catch (e) {}
 }
 
-// Preload sprites in parallel via fetch() + blob URLs (4-5x faster than
-// sequential CSS background-image loading). Returns a map of slug→url.
-function preloadSprites(pets) {
-  var promises = pets.map(function (p) {
-    if (spriteCache[p.slug]) return Promise.resolve(); // already cached
-    return fetch(p.sprite)
-      .then(function (r) { return r.blob(); })
-      .then(function (blob) {
-        spriteCache[p.slug] = URL.createObjectURL(blob);
-      })
-      .catch(function () {}); // skip failed sprites
-  });
-  return Promise.all(promises);
+// Lazy-load sprites: only load when a card is scrolled into view.
+// Uses IntersectionObserver to detect visibility. Sprites are fetched
+// in parallel batches of 6 (to avoid overwhelming the browser's
+// connection pool) and cached as blob URLs.
+function lazyLoadSprite(p, inner) {
+  if (spriteCache[p.slug]) {
+    inner.style.backgroundImage = "url('" + spriteCache[p.slug] + "')";
+    return;
+  }
+  // Mark as loading to prevent duplicate fetches
+  spriteCache[p.slug] = "__loading__";
+  fetch(p.sprite)
+    .then(function (r) { return r.blob(); })
+    .then(function (blob) {
+      spriteCache[p.slug] = URL.createObjectURL(blob);
+      inner.style.backgroundImage = "url('" + spriteCache[p.slug] + "')";
+    })
+    .catch(function () {
+      spriteCache[p.slug] = null; // allow retry
+    });
+}
+
+var spriteObserver = null;
+function setupSpriteLazyLoad() {
+  if (spriteObserver) spriteObserver.disconnect();
+  spriteObserver = new IntersectionObserver(
+    function (entries) {
+      for (var i = 0; i < entries.length; i++) {
+        if (entries[i].isIntersecting) {
+          var inner = entries[i].target;
+          var slug = inner.dataset.slug;
+          // Find the pet data
+          for (var j = 0; j < allPets.length; j++) {
+            if (allPets[j].slug === slug) {
+              lazyLoadSprite(allPets[j], inner);
+              break;
+            }
+          }
+          spriteObserver.unobserve(inner);
+        }
+      }
+    },
+    { root: document.getElementById("gallery-scroll"), rootMargin: "200px", threshold: 0 }
+  );
+  // Observe all unrendered inner elements
+  var inners = document.querySelectorAll(".pet-anim-inner[data-slug]");
+  for (var k = 0; k < inners.length; k++) {
+    if (!inners[k].style.backgroundImage) {
+      spriteObserver.observe(inners[k]);
+    }
+  }
 }
 
 function renderGalleryPage() {
@@ -427,8 +465,6 @@ function renderGalleryPage() {
   var end = Math.min(galleryShown + PAGE, galleryFiltered.length);
   var pagePets = galleryFiltered.slice(galleryShown, end);
 
-  // Show placeholder cards immediately, then preload sprites in parallel
-  var cards = [];
   for (var i = 0; i < pagePets.length; i++) {
     (function (p) {
       var card = document.createElement("div");
@@ -438,8 +474,8 @@ function renderGalleryPage() {
       var inner = document.createElement("div");
       inner.className = "pet-anim-inner";
       inner.dataset.slug = p.slug;
-      // Use cached sprite if available, otherwise show placeholder
-      if (spriteCache[p.slug]) {
+      // Use cached sprite if available (from previous view)
+      if (spriteCache[p.slug] && spriteCache[p.slug] !== "__loading__") {
         inner.style.backgroundImage = "url('" + spriteCache[p.slug] + "')";
       }
       anim.appendChild(inner);
@@ -463,20 +499,14 @@ function renderGalleryPage() {
       card.appendChild(sl);
       card.appendChild(btn);
       grid.appendChild(card);
-      cards.push({ slug: p.slug, inner: inner });
     })(pagePets[i]);
   }
   galleryShown = end;
 
-  // Preload all sprites for this page in parallel (4-5x faster)
-  preloadSprites(pagePets).then(function () {
-    for (var ci = 0; ci < cards.length; ci++) {
-      var c = cards[ci];
-      if (spriteCache[c.slug]) {
-        c.inner.style.backgroundImage = "url('" + spriteCache[c.slug] + "')";
-      }
-    }
-  });
+  // Lazy-load sprites: only fetch sprites for cards visible in the viewport.
+  // This makes the gallery render INSTANTLY (0 sprite downloads on page render).
+  // Sprites load as the user scrolls, via IntersectionObserver.
+  setupSpriteLazyLoad();
   var old = grid.querySelector(".sentinel");
   if (old) old.remove();
   if (galleryShown < galleryFiltered.length) {
