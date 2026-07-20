@@ -151,46 +151,147 @@ function closePanel(name) {
   document.body.style.height = normalSize.h + "px";
 }
 
-// === PET GALLERY (with caching, auto-sync, install/uninstall) ===
+// === PET GALLERY (with caching, auto-sync, install/uninstall, categories) ===
 var allPets = [];
 var installedSlugs = new Set();
 var galleryShown = 0;
 var galleryFiltered = [];
 var galleryObserver = null;
 var PAGE = 24;
+var activeCategory = "all";
+var manifestCache = null;
+var manifestCacheTime = 0;
+
+// localStorage key for manifest cache (survives across app restarts within
+// the same WebView2 profile — much faster than re-fetching 3.8MB each time)
+var MANIFEST_CACHE_KEY = "petdex_manifest_cache_v1";
+var MANIFEST_CACHE_TIME_KEY = "petdex_manifest_cache_time_v1";
+var CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
 async function loadGallery() {
   var grid = document.getElementById("pet-grid");
-  grid.innerHTML = '<div class="loading">Syncing with petdex.dev...</div>';
 
-  // Always fetch fresh manifest from petdex.dev (auto-sync)
+  // 1. Try to load from localStorage cache FIRST (instant)
+  try {
+    var cachedTime = parseInt(localStorage.getItem(MANIFEST_CACHE_TIME_KEY) || "0");
+    var cached = localStorage.getItem(MANIFEST_CACHE_KEY);
+    if (cached && cachedTime > 0) {
+      allPets = JSON.parse(cached);
+      manifestCacheTime = cachedTime;
+      var age = Date.now() - cachedTime;
+      if (age < CACHE_TTL_MS) {
+        // Cache is fresh — show immediately
+        await refreshInstalled();
+        galleryFiltered = filterByCategory(allPets);
+        galleryShown = 0;
+        renderGalleryPage();
+        // Still sync in background for any new pets
+        syncManifestInBackground();
+        return;
+      }
+      // Cache is stale — show it while fetching fresh
+      grid.innerHTML = '<div class="loading">Showing cached list. Syncing...</div>';
+      await refreshInstalled();
+      galleryFiltered = filterByCategory(allPets);
+      galleryShown = 0;
+      renderGalleryPage();
+    } else {
+      grid.innerHTML = '<div class="loading">Fetching pets...</div>';
+    }
+  } catch (e) {
+    grid.innerHTML = '<div class="loading">Fetching pets...</div>';
+  }
+
+  // 2. Fetch fresh manifest
+  await syncManifest();
+
+  // 3. Render
+  await refreshInstalled();
+  galleryFiltered = filterByCategory(allPets);
+  galleryShown = 0;
+  renderGalleryPage();
+}
+
+async function syncManifest() {
   try {
     var r = await fetch("https://petdex.dev/api/manifest");
     var data = await r.json();
-    allPets = (data.pets || []).map((p) => ({
-      slug: p.slug,
-      name: p.displayName || p.slug,
-      sprite: p.spritesheetUrl || "",
-    }));
-    // Cache the manifest locally
+    allPets = (data.pets || []).map(function (p) {
+      return {
+        slug: p.slug,
+        name: p.displayName || p.slug,
+        kind: p.kind || "unknown",
+        sprite: p.spritesheetUrl || "",
+      };
+    });
+    manifestCacheTime = Date.now();
+    // Cache to localStorage
     try {
-      var cacheDir = await getCacheDir();
-      await fetch("http://127.0.0.1:9999/_cache_manifest", {
-        method: "POST",
-        body: JSON.stringify(allPets.slice(0, 100)),
-      }).catch(function () {});
+      localStorage.setItem(MANIFEST_CACHE_KEY, JSON.stringify(allPets));
+      localStorage.setItem(MANIFEST_CACHE_TIME_KEY, String(manifestCacheTime));
     } catch (e) {}
+    // Re-render with fresh data
+    await refreshInstalled();
+    galleryFiltered = filterByCategory(allPets);
+    galleryShown = 0;
+    renderGalleryPage();
   } catch (e) {
-    // Offline — try cached manifest
-    grid.innerHTML = '<div class="loading">Offline. Showing cached pets.</div>';
+    // If fetch failed and we have cached data, keep showing it
+    if (allPets.length === 0) {
+      var grid = document.getElementById("pet-grid");
+      if (grid)
+        grid.innerHTML =
+          '<div class="loading">Failed to load. Check your internet.</div>';
+    }
   }
+}
 
-  // Refresh installed pets list
-  await refreshInstalled();
+function syncManifestInBackground() {
+  // Silently fetch fresh data. Only re-render if pets count changed.
+  fetch("https://petdex.dev/api/manifest")
+    .then(function (r) { return r.json(); })
+    .then(function (data) {
+      var fresh = (data.pets || []).map(function (p) {
+        return {
+          slug: p.slug,
+          name: p.displayName || p.slug,
+          kind: p.kind || "unknown",
+          sprite: p.spritesheetUrl || "",
+        };
+      });
+      if (fresh.length !== allPets.length) {
+        allPets = fresh;
+        manifestCacheTime = Date.now();
+        try {
+          localStorage.setItem(MANIFEST_CACHE_KEY, JSON.stringify(allPets));
+          localStorage.setItem(MANIFEST_CACHE_TIME_KEY, String(manifestCacheTime));
+        } catch (e) {}
+        galleryFiltered = filterByCategory(allPets);
+        galleryShown = 0;
+        renderGalleryPage();
+      }
+    })
+    .catch(function () {});
+}
 
-  galleryFiltered = allPets;
+function filterByCategory(pets) {
+  if (activeCategory === "all") return pets;
+  return pets.filter(function (p) {
+    return (p.kind || "unknown") === activeCategory;
+  });
+}
+
+function setCategory(cat) {
+  activeCategory = cat;
+  galleryFiltered = filterByCategory(allPets);
   galleryShown = 0;
   renderGalleryPage();
+  // Update tab styles
+  var tabs = document.querySelectorAll(".cat-tab");
+  for (var i = 0; i < tabs.length; i++) {
+    tabs[i].classList.remove("active");
+    if (tabs[i].getAttribute("data-cat") === cat) tabs[i].classList.add("active");
+  }
 }
 
 async function refreshInstalled() {
@@ -199,12 +300,6 @@ async function refreshInstalled() {
     var pets = await window.__TAURI__.core.invoke("list_installed_pets");
     installedSlugs = new Set((pets || []).map(function (p) { return p.slug; }));
   } catch (e) {}
-}
-
-async function getCacheDir() {
-  // Cache dir is project_root/cached_contents (used for manifest caching).
-  // Not used for sprites (those go to ~/.petdex/pets/).
-  return "cached_contents";
 }
 
 function renderGalleryPage() {
@@ -441,6 +536,17 @@ function initTauri() {
     },
     true,
   );
+
+  // Category tabs in gallery
+  var catTabs = document.querySelectorAll(".cat-tab");
+  for (var ci = 0; ci < catTabs.length; ci++) {
+    (function (tab) {
+      tab.addEventListener("click", function (e) {
+        e.stopPropagation();
+        setCategory(tab.getAttribute("data-cat"));
+      });
+    })(catTabs[ci]);
+  }
 
   // Middle-click = settings panel (merged with drag handler, no conflict)
   document.getElementById("root").addEventListener("auxclick", (e) => {

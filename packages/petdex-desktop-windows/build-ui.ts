@@ -86,6 +86,10 @@ body.expanded{overflow:auto}
 #gallery .close-btn{position:fixed;top:8px;right:8px;width:32px;height:32px;background:#e74c3c;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font:bold 18px sans-serif;z-index:50;border:2px solid #c0392b}
 #gallery .close-btn:hover{background:#ff5555;transform:scale(1.1)}
 #gallery .search{width:calc(100% - 45px);padding:8px;background:#1e1e3a;border:1px solid #444;border-radius:6px;color:#eee;font:13px sans-serif;margin-bottom:10px}
+#gallery .cat-tabs{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+#gallery .cat-tab{padding:4px 12px;background:#1e1e3a;border-radius:12px;font-size:11px;color:#888;cursor:pointer;user-select:none;transition:background .2s,color .2s}
+#gallery .cat-tab:hover{background:#2a2a4a;color:#ccc}
+#gallery .cat-tab.active{background:#6b8cff;color:#fff}
 #gallery .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding-bottom:20px}
 #gallery .pet-card{background:#1e1e3a;border-radius:8px;padding:8px;cursor:pointer;text-align:center;overflow:hidden;transition:background .2s;border:1px solid #2a2a4a}
 #gallery .pet-card:hover{background:#2a4a6a;border-color:#4a7aaa}
@@ -122,10 +126,10 @@ body.expanded{overflow:auto}
 </style>
 </head>
 <body>
+<div id="quit">X</div>
+<div id="switch-btn">&#128259;</div>
+<div id="gallery-btn">&#128064;</div>
 <div id="root" data-tauri-drag-region>
-  <div id="quit">X</div>
-  <div id="switch-btn">&#128259;</div>
-  <div id="gallery-btn">&#128064;</div>
   <div id="label">${name}</div>
   <div class="pet-sprite" id="sprite"></div>
   <div id="bubble"></div>
@@ -148,6 +152,12 @@ body.expanded{overflow:auto}
 <div id="gallery">
   <div class="close-btn" id="gallery-close">X</div>
   <h3>Pet Library</h3>
+  <div class="cat-tabs">
+    <div class="cat-tab active" data-cat="all">All</div>
+    <div class="cat-tab" data-cat="character">Characters</div>
+    <div class="cat-tab" data-cat="creature">Creatures</div>
+    <div class="cat-tab" data-cat="object">Objects</div>
+  </div>
   <input type="text" class="search" id="pet-search" placeholder="Search 3700+ pets..."/>
   <div class="grid" id="pet-grid"><div class="loading">Loading...</div></div>
 </div>
