@@ -170,17 +170,23 @@ async fn install_pet(slug: String, sprite_url: String, display_name: String) -> 
     Ok(())
 }
 
-/// Remove a pet from ~/.petdex/pets/<slug>/.
+/// Remove a pet from any root that contains it (~/.petdex/pets and ~/.codex/pets).
 #[tauri::command]
 fn uninstall_pet(slug: String) -> Result<(), String> {
-    let home = dirs::home_dir().ok_or("no home")?;
-    let pet_dir = home.join(".petdex").join("pets").join(&slug);
-    if !pet_dir.exists() {
+    let mut removed = false;
+    for root in pet_roots() {
+        let pet_dir = root.join(&slug);
+        if pet_dir.exists() {
+            fs::remove_dir_all(&pet_dir).map_err(|e| format!("remove: {e}"))?;
+            removed = true;
+        }
+    }
+    if !removed {
         return Err(format!("pet '{}' not installed", slug));
     }
-    fs::remove_dir_all(&pet_dir).map_err(|e| format!("remove: {e}"))?;
 
     // If this was the active pet, clear active.json
+    let home = dirs::home_dir().ok_or("no home")?;
     let active_path = home.join(".petdex").join("active.json");
     if let Ok(active) = fs::read_to_string(&active_path) {
         if active.contains(&slug) {
