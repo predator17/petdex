@@ -1,3 +1,37 @@
+// === DRAG: manual startDragging on mousedown (no data-tauri-drag-region) ===
+// data-tauri-drag-region on #root captures ALL clicks, preventing buttons
+// from working. Instead, we listen for mousedown on the background areas
+// (not on buttons) and call Tauri's startDragging() manually. This is
+// exactly how the macOS main.zig does it.
+function setupManualDrag() {
+  if (!window.__TAURI__ || !window.__TAURI__.window) {
+    setTimeout(setupManualDrag, 200);
+    return;
+  }
+  var win = window.__TAURI__.window.getCurrentWindow();
+  var root = document.getElementById("root");
+  root.addEventListener("mousedown", function (e) {
+    // Only start drag for left-click on background (not buttons/sprite)
+    if (e.button !== 0) return;
+    var target = e.target;
+    // Don't drag if clicking on interactive elements
+    if (
+      target.id === "quit" ||
+      target.id === "switch-btn" ||
+      target.id === "gallery-btn" ||
+      target.closest(".pet-btn") ||
+      target.closest(".close-btn") ||
+      target.closest(".cat-tab") ||
+      target.tagName === "INPUT" ||
+      target.tagName === "BUTTON"
+    ) {
+      return;
+    }
+    win.startDragging().catch(function () {});
+  });
+}
+setupManualDrag();
+
 // === DRAG REACTION (Rust-side tracker, survives JS freeze) ===
 // Rust records window Moved events during drag (even when JS is frozen).
 // JS polls get_drag_result() every 100ms. When 'moved' is true and we

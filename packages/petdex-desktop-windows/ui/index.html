@@ -7,7 +7,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
 html,body{background:#0a0a1a;width:192px;height:288px;overflow:hidden;user-select:none;-webkit-user-select:none;transition:width .3s,height .3s}
 body.expanded{overflow:auto}
-#root{position:fixed;top:0;left:0;width:192px;height:288px;cursor:grab}
+#root{position:fixed;top:0;left:0;width:192px;height:288px;cursor:grab;z-index:1}
 #root:active{cursor:grabbing}
 .pet-sprite{
   --sprite-row:0;--sprite-frames:6;--sprite-duration:1100ms;
@@ -23,11 +23,11 @@ body.expanded{overflow:auto}
 #root:active .pet-sprite{transform:scale(1.1);filter:brightness(1.2)}
 .pet-sprite.fast{transform:scale(1.15) rotate(-5deg);filter:brightness(1.3) drop-shadow(0 0 8px #ffd700)}
 @keyframes pet-state{from{background-position:0 var(--sprite-y)}to{background-position:var(--sprite-end-x) var(--sprite-y)}}
-#quit{position:absolute;top:4px;right:4px;width:24px;height:24px;background:#e74c3c;border-radius:5px;z-index:10;display:flex;align-items:center;justify-content:center;color:#fff;font:bold 14px sans-serif;cursor:pointer;border:2px solid #c0392b;pointer-events:auto}
+#quit{position:absolute;top:4px;right:4px;width:24px;height:24px;background:#e74c3c;border-radius:5px;z-index:100;display:flex;align-items:center;justify-content:center;color:#fff;font:bold 14px sans-serif;cursor:pointer;border:2px solid #c0392b;pointer-events:auto}
 #quit:hover{background:#ff5555;transform:scale(1.1)}
-#gallery-btn{position:absolute;top:4px;right:34px;width:24px;height:24px;background:#2a4a8a;border-radius:5px;z-index:10;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;pointer-events:auto;border:1px solid #3a5a9a}
+#gallery-btn{position:absolute;top:4px;right:34px;width:24px;height:24px;background:#2a4a8a;border-radius:5px;z-index:100;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;pointer-events:auto;border:1px solid #3a5a9a}
 #gallery-btn:hover{background:#3a6abb;transform:scale(1.1)}
-#switch-btn{position:absolute;top:4px;right:64px;width:24px;height:24px;background:#2a8a4a;border-radius:5px;z-index:10;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;pointer-events:auto;border:1px solid #3a9a5a}
+#switch-btn{position:absolute;top:4px;right:64px;width:24px;height:24px;background:#2a8a4a;border-radius:5px;z-index:100;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;pointer-events:auto;border:1px solid #3a9a5a}
 #switch-btn:hover{background:#3abb6a;transform:scale(1.1)}
 #bubble{position:absolute;bottom:218px;left:50%;transform:translateX(-50%);background:rgba(255,255,255,.95);color:#111;font:11px/1.4 system-ui,sans-serif;padding:6px 10px;border-radius:8px;max-width:180px;box-shadow:0 2px 8px rgba(0,0,0,.3);opacity:0;transition:opacity .25s ease;pointer-events:none;white-space:pre-wrap;z-index:20}
 #bubble.visible{opacity:1}
@@ -56,8 +56,7 @@ body.expanded{overflow:auto}
 #gallery-header{
   position:absolute;top:0;left:0;right:0;z-index:60;
   background:#12122a;padding:8px 10px 6px;
-  border-bottom:1px solid #2a2a4a;
-  data-tauri-drag-region:true
+  border-bottom:1px solid #2a2a4a
 }
 #gallery h3{font-size:14px;margin-bottom:6px;color:#6b8cff}
 #gallery .close-btn{position:absolute;top:8px;right:8px;width:32px;height:32px;background:#e74c3c;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font:bold 18px sans-serif;z-index:50;border:2px solid #c0392b}
@@ -109,10 +108,10 @@ body.expanded{overflow:auto}
 </style>
 </head>
 <body>
-<div id="quit">X</div>
-<div id="switch-btn">&#128259;</div>
-<div id="gallery-btn">&#128064;</div>
-<div id="root" data-tauri-drag-region>
+<div id="root">
+  <div id="quit">X</div>
+  <div id="switch-btn">&#128259;</div>
+  <div id="gallery-btn">&#128064;</div>
   <div id="label">奥瑞利安</div>
   <div class="pet-sprite" id="sprite"></div>
   <div id="bubble"></div>
@@ -133,7 +132,7 @@ body.expanded{overflow:auto}
 </div>
 
 <div id="gallery">
-  <div id="gallery-header" data-tauri-drag-region>
+  <div id="gallery-header">
     <div class="close-btn" id="gallery-close">X</div>
     <h3>Pet Library</h3>
     <div class="cat-tabs">
@@ -150,7 +149,7 @@ body.expanded{overflow:auto}
 </div>
 
 <div id="switcher">
-  <div id="switcher-header" data-tauri-drag-region>
+  <div id="switcher-header">
     <div class="close-btn" id="switcher-close">X</div>
     <h3>Switch Pet</h3>
   </div>
@@ -159,7 +158,41 @@ body.expanded{overflow:auto}
   </div>
 </div>
 
-<script>// === DRAG REACTION (Rust-side tracker, survives JS freeze) ===
+<script>// === DRAG: manual startDragging on mousedown (no data-tauri-drag-region) ===
+// data-tauri-drag-region on #root captures ALL clicks, preventing buttons
+// from working. Instead, we listen for mousedown on the background areas
+// (not on buttons) and call Tauri's startDragging() manually. This is
+// exactly how the macOS main.zig does it.
+function setupManualDrag() {
+  if (!window.__TAURI__ || !window.__TAURI__.window) {
+    setTimeout(setupManualDrag, 200);
+    return;
+  }
+  var win = window.__TAURI__.window.getCurrentWindow();
+  var root = document.getElementById("root");
+  root.addEventListener("mousedown", function (e) {
+    // Only start drag for left-click on background (not buttons/sprite)
+    if (e.button !== 0) return;
+    var target = e.target;
+    // Don't drag if clicking on interactive elements
+    if (
+      target.id === "quit" ||
+      target.id === "switch-btn" ||
+      target.id === "gallery-btn" ||
+      target.closest(".pet-btn") ||
+      target.closest(".close-btn") ||
+      target.closest(".cat-tab") ||
+      target.tagName === "INPUT" ||
+      target.tagName === "BUTTON"
+    ) {
+      return;
+    }
+    win.startDragging().catch(function () {});
+  });
+}
+setupManualDrag();
+
+// === DRAG REACTION (Rust-side tracker, survives JS freeze) ===
 // Rust records window Moved events during drag (even when JS is frozen).
 // JS polls get_drag_result() every 100ms. When 'moved' is true and we
 // haven't processed it yet, we read the direction/speed and react.
