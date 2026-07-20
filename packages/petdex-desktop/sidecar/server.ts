@@ -1014,6 +1014,28 @@ const server = http.createServer(async (req, res) => {
       return jsonResponse(res, 200, { ok: true, port: PORT });
     }
 
+    // Command file endpoints for external control (testing/automation)
+    if (req.method === "GET" && url.pathname === "/cmd-file") {
+      try {
+        const raw = readFileSync(join(RUNTIME_DIR, "cmd.json"), "utf8");
+        return jsonResponse(res, 200, JSON.parse(raw));
+      } catch {
+        return jsonResponse(res, 200, { id: 0 });
+      }
+    }
+    if (req.method === "POST" && url.pathname === "/cmd-result") {
+      try {
+        const body = await readJsonBody(req);
+        writeFileSync(
+          join(RUNTIME_DIR, "cmd-result.json"),
+          JSON.stringify(body),
+        );
+        return jsonResponse(res, 200, { ok: true });
+      } catch {
+        return jsonResponse(res, 400, { ok: false });
+      }
+    }
+
     // Identity endpoint used by the EADDRINUSE-recovery path. When a
     // fresh sidecar boots and finds :7777 occupied, it probes /whoami
     // on the incumbent. If the incumbent reports a parentPid that is

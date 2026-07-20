@@ -810,10 +810,7 @@ function initTauri() {
     return;
   }
   var invoke = t.core.invoke;
-  // Diagnostic: write INIT:OK to label so we can confirm initTauri ran
-  var lbl = document.getElementById("label");
-  if (lbl) lbl.textContent = "INIT:OK";
-
+  
   // Quit button (red X)
   document.getElementById("quit").addEventListener("click", (e) => {
     e.stopPropagation();
@@ -826,6 +823,7 @@ function initTauri() {
     invoke("quit_app");
   });
 
+  
   // Switch button (green swap icon)
   document.getElementById("switch-btn").addEventListener(
     "click",
@@ -957,6 +955,49 @@ function initTauri() {
       })
       .catch(() => {});
   }, 200);
+
+  // Command file polling — reads ~/.petdex/runtime/cmd.json via Rust invoke
+  // every 500ms. If a new command is found, executes it and writes result
+  // via write_cmd_result. Uses Tauri IPC (not fetch) to avoid CSP/mixed-content issues.
+  var lastCmdId = 0;
+  setInterval(() => {
+    invoke("read_cmd_file")
+      .then((cmd) => {
+        if (!cmd || !cmd.id || cmd.id === lastCmdId) return;
+        lastCmdId = cmd.id;
+        var label = document.getElementById("label");
+        function setResult(msg) {
+          if (label) label.textContent = msg;
+          invoke("write_cmd_result", { result: JSON.stringify({ id: cmd.id, result: msg }) }).catch(() => {});
+        }
+
+        if (cmd.action === "uninstall" && cmd.slug) {
+          setResult("CMD:UNINST:" + cmd.slug);
+          invoke("uninstall_pet", { slug: cmd.slug })
+            .then(() => setResult("CMD:OK"))
+            .catch((e) => setResult("CMD:ERR:" + String(e).slice(0, 20)));
+        } else if (cmd.action === "list") {
+          invoke("list_installed_pets").then((pets) => {
+            setResult("CMD:LIST:" + (pets || []).map((p) => p.slug).join(","));
+          }).catch((e) => setResult("CMD:LISTERR"));
+        } else if (cmd.action === "switch" && cmd.slug) {
+          invoke("set_active_pet", { slug: cmd.slug })
+            .then(() => { setResult("CMD:SWITCH:OK"); loadActivePet(); })
+            .catch((e) => setResult("CMD:SWITCH:ERR"));
+        } else if (cmd.action === "openPanel" && cmd.panel) {
+          openPanel(cmd.panel);
+          setResult("CMD:PANEL:" + cmd.panel);
+        } else if (cmd.action === "eval" && cmd.code) {
+          try {
+            var result = eval(cmd.code);
+            setResult("CMD:EVAL:" + String(result).slice(0, 30));
+          } catch (e) {
+            setResult("CMD:EVALERR:" + String(e).slice(0, 20));
+          }
+        }
+      })
+      .catch(() => {});
+  }, 500);
 }
 initTauri();
 </script>

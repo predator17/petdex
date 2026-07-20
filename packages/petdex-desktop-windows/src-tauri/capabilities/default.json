@@ -10,6 +10,7 @@
     "core:window:allow-set-position",
     "core:window:allow-outer-position",
     "core:window:allow-close",
+    "core:webview:allow-internal-toggle-devtools",
     "deep-link:default"
   ]
 }

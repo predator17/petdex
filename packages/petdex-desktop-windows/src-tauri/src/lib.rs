@@ -564,6 +564,35 @@ fn read_runtime_bubble() -> Option<serde_json::Value> {
     serde_json::from_str(&raw).ok()
 }
 
+/// Read ~/.petdex/runtime/cmd.json. Returns the parsed JSON or {id:0}.
+#[tauri::command]
+fn read_cmd_file() -> Option<serde_json::Value> {
+    let path = dirs::home_dir()?.join(".petdex").join("runtime").join("cmd.json");
+    let raw = fs::read_to_string(&path).ok()?;
+    serde_json::from_str(&raw).ok()
+}
+
+/// Write ~/.petdex/runtime/cmd-result.json.
+#[tauri::command]
+fn write_cmd_result(result: String) -> Result<(), String> {
+    let path = dirs::home_dir()
+        .ok_or("no home")?
+        .join(".petdex")
+        .join("runtime")
+        .join("cmd-result.json");
+    fs::write(&path, result).map_err(|e| format!("{e}"))
+}
+
+/// Execute JavaScript in the WebView2 page. Used for testing UI interactions
+/// (button clicks, panel opens) without needing real mouse events, which
+/// can't be reliably sent to WebView2 from outside the process.
+#[tauri::command]
+fn eval_js(app: tauri::AppHandle, code: String) -> Result<(), String> {
+    use tauri::Manager;
+    let main = app.get_webview_window("pet").ok_or("no window")?;
+    main.eval(&code).map_err(|e| format!("{e}"))
+}
+
 // ── Tauri commands — sidecar ──────────────────────────────────────────────────
 
 /// Spawn the sidecar server; kill any stale instance first. Returns the port (default 7777).
@@ -748,6 +777,9 @@ pub fn run() {
             list_installed_pets,
             get_drag_result,
             reset_drag,
+            eval_js,
+            read_cmd_file,
+            write_cmd_result,
             read_file_as_base64,
             read_runtime_state,
             read_runtime_bubble,
