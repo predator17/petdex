@@ -1,44 +1,34 @@
-// === DRAG: manual startDragging on mousedown ===
-// Buttons are SIBLINGS of #root (outside it), so mousedown on #root
-// only fires when clicking the pet background — buttons are never affected.
-// Gallery/Switcher headers also get manual startDragging.
-// No data-tauri-drag-region ANYWHERE (it blocks button clicks on WebView2).
+// === DRAG: manual startDragging on mousedown (no data-tauri-drag-region) ===
+// data-tauri-drag-region on #root captures ALL clicks, preventing buttons
+// from working. Instead, we listen for mousedown on the background areas
+// (not on buttons) and call Tauri's startDragging() manually. This is
+// exactly how the macOS main.zig does it.
 function setupManualDrag() {
   if (!window.__TAURI__ || !window.__TAURI__.window) {
     setTimeout(setupManualDrag, 200);
     return;
   }
   var win = window.__TAURI__.window.getCurrentWindow();
-
-  // Pet background drag
   var root = document.getElementById("root");
-  if (root) {
-    root.addEventListener("mousedown", function (e) {
-      if (e.button !== 0) return;
-      win.startDragging().catch(function () {});
-    });
-  }
-
-  // Gallery header drag
-  var gh = document.getElementById("gallery-header");
-  if (gh) {
-    gh.addEventListener("mousedown", function (e) {
-      if (e.button !== 0) return;
-      // Don't drag if clicking on interactive elements inside header
-      if (e.target.closest("button, input, .close-btn, .cat-tab")) return;
-      win.startDragging().catch(function () {});
-    });
-  }
-
-  // Switcher header drag
-  var sh = document.getElementById("switcher-header");
-  if (sh) {
-    sh.addEventListener("mousedown", function (e) {
-      if (e.button !== 0) return;
-      if (e.target.closest("button, input, .close-btn")) return;
-      win.startDragging().catch(function () {});
-    });
-  }
+  root.addEventListener("mousedown", function (e) {
+    // Only start drag for left-click on background (not buttons/sprite)
+    if (e.button !== 0) return;
+    var target = e.target;
+    // Don't drag if clicking on interactive elements
+    if (
+      target.id === "quit" ||
+      target.id === "switch-btn" ||
+      target.id === "gallery-btn" ||
+      target.closest(".pet-btn") ||
+      target.closest(".close-btn") ||
+      target.closest(".cat-tab") ||
+      target.tagName === "INPUT" ||
+      target.tagName === "BUTTON"
+    ) {
+      return;
+    }
+    win.startDragging().catch(function () {});
+  });
 }
 setupManualDrag();
 

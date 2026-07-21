@@ -145,32 +145,27 @@ fn load_pet_from_dir(slug: &str, dir: &std::path::Path) -> Option<PetMeta> {
 /// Called from the gallery's install button. Downloads the sprite + pet.json.
 #[tauri::command]
 async fn install_pet(slug: String, sprite_url: String, display_name: String) -> Result<(), String> {
-    // Download sprite once, then copy to ALL pet roots (matching what
-    // the petdex CLI does — it installs to both ~/.petdex/pets and
-    // ~/.codex/pets so both desktop shells find the pet).
+    let home = dirs::home_dir().ok_or("no home")?;
+    let pet_dir = home.join(".petdex").join("pets").join(&slug);
+    fs::create_dir_all(&pet_dir).map_err(|e| format!("mkdir: {e}"))?;
+
+    // Download sprite via async reqwest
     let resp = reqwest::get(&sprite_url).await.map_err(|e| format!("download: {e}"))?;
     if !resp.status().is_success() {
         return Err(format!("download failed: HTTP {}", resp.status()));
     }
     let body = resp.bytes().await.map_err(|e| format!("read body: {e}"))?;
+    fs::write(pet_dir.join("spritesheet.webp"), &body).map_err(|e| format!("write sprite: {e}"))?;
 
+    // Write pet.json
     let pet_json = serde_json::json!({
         "id": slug,
         "displayName": display_name,
         "description": "",
         "spritesheetPath": "spritesheet.webp"
     });
-    let pet_json_str = serde_json::to_string_pretty(&pet_json).unwrap();
-
-    // Install to every root in pet_roots()
-    for root in pet_roots() {
-        let pet_dir = root.join(&slug);
-        fs::create_dir_all(&pet_dir).map_err(|e| format!("mkdir {}: {e}", pet_dir.display()))?;
-        fs::write(pet_dir.join("spritesheet.webp"), &body)
-            .map_err(|e| format!("write sprite {}: {e}", pet_dir.display()))?;
-        fs::write(pet_dir.join("pet.json"), &pet_json_str)
-            .map_err(|e| format!("write pet.json {}: {e}", pet_dir.display()))?;
-    }
+    fs::write(pet_dir.join("pet.json"), serde_json::to_string_pretty(&pet_json).unwrap())
+        .map_err(|e| format!("write pet.json: {e}"))?;
 
     Ok(())
 }
@@ -371,24 +366,6 @@ fn find_node() -> PathBuf {
             return candidate.clone();
         }
     }
-
-    // Try bun as fallback (the user may have bun installed but not node).
-    // The sidecar server.js runs fine under bun.
-    if let Ok(out) = std::process::Command::new("where.exe").arg("bun").output() {
-        if out.status.success() {
-            if let Ok(s) = std::str::from_utf8(&out.stdout) {
-                if let Some(line) = s.lines().next() {
-                    let p = PathBuf::from(line.trim());
-                    if p.exists() { return p; }
-                }
-            }
-        }
-    }
-    if let Some(home) = &user_profile {
-        let bun_exe = home.join(".bun").join("bin").join("bun.exe");
-        if bun_exe.exists() { return bun_exe; }
-    }
-
     // Final fallback — let OS resolve it
     PathBuf::from("node")
 }

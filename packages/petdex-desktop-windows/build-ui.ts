@@ -9,19 +9,37 @@ import { fileURLToPath } from "node:url";
 import sharp from "sharp";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const petsDir = join(homedir(), ".petdex", "pets");
-const pets = readdirSync(petsDir).filter((d) => {
-  try {
-    readFileSync(join(petsDir, d, "pet.json"));
-    return true;
-  } catch {
-    return false;
+
+// Search BOTH pet roots (primary ~/.petdex/pets and legacy ~/.codex/pets),
+// matching what the Rust pet_roots() helper does. Either shell may own the
+// pet directory depending on which installer ran.
+const petRoots = [
+  join(homedir(), ".petdex", "pets"),
+  join(homedir(), ".codex", "pets"),
+];
+let slug: string | null = null;
+let petsDir = "";
+let spritePath = "";
+let meta: { displayName?: string } = {};
+for (const root of petRoots) {
+  if (!existsSync(root)) continue;
+  for (const d of readdirSync(root)) {
+    try {
+      const pj = join(root, d, "pet.json");
+      readFileSync(pj);
+      slug = d;
+      petsDir = root;
+      spritePath = join(root, d, "spritesheet.webp");
+      meta = JSON.parse(readFileSync(pj));
+      break;
+    } catch {
+      // not a pet dir, skip
+    }
   }
-});
-const slug = pets[0] || "aurelion-sol";
-const spritePath = join(petsDir, slug, "spritesheet.webp");
+  if (slug) break;
+}
+if (!slug) throw new Error("no installed pet found in ~/.petdex/pets or ~/.codex/pets");
 const sprite = readFileSync(spritePath);
-const meta = JSON.parse(readFileSync(join(petsDir, slug, "pet.json")));
 const name = meta.displayName || slug;
 const compact = await sharp(sprite).webp({ quality: 80 }).toBuffer();
 const b64 = compact.toString("base64");
@@ -137,10 +155,10 @@ body.expanded{overflow:auto}
 </style>
 </head>
 <body>
-<div id="quit">X</div>
-<div id="switch-btn">&#128259;</div>
-<div id="gallery-btn">&#128064;</div>
 <div id="root">
+  <div id="quit">X</div>
+  <div id="switch-btn">&#128259;</div>
+  <div id="gallery-btn">&#128064;</div>
   <div id="label">${name}</div>
   <div class="pet-sprite" id="sprite"></div>
   <div id="bubble"></div>
