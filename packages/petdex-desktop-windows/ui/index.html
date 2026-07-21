@@ -176,10 +176,12 @@ body.expanded{overflow:auto}
   </div>
 </div>
 
-<script>// === DRAG: manual startDragging on mousedown (no data-tauri-drag-region) ===
-// data-tauri-drag-region captures ALL clicks at the native level, preventing
-// buttons from working. Instead, we listen for mousedown on background areas
-// and call Tauri's startDragging() manually.
+<script>// === DRAG: manual startDragging on mousedown ===
+// data-tauri-drag-region captures ALL clicks at the native level.
+// We use manual startDragging() instead, but ONLY on background areas.
+// CRITICAL: must check e.target BEFORE calling startDragging — if the
+// click is on a button, we must NOT call startDragging because it
+// hijacks the mouse and prevents the click event from reaching the button.
 function setupManualDrag() {
   if (!window.__TAURI__ || !window.__TAURI__.window) {
     setTimeout(setupManualDrag, 200);
@@ -187,32 +189,25 @@ function setupManualDrag() {
   }
   var win = window.__TAURI__.window.getCurrentWindow();
 
-  // Elements that should trigger window dragging when clicked
-  var dragZones = ["root", "gallery-header", "switcher-header"];
+  // Only #root is a drag zone (the pet background).
+  // gallery-header and switcher-header use data-tauri-drag-region
+  // (HTML attribute, which works because they contain NO buttons).
+  var root = document.getElementById("root");
+  if (!root) { setTimeout(setupManualDrag, 200); return; }
 
-  for (var zi = 0; zi < dragZones.length; zi++) {
-    var el = document.getElementById(dragZones[zi]);
-    if (!el) continue;
-    (function (zone) {
-      zone.addEventListener("mousedown", function (e) {
-        if (e.button !== 0) return;
-        var target = e.target;
-        // Don't drag if clicking on interactive elements
-        if (
-          target.tagName === "BUTTON" ||
-          target.tagName === "INPUT" ||
-          target.closest(".pet-btn") ||
-          target.closest(".close-btn") ||
-          target.closest(".cat-tab") ||
-          target.closest("button") ||
-          target.closest("input")
-        ) {
-          return;
-        }
-        win.startDragging().catch(function () {});
-      });
-    })(el);
-  }
+  root.addEventListener("mousedown", function (e) {
+    if (e.button !== 0) return;
+    // NEVER drag if clicking on or inside ANY interactive element.
+    // startDragging() hijacks the mouse at the OS level — if we call it,
+    // the subsequent click event on the button NEVER fires.
+    // e.target can be a text node child of the button (e.g. the "X" text
+    // or emoji), so we use closest() to check if ANY ancestor is a button.
+    var interactive = e.target.closest("#quit, #switch-btn, #gallery-btn, button, input, a, .close-btn, .cat-tab, .pet-btn");
+    if (interactive) {
+      return; // Let the click through
+    }
+    win.startDragging().catch(function () {});
+  });
 }
 setupManualDrag();
 
