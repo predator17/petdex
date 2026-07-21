@@ -19,26 +19,13 @@ const pets = readdirSync(petsDir).filter((d) => {
   }
 });
 const slug = pets[0] || "aurelion-sol";
-// Search both pet roots for the sprite
-let spritePath = "";
-let name = slug;
-for (const root of [petsDir, join(homedir(), ".codex", "pets")]) {
-  const candidate = join(root, slug, "spritesheet.webp");
-  if (existsSync(candidate)) {
-    spritePath = candidate;
-    const petJson = join(root, slug, "pet.json");
-    if (existsSync(petJson)) {
-      try { name = JSON.parse(readFileSync(petJson, "utf8")).displayName || name; } catch {}
-    }
-    break;
-  }
-}
-const b64 = spritePath ? (await sharp(readFileSync(spritePath)).webp({ quality: 80 }).toBuffer()).toString("base64") : "";
+const spritePath = join(petsDir, slug, "spritesheet.webp");
+const sprite = readFileSync(spritePath);
+const meta = JSON.parse(readFileSync(join(petsDir, slug, "pet.json")));
+const name = meta.displayName || slug;
+const compact = await sharp(sprite).webp({ quality: 80 }).toBuffer();
+const b64 = compact.toString("base64");
 const gridH = 1872;
-
-// Read app.js BEFORE the template literal, then inject as a plain string
-// (NOT via ${...} which would interpret $ in the JS as template expressions)
-const appJs = readFileSync(join(here, "ui", "app.js"), "utf8");
 
 const html = `<!DOCTYPE html>
 <html lang="en">
@@ -96,22 +83,17 @@ body.expanded{overflow:auto}
 }
 #gallery.visible{display:block}
 #gallery-header{
-  position:absolute;top:0;left:0;right:0;height:34px;z-index:60;
-  background:#12122a;padding:8px 10px 0;
-  border-bottom:1px solid #2a2a4a;cursor:grab
+  position:absolute;top:0;left:0;right:0;z-index:60;
+  background:#12122a;padding:8px 10px 6px;
+  border-bottom:1px solid #2a2a4a
 }
-#gallery-header:active{cursor:grabbing}
-#gallery h3{font-size:14px;margin:0;color:#6b8cff}
-#gallery-controls{
-  position:absolute;top:34px;left:0;right:0;z-index:55;
-  background:#12122a;padding:4px 10px 6px
-}
-#gallery .close-btn{position:absolute;top:4px;right:8px;width:28px;height:28px;background:#e74c3c;border-radius:5px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font:bold 16px sans-serif;z-index:50;border:2px solid #c0392b}
+#gallery h3{font-size:14px;margin-bottom:6px;color:#6b8cff}
+#gallery .close-btn{position:absolute;top:8px;right:8px;width:32px;height:32px;background:#e74c3c;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font:bold 18px sans-serif;z-index:50;border:2px solid #c0392b}
 #gallery .close-btn:hover{background:#ff5555;transform:scale(1.1)}
 #gallery .search{width:calc(100% - 45px);padding:8px;background:#1e1e3a;border:1px solid #444;border-radius:6px;color:#eee;font:13px sans-serif;margin-bottom:6px}
 #gallery .cat-tabs{display:flex;gap:6px;margin-bottom:0;flex-wrap:wrap}
 #gallery-scroll{
-  position:absolute;top:100px;left:0;right:0;bottom:0;
+  position:absolute;top:110px;left:0;right:0;bottom:0;
   overflow:auto;padding:10px
 }
 #gallery .cat-tab{padding:4px 12px;background:#1e1e3a;border-radius:12px;font-size:11px;color:#888;cursor:pointer;user-select:none;transition:background .2s,color .2s}
@@ -126,14 +108,6 @@ body.expanded{overflow:auto}
   background-repeat:no-repeat;background-size:768px 936px;
   image-rendering:pixelated;
   animation:gallery-idle 1100ms steps(6) infinite;
-  background-color:#1a1a3a;
-}
-#gallery .pet-card .pet-anim-inner:not([style*="background-image"]){
-  display:flex;align-items:center;justify-content:center;
-  animation:none;
-}
-#gallery .pet-card .pet-anim-inner:not([style*="background-image"])::before{
-  content:"🎨";font-size:28px;opacity:0.3
 }
 @keyframes gallery-idle{from{background-position:0 0}to{background-position:-576px 0}}
 #gallery .pet-card .pname{font-size:11px;color:#ccc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600}
@@ -146,12 +120,10 @@ body.expanded{overflow:auto}
 /* Switcher panel (reuses gallery card styles) */
 #switcher{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:#12122a;z-index:30;overflow:hidden;font:12px/1.4 system-ui,sans-serif;color:#ddd}
 #switcher.visible{display:block}
-#switcher-header{position:absolute;top:0;left:0;right:0;height:34px;z-index:60;background:#12122a;padding:8px 10px 0;border-bottom:1px solid #2a2a4a;cursor:grab}
-#switcher-header:active{cursor:grabbing}
-#switcher h3{font-size:14px;margin:0;color:#6b8cff}
-#switcher-controls{position:absolute;top:34px;left:0;right:0;z-index:55;background:#12122a;padding:4px 10px 6px}
-#switcher .close-btn{position:absolute;top:4px;right:8px;width:28px;height:28px;background:#e74c3c;border-radius:5px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font:bold 16px sans-serif;z-index:50;border:2px solid #c0392b}
-#switcher-scroll{position:absolute;top:70px;left:0;right:0;bottom:0;overflow:auto;padding:10px}
+#switcher-header{position:absolute;top:0;left:0;right:0;z-index:60;background:#12122a;padding:8px 10px 6px;border-bottom:1px solid #2a2a4a}
+#switcher h3{font-size:14px;margin-bottom:6px;color:#6b8cff}
+#switcher .close-btn{position:absolute;top:8px;right:8px;width:32px;height:32px;background:#e74c3c;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font:bold 18px sans-serif;z-index:50;border:2px solid #c0392b}
+#switcher-scroll{position:absolute;top:50px;left:0;right:0;bottom:0;overflow:auto;padding:10px}
 #switcher .grid{display:grid;gap:10px;padding-bottom:20px}
 #switcher .pet-card{background:#1e1e3a;border-radius:8px;padding:8px;cursor:pointer;text-align:center;overflow:hidden;transition:background .2s;border:1px solid #2a2a4a}
 #switcher .pet-card:hover{background:#2a4a6a;border-color:#4a7aaa}
@@ -165,10 +137,10 @@ body.expanded{overflow:auto}
 </style>
 </head>
 <body>
+<div id="quit">X</div>
+<div id="switch-btn">&#128259;</div>
+<div id="gallery-btn">&#128064;</div>
 <div id="root">
-  <div id="quit">X</div>
-  <div id="switch-btn">&#128259;</div>
-  <div id="gallery-btn">&#128064;</div>
   <div id="label">${name}</div>
   <div class="pet-sprite" id="sprite"></div>
   <div id="bubble"></div>
@@ -189,16 +161,15 @@ body.expanded{overflow:auto}
 </div>
 
 <div id="gallery">
-  <div id="gallery-header" data-tauri-drag-region>
-    <h3>Pet Library</h3>
-  </div>
-  <div id="gallery-controls">
+  <div id="gallery-header">
     <div class="close-btn" id="gallery-close">X</div>
+    <h3>Pet Library</h3>
     <div class="cat-tabs">
       <div class="cat-tab active" data-cat="all">All</div>
       <div class="cat-tab" data-cat="character">Characters</div>
       <div class="cat-tab" data-cat="creature">Creatures</div>
       <div class="cat-tab" data-cat="object">Objects</div>
+    </div>
     <input type="text" class="search" id="pet-search" placeholder="Search 3700+ pets..."/>
   </div>
   <div id="gallery-scroll">
@@ -207,22 +178,19 @@ body.expanded{overflow:auto}
 </div>
 
 <div id="switcher">
-  <div id="switcher-header" data-tauri-drag-region>
-    <h3>Switch Pet</h3>
-  </div>
-  <div id="switcher-controls">
+  <div id="switcher-header">
     <div class="close-btn" id="switcher-close">X</div>
+    <h3>Switch Pet</h3>
   </div>
   <div id="switcher-scroll">
     <div class="grid" id="switcher-grid" style="grid-template-columns:repeat(2,1fr)"><div class="loading">Loading...</div></div>
   </div>
 </div>
 
-<script src="app.js"></script>
+<script>${readFileSync(join(here, "ui", "app.js"), "utf8")}</script>
 </body>
 </html>`;
 
 const outPath = join(here, "ui", "index.html");
-// Write the HTML (no app.js inlined — uses external <script src="app.js">)
 writeFileSync(outPath, html);
 console.log("Built:", outPath, "(" + html.length + " bytes)");

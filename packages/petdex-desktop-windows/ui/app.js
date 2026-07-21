@@ -1,9 +1,8 @@
 // === DRAG: manual startDragging on mousedown ===
-// data-tauri-drag-region captures ALL clicks at the native level.
-// We use manual startDragging() instead, but ONLY on background areas.
-// CRITICAL: must check e.target BEFORE calling startDragging — if the
-// click is on a button, we must NOT call startDragging because it
-// hijacks the mouse and prevents the click event from reaching the button.
+// Buttons are SIBLINGS of #root (outside it), so mousedown on #root
+// only fires when clicking the pet background — buttons are never affected.
+// Gallery/Switcher headers also get manual startDragging.
+// No data-tauri-drag-region ANYWHERE (it blocks button clicks on WebView2).
 function setupManualDrag() {
   if (!window.__TAURI__ || !window.__TAURI__.window) {
     setTimeout(setupManualDrag, 200);
@@ -11,25 +10,35 @@ function setupManualDrag() {
   }
   var win = window.__TAURI__.window.getCurrentWindow();
 
-  // Only #root is a drag zone (the pet background).
-  // gallery-header and switcher-header use data-tauri-drag-region
-  // (HTML attribute, which works because they contain NO buttons).
+  // Pet background drag
   var root = document.getElementById("root");
-  if (!root) { setTimeout(setupManualDrag, 200); return; }
+  if (root) {
+    root.addEventListener("mousedown", function (e) {
+      if (e.button !== 0) return;
+      win.startDragging().catch(function () {});
+    });
+  }
 
-  root.addEventListener("mousedown", function (e) {
-    if (e.button !== 0) return;
-    // NEVER drag if clicking on or inside ANY interactive element.
-    // startDragging() hijacks the mouse at the OS level — if we call it,
-    // the subsequent click event on the button NEVER fires.
-    // e.target can be a text node child of the button (e.g. the "X" text
-    // or emoji), so we use closest() to check if ANY ancestor is a button.
-    var interactive = e.target.closest("#quit, #switch-btn, #gallery-btn, button, input, a, .close-btn, .cat-tab, .pet-btn");
-    if (interactive) {
-      return; // Let the click through
-    }
-    win.startDragging().catch(function () {});
-  });
+  // Gallery header drag
+  var gh = document.getElementById("gallery-header");
+  if (gh) {
+    gh.addEventListener("mousedown", function (e) {
+      if (e.button !== 0) return;
+      // Don't drag if clicking on interactive elements inside header
+      if (e.target.closest("button, input, .close-btn, .cat-tab")) return;
+      win.startDragging().catch(function () {});
+    });
+  }
+
+  // Switcher header drag
+  var sh = document.getElementById("switcher-header");
+  if (sh) {
+    sh.addEventListener("mousedown", function (e) {
+      if (e.button !== 0) return;
+      if (e.target.closest("button, input, .close-btn")) return;
+      win.startDragging().catch(function () {});
+    });
+  }
 }
 setupManualDrag();
 
@@ -121,7 +130,13 @@ loadActivePet();
 // localStorage so the gallery opens instantly. Re-syncs every 30 min
 // to pick up new pets while the app is running.
 function startBackgroundSync() {
+  if (!window.__TAURI__ || !window.__TAURI__.core) {
+    setTimeout(startBackgroundSync, 500);
+    return;
+  }
+  // Initial sync on launch
   syncManifestQuiet();
+  // Re-sync every 30 minutes
   setInterval(syncManifestQuiet, 30 * 60 * 1000);
 }
 
@@ -166,18 +181,18 @@ function syncManifestQuiet() {
     });
 }
 
-// Load cached manifest from localStorage at boot — INSTANT gallery access.
-// The background sync refreshes it silently every 30 min.
+// Also try loading cached manifest immediately on boot (instant gallery)
 try {
+  var cachedTime = parseInt(localStorage.getItem(MANIFEST_CACHE_TIME_KEY) || "0");
   var cached = localStorage.getItem(MANIFEST_CACHE_KEY);
-  if (cached && cached.length > 100) {
+  if (cached && cachedTime > 0) {
     allPets = JSON.parse(cached);
-    manifestCacheTime = parseInt(localStorage.getItem(MANIFEST_CACHE_TIME_KEY) || "0");
+    manifestCacheTime = cachedTime;
   }
 } catch (e) {}
 
-// Start background sync 5s after boot (doesn't block gallery — it uses cache)
-setTimeout(startBackgroundSync, 5000);
+// Start background sync after a short delay (let loadActivePet go first)
+setTimeout(startBackgroundSync, 2000);
 
 // === ANIMATION STATES ===
 var ROWS = {
@@ -270,22 +285,45 @@ var CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 async function loadGallery() {
   var grid = document.getElementById("pet-grid");
 
-  // 1. Load from localStorage cache IMMEDIATELY — render instantly.
-  // allPets is already loaded from localStorage at boot (see startup code).
-  // If it has data, show it RIGHT NOW without any network call.
-  if (allPets.length > 0) {
-    await refreshInstalled();
-    galleryFiltered = filterByCategory(allPets);
-    galleryShown = 0;
-    renderGalleryPage();
-    // Sync fresh data in background (silently, no loading indicator)
-    syncManifestQuiet();
-    return;
+  // 1. Try to load from localStorage cache FIRST (instant)
+  try {
+    var cachedTime = parseInt(localStorage.getItem(MANIFEST_CACHE_TIME_KEY) || "0");
+    var cached = localStorage.getItem(MANIFEST_CACHE_KEY);
+    if (cached && cachedTime > 0) {
+      allPets = JSON.parse(cached);
+      manifestCacheTime = cachedTime;
+      var age = Date.now() - cachedTime;
+      if (age < CACHE_TTL_MS) {
+        // Cache is fresh — show immediately
+        await refreshInstalled();
+        galleryFiltered = filterByCategory(allPets);
+        galleryShown = 0;
+        renderGalleryPage();
+        // Still sync in background for any new pets
+        syncManifestInBackground();
+        return;
+      }
+      // Cache is stale — show it while fetching fresh
+      grid.innerHTML = '<div class="loading">Showing cached list. Syncing...</div>';
+      await refreshInstalled();
+      galleryFiltered = filterByCategory(allPets);
+      galleryShown = 0;
+      renderGalleryPage();
+    } else {
+      grid.innerHTML = '<div class="loading">Fetching pets...</div>';
+    }
+  } catch (e) {
+    grid.innerHTML = '<div class="loading">Fetching pets...</div>';
   }
 
-  // 2. No cache at all — must fetch (first-ever open)
-  grid.innerHTML = '<div class="loading">Fetching pets...</div>';
+  // 2. Fetch fresh manifest
   await syncManifest();
+
+  // 3. Render
+  await refreshInstalled();
+  galleryFiltered = filterByCategory(allPets);
+  galleryShown = 0;
+  renderGalleryPage();
 }
 
 async function syncManifest() {
@@ -322,9 +360,8 @@ async function syncManifest() {
   }
 }
 
-function syncManifestQuiet() {
-  // Silently fetch fresh data. No loading indicators, no blocking.
-  // Only re-render if the data actually changed.
+function syncManifestInBackground() {
+  // Silently fetch fresh data. Only re-render if pets count changed.
   fetch("https://petdex.dev/api/manifest")
     .then(function (r) { return r.json(); })
     .then(function (data) {
@@ -336,16 +373,13 @@ function syncManifestQuiet() {
           sprite: p.spritesheetUrl || "",
         };
       });
-      // Always update cache
-      allPets = fresh;
-      manifestCacheTime = Date.now();
-      try {
-        localStorage.setItem(MANIFEST_CACHE_KEY, JSON.stringify(allPets));
-        localStorage.setItem(MANIFEST_CACHE_TIME_KEY, String(manifestCacheTime));
-      } catch (e) {}
-      // Re-render gallery if it's currently open
-      if (document.getElementById("gallery") &&
-          document.getElementById("gallery").classList.contains("visible")) {
+      if (fresh.length !== allPets.length) {
+        allPets = fresh;
+        manifestCacheTime = Date.now();
+        try {
+          localStorage.setItem(MANIFEST_CACHE_KEY, JSON.stringify(allPets));
+          localStorage.setItem(MANIFEST_CACHE_TIME_KEY, String(manifestCacheTime));
+        } catch (e) {}
         galleryFiltered = filterByCategory(allPets);
         galleryShown = 0;
         renderGalleryPage();
@@ -382,57 +416,19 @@ async function refreshInstalled() {
   } catch (e) {}
 }
 
-// Lazy-load sprites: only load when a card is scrolled into view.
-// Uses IntersectionObserver to detect visibility. Sprites are fetched
-// in parallel batches of 6 (to avoid overwhelming the browser's
-// connection pool) and cached as blob URLs.
-function lazyLoadSprite(p, inner) {
-  if (spriteCache[p.slug]) {
-    inner.style.backgroundImage = "url('" + spriteCache[p.slug] + "')";
-    return;
-  }
-  // Mark as loading to prevent duplicate fetches
-  spriteCache[p.slug] = "__loading__";
-  fetch(p.sprite)
-    .then(function (r) { return r.blob(); })
-    .then(function (blob) {
-      spriteCache[p.slug] = URL.createObjectURL(blob);
-      inner.style.backgroundImage = "url('" + spriteCache[p.slug] + "')";
-    })
-    .catch(function () {
-      spriteCache[p.slug] = null; // allow retry
-    });
-}
-
-var spriteObserver = null;
-function setupSpriteLazyLoad() {
-  if (spriteObserver) spriteObserver.disconnect();
-  spriteObserver = new IntersectionObserver(
-    function (entries) {
-      for (var i = 0; i < entries.length; i++) {
-        if (entries[i].isIntersecting) {
-          var inner = entries[i].target;
-          var slug = inner.dataset.slug;
-          // Find the pet data
-          for (var j = 0; j < allPets.length; j++) {
-            if (allPets[j].slug === slug) {
-              lazyLoadSprite(allPets[j], inner);
-              break;
-            }
-          }
-          spriteObserver.unobserve(inner);
-        }
-      }
-    },
-    { root: document.getElementById("gallery-scroll"), rootMargin: "200px", threshold: 0 }
-  );
-  // Observe all unrendered inner elements
-  var inners = document.querySelectorAll(".pet-anim-inner[data-slug]");
-  for (var k = 0; k < inners.length; k++) {
-    if (!inners[k].style.backgroundImage) {
-      spriteObserver.observe(inners[k]);
-    }
-  }
+// Preload sprites in parallel via fetch() + blob URLs (4-5x faster than
+// sequential CSS background-image loading). Returns a map of slug→url.
+function preloadSprites(pets) {
+  var promises = pets.map(function (p) {
+    if (spriteCache[p.slug]) return Promise.resolve(); // already cached
+    return fetch(p.sprite)
+      .then(function (r) { return r.blob(); })
+      .then(function (blob) {
+        spriteCache[p.slug] = URL.createObjectURL(blob);
+      })
+      .catch(function () {}); // skip failed sprites
+  });
+  return Promise.all(promises);
 }
 
 function renderGalleryPage() {
@@ -441,6 +437,8 @@ function renderGalleryPage() {
   var end = Math.min(galleryShown + PAGE, galleryFiltered.length);
   var pagePets = galleryFiltered.slice(galleryShown, end);
 
+  // Show placeholder cards immediately, then preload sprites in parallel
+  var cards = [];
   for (var i = 0; i < pagePets.length; i++) {
     (function (p) {
       var card = document.createElement("div");
@@ -450,8 +448,8 @@ function renderGalleryPage() {
       var inner = document.createElement("div");
       inner.className = "pet-anim-inner";
       inner.dataset.slug = p.slug;
-      // Use cached sprite if available (from previous view)
-      if (spriteCache[p.slug] && spriteCache[p.slug] !== "__loading__") {
+      // Use cached sprite if available, otherwise show placeholder
+      if (spriteCache[p.slug]) {
         inner.style.backgroundImage = "url('" + spriteCache[p.slug] + "')";
       }
       anim.appendChild(inner);
@@ -475,14 +473,20 @@ function renderGalleryPage() {
       card.appendChild(sl);
       card.appendChild(btn);
       grid.appendChild(card);
+      cards.push({ slug: p.slug, inner: inner });
     })(pagePets[i]);
   }
   galleryShown = end;
 
-  // Lazy-load sprites: only fetch sprites for cards visible in the viewport.
-  // This makes the gallery render INSTANTLY (0 sprite downloads on page render).
-  // Sprites load as the user scrolls, via IntersectionObserver.
-  setupSpriteLazyLoad();
+  // Preload all sprites for this page in parallel (4-5x faster)
+  preloadSprites(pagePets).then(function () {
+    for (var ci = 0; ci < cards.length; ci++) {
+      var c = cards[ci];
+      if (spriteCache[c.slug]) {
+        c.inner.style.backgroundImage = "url('" + spriteCache[c.slug] + "')";
+      }
+    }
+  });
   var old = grid.querySelector(".sentinel");
   if (old) old.remove();
   if (galleryShown < galleryFiltered.length) {
