@@ -141,32 +141,44 @@ fn load_pet_from_dir(slug: &str, dir: &std::path::Path) -> Option<PetMeta> {
         sprite_path: sprite_path.to_string_lossy().to_string(),
     })
 }
-/// Download a pet sprite from a URL and install it to ~/.petdex/pets/<slug>/.
-/// Called from the gallery's install button. Downloads the sprite + pet.json.
+/// Download a pet sprite from a URL and install it. Writes to ALL pet roots
+/// (~/.petdex/pets and ~/.codex/pets) so both the desktop shell and the CLI
+/// shell find the pet regardless of which installer ran first. Idempotent:
+/// re-installing overwrites in place.
 #[tauri::command]
 async fn install_pet(slug: String, sprite_url: String, display_name: String) -> Result<(), String> {
-    let home = dirs::home_dir().ok_or("no home")?;
-    let pet_dir = home.join(".petdex").join("pets").join(&slug);
-    fs::create_dir_all(&pet_dir).map_err(|e| format!("mkdir: {e}"))?;
-
-    // Download sprite via async reqwest
+    // Download sprite once, then copy to every root.
     let resp = reqwest::get(&sprite_url).await.map_err(|e| format!("download: {e}"))?;
     if !resp.status().is_success() {
         return Err(format!("download failed: HTTP {}", resp.status()));
     }
     let body = resp.bytes().await.map_err(|e| format!("read body: {e}"))?;
-    fs::write(pet_dir.join("spritesheet.webp"), &body).map_err(|e| format!("write sprite: {e}"))?;
 
-    // Write pet.json
     let pet_json = serde_json::json!({
         "id": slug,
         "displayName": display_name,
         "description": "",
         "spritesheetPath": "spritesheet.webp"
     });
-    fs::write(pet_dir.join("pet.json"), serde_json::to_string_pretty(&pet_json).unwrap())
-        .map_err(|e| format!("write pet.json: {e}"))?;
+    let pet_json_str = serde_json::to_string_pretty(&pet_json).unwrap();
 
+    let mut written = 0;
+    for root in pet_roots() {
+        let pet_dir = root.join(&slug);
+        if fs::create_dir_all(&pet_dir).is_err() {
+            continue;
+        }
+        if fs::write(pet_dir.join("spritesheet.webp"), &body).is_err() {
+            continue;
+        }
+        if fs::write(pet_dir.join("pet.json"), &pet_json_str).is_err() {
+            continue;
+        }
+        written += 1;
+    }
+    if written == 0 {
+        return Err("could not write pet to any root".into());
+    }
     Ok(())
 }
 
@@ -537,6 +549,152 @@ fn base64_encode(input: &[u8]) -> String {
     out
 }
 
+// ── Disk sprite cache ─────────────────────────────────────────────────────────
+//
+// The petdex.dev CDN serves ~3 MB sprites at ~200 ms RTT from this network,
+// so a gallery page of 24 sprites takes 30-60+ seconds even with parallel
+// fetch. localStorage only caches the manifest; per-sprite caching belongs
+// on disk so it survives across app restarts AND can be read into base64
+// by Rust without going through the slow WebView fetch path.
+//
+// Cache layout:
+//   ~/.petdex/cache/sprites/<hash>.<ext>
+// where <hash> is a 16-hex FNV-1a of the source URL and <ext> is taken from
+// the URL path (.webp, .png, etc.) so the file extension matches content.
+// Files are capped at MAX_PET_BYTES; anything bigger is refused + deleted.
+
+/// 64-bit FNV-1a over the URL bytes, rendered as 16 lowercase hex chars.
+/// No extra crate — collisions on 64-bit across a few thousand URLs are
+/// not a concern, and a bad hash at worst causes a re-download.
+fn url_hash(url: &str) -> String {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for &b in url.as_bytes() {
+        h ^= b as u64;
+        h = h.wrapping_mul(0x100000001b3);
+    }
+    format!("{:016x}", h)
+}
+
+/// Extract the file extension from a URL path (e.g. ".webp" from
+/// ".../sprite.webp"). Falls back to ".bin" so the cache file always has
+/// an extension (avoids ambiguity on Windows).
+fn url_extension(url: &str) -> String {
+    let no_query = url.split('?').next().unwrap_or(url);
+    if let Some(idx) = no_query.rfind('.') {
+        let ext = &no_query[idx..];
+        // Only accept short ASCII extensions (avoid swallowing path segments)
+        if ext.len() <= 6 && ext.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'.') {
+            return ext.to_string();
+        }
+    }
+    ".bin".to_string()
+}
+
+/// Return the sprite for `url` as base64, downloading + caching on first miss.
+///
+/// Cache hits read straight from disk (~1 ms for a 3 MB webp). Misses go
+/// through reqwest (same path install_pet uses) and write the body to
+/// `~/.petdex/cache/sprites/<hash>.<ext>` before returning.
+///
+/// Security: the URL must be HTTPS (or a literal http://localhost for local
+/// dev). The cache key is a hash, not the URL, so remote input cannot
+/// influence the on-disk filename. File size is capped at MAX_PET_BYTES.
+#[tauri::command]
+async fn get_cached_sprite(url: String) -> Result<String, String> {
+    if !url.starts_with("https://")
+        && !url.starts_with("http://localhost")
+        && !url.starts_with("http://127.0.0.1")
+    {
+        return Err(format!("refusing non-https url: {}", &url[..url.len().min(40)]));
+    }
+
+    let home = dirs::home_dir().ok_or("no home")?;
+    let cache_dir = home.join(".petdex").join("cache").join("sprites");
+    fs::create_dir_all(&cache_dir).map_err(|e| format!("mkdir cache: {e}"))?;
+
+    let hash = url_hash(&url);
+    let ext = url_extension(&url);
+    let cached_path = cache_dir.join(format!("{}{}", hash, ext));
+
+    // Cache hit: validate size and return.
+    if let Ok(meta) = fs::metadata(&cached_path) {
+        let len = meta.len();
+        if len == 0 {
+            let _ = fs::remove_file(&cached_path);
+        } else if len <= MAX_PET_BYTES {
+            let buf = fs::read(&cached_path)
+                .map_err(|e| format!("cache read failed: {e}"))?;
+            return Ok(base64_encode(&buf));
+        } else {
+            // oversized — purge and re-download
+            let _ = fs::remove_file(&cached_path);
+        }
+    }
+
+    // Cache miss: download via reqwest (same path as install_pet).
+    let resp = reqwest::get(&url).await.map_err(|e| format!("download: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("download failed: HTTP {}", resp.status()));
+    }
+    let body = resp.bytes().await.map_err(|e| format!("read body: {e}"))?;
+    if body.len() as u64 > MAX_PET_BYTES {
+        return Err(format!(
+            "sprite too large ({} bytes, cap {})",
+            body.len(),
+            MAX_PET_BYTES
+        ));
+    }
+
+    // Write to disk first (best-effort — cache failure shouldn't block UI).
+    let _ = fs::write(&cached_path, &body);
+    Ok(base64_encode(&body))
+}
+
+/// One-shot background precache: download a list of sprite URLs to disk
+/// without returning any bytes to the caller. Used by the gallery on boot
+/// to warm the cache so the first page renders instantly. Returns the
+/// number of successful downloads.
+#[tauri::command]
+async fn precache_sprites(urls: Vec<String>) -> Result<u32, String> {
+    let home = dirs::home_dir().ok_or("no home")?;
+    let cache_dir = home.join(".petdex").join("cache").join("sprites");
+    fs::create_dir_all(&cache_dir).map_err(|e| format!("mkdir cache: {e}"))?;
+
+    let mut ok: u32 = 0;
+    for url in &urls {
+        if !url.starts_with("https://") {
+            continue;
+        }
+        let hash = url_hash(url);
+        let ext = url_extension(url);
+        let cached_path = cache_dir.join(format!("{}{}", hash, ext));
+        if let Ok(meta) = fs::metadata(&cached_path) {
+            if meta.len() > 0 && meta.len() <= MAX_PET_BYTES {
+                ok += 1;
+                continue;
+            }
+        }
+        let resp = match reqwest::get(url).await {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+        if !resp.status().is_success() {
+            continue;
+        }
+        let body = match resp.bytes().await {
+            Ok(b) => b,
+            Err(_) => continue,
+        };
+        if body.len() as u64 > MAX_PET_BYTES {
+            continue;
+        }
+        if fs::write(&cached_path, &body).is_ok() {
+            ok += 1;
+        }
+    }
+    Ok(ok)
+}
+
 // ── Tauri commands — runtime file reads ──────────────────────────────────────
 
 /// Read the sidecar state from ~/.petdex/runtime/state.json.
@@ -787,6 +945,8 @@ pub fn run() {
             read_cmd_file,
             write_cmd_result,
             read_file_as_base64,
+            get_cached_sprite,
+            precache_sprites,
             read_runtime_state,
             read_runtime_bubble,
             quit_app,

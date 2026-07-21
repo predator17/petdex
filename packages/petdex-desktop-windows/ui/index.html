@@ -325,6 +325,19 @@ function syncManifestQuiet() {
           localStorage.setItem(MANIFEST_CACHE_TIME_KEY, String(manifestCacheTime));
         } catch (e) {}
       }
+      // Warm the on-disk sprite cache for the first gallery page so the
+      // first open renders instantly. Runs entirely in Rust (no IPC per
+      // sprite) and only downloads sprites that aren't already cached.
+      try {
+        var invoke = window.__TAURI__.core.invoke;
+        var firstPage = (allPets.length > 0 ? allPets : fresh)
+          .slice(0, 24)
+          .filter(function (p) { return !!p.sprite; })
+          .map(function (p) { return p.sprite; });
+        if (firstPage.length > 0) {
+          invoke("precache_sprites", { urls: firstPage }).catch(function () {});
+        }
+      } catch (e) {}
     })
     .catch(function () {
       // Network error — keep using cached data
@@ -421,7 +434,7 @@ var galleryShown = 0;
 var galleryFiltered = [];
 var galleryObserver = null;
 var PAGE = 24;
-var spriteCache = {}; // slug -> blob URL, avoids re-fetching on re-render
+var spriteCache = {}; // slug -> data URL, avoids re-fetching on re-render
 var activeCategory = "all";
 var manifestCache = null;
 var manifestCacheTime = 0;
@@ -566,15 +579,19 @@ async function refreshInstalled() {
   } catch (e) {}
 }
 
-// Preload sprites in parallel via fetch() + blob URLs (4-5x faster than
-// sequential CSS background-image loading). Returns a map of slug→url.
+// Preload sprites in parallel via the Rust disk cache (get_cached_sprite).
+// On first view this downloads from the CDN (~25s per sprite from this
+// network); on every subsequent view the bytes come from disk (~1ms),
+// even across app restarts. Returns when all sprites are resolved.
 function preloadSprites(pets) {
+  var invoke = window.__TAURI__.core.invoke;
   var promises = pets.map(function (p) {
     if (spriteCache[p.slug]) return Promise.resolve(); // already cached
-    return fetch(p.sprite)
-      .then(function (r) { return r.blob(); })
-      .then(function (blob) {
-        spriteCache[p.slug] = URL.createObjectURL(blob);
+    if (!p.sprite) return Promise.resolve();
+    return invoke("get_cached_sprite", { url: p.sprite })
+      .then(function (b64) {
+        // data URL — same shape that read_file_as_base64 uses elsewhere
+        spriteCache[p.slug] = "data:image/webp;base64," + b64;
       })
       .catch(function () {}); // skip failed sprites
   });
