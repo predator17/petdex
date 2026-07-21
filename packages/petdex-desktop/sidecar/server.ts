@@ -1248,10 +1248,18 @@ const server = http.createServer(async (req, res) => {
       const rawDescription =
         typeof data.description === "string" ? data.description : "";
       const description = sanitizePromptText(rawDescription, 500);
-      const displayName =
-        typeof data.displayName === "string"
-          ? data.displayName.trim().slice(0, 60)
-          : "";
+      // displayName flows into pet.json AND the prompt-adjacent UI labels, so
+      // strip control/bidi marks (a name containing U+202E could hide junk in
+      // the gallery). trim+slice is preserved on top of sanitization.
+      const rawDisplayName =
+        typeof data.displayName === "string" ? data.displayName : "";
+      const displayName = sanitizePromptText(rawDisplayName, 64).slice(0, 60);
+      // SECURITY: style is interpolated verbatim into the image prompt
+      // (prompts.ts: "Art style: ${input.style}"). Without sanitization it
+      // bypasses every prompt-injection control that `description` goes
+      // through. Same sanitizer, tighter cap (a style is a short phrase).
+      const rawStyle = typeof data.style === "string" ? data.style : "";
+      const style = sanitizePromptText(rawStyle, 80);
       if (!description || !displayName) {
         return jsonResponse(res, 400, {
           ok: false,
@@ -1320,7 +1328,7 @@ const server = http.createServer(async (req, res) => {
           description,
           displayName,
           id: typeof data.id === "string" ? data.id : undefined,
-          style: typeof data.style === "string" ? data.style : undefined,
+          style: style || undefined,
           apiKey,
         });
         if (!result.ok) {

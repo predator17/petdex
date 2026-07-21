@@ -19,7 +19,7 @@
  * the rest (so a missing key doesn't block the hooks install, etc.) — the
  * summary at the end tells you exactly what to do next.
  */
-import { execSync, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
@@ -458,14 +458,26 @@ function stepKey(): void {
   try {
     writeFileSync(keyPath, key.trim());
     // Owner-only ACL (best-effort). gpt-image-2 is mandatory, ~$0.40/pet.
+    // SECURITY: use spawnSync with argv (shell:false) — never execSync with
+    // a string, which would let a crafted USERNAME (containing `"` or `&`)
+    // inject shell metacharacters. Validate the username against a strict
+    // shape before handing it to icacls.
     if (process.platform === "win32") {
       const user = process.env.USERNAME ?? process.env.USER ?? "";
-      if (user)
-        execSync(`icacls "${keyPath}" /inheritance:r /grant:r "${user}:F"`, {
-          stdio: "ignore",
-        });
+      if (user && /^[A-Za-z0-9_\-.\\]+$/.test(user)) {
+        spawnSync(
+          "icacls",
+          [keyPath, "/inheritance:r", "/grant:r", `${user}:F`],
+          { stdio: "ignore", shell: false },
+        );
+      } else {
+        fail(
+          "owner-only ACL",
+          `untrusted USERNAME "${user}" — key file left with default ACL`,
+        );
+      }
     } else {
-      execSync(`chmod 600 "${keyPath}"`);
+      spawnSync("chmod", ["600", keyPath], { stdio: "ignore", shell: false });
     }
     ok("OpenRouter key", "~/.petdex/runtime/openrouter-key (owner-only)");
   } catch (e) {

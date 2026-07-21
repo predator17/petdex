@@ -796,7 +796,9 @@ function loadSwitcher() {
                 card.remove();
               })
               .catch(function (err) {
-                if (label) label.textContent = "RM:ERR:" + String(err).slice(0, 20);
+                // (previously referenced an out-of-scope `label` var, which
+                // threw ReferenceError and swallowed the real error on every
+                // uninstall failure — leaving the button stuck at "...")
                 rmBtn.textContent = "Remove";
                 showBubble("Remove failed");
               });
@@ -988,7 +990,16 @@ function initTauri() {
           invoke("write_cmd_result", { result: JSON.stringify({ id: cmd.id, result: msg }) }).catch(() => {});
         }
 
-        if (cmd.action === "uninstall" && cmd.slug) {
+        // SECURITY: each branch validates its inputs BEFORE invoking the
+        // matching Rust command. The Rust side also validates, but we block
+        // here too so a malicious cmd.json can't even reach the path-join.
+        // The `eval` action was removed entirely — it ran arbitrary JS in the
+        // WebView (which holds the full Tauri IPC surface), giving anything
+        // that could drop a 30-byte file in ~/.petdex/runtime/ full RCE.
+        var SAFE_SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/;
+        var SAFE_PANELS = { settings: 1, gallery: 1, switcher: 1 };
+
+        if (cmd.action === "uninstall" && cmd.slug && SAFE_SLUG.test(cmd.slug)) {
           setResult("CMD:UNINST:" + cmd.slug);
           invoke("uninstall_pet", { slug: cmd.slug })
             .then(() => setResult("CMD:OK"))
@@ -997,20 +1008,17 @@ function initTauri() {
           invoke("list_installed_pets").then((pets) => {
             setResult("CMD:LIST:" + (pets || []).map((p) => p.slug).join(","));
           }).catch((e) => setResult("CMD:LISTERR"));
-        } else if (cmd.action === "switch" && cmd.slug) {
+        } else if (cmd.action === "switch" && cmd.slug && SAFE_SLUG.test(cmd.slug)) {
           invoke("set_active_pet", { slug: cmd.slug })
             .then(() => { setResult("CMD:SWITCH:OK"); loadActivePet(); })
             .catch((e) => setResult("CMD:SWITCH:ERR"));
-        } else if (cmd.action === "openPanel" && cmd.panel) {
+        } else if (cmd.action === "openPanel" && cmd.panel && SAFE_PANELS[cmd.panel]) {
           openPanel(cmd.panel);
           setResult("CMD:PANEL:" + cmd.panel);
-        } else if (cmd.action === "eval" && cmd.code) {
-          try {
-            var result = eval(cmd.code);
-            setResult("CMD:EVAL:" + String(result).slice(0, 30));
-          } catch (e) {
-            setResult("CMD:EVALERR:" + String(e).slice(0, 20));
-          }
+        } else {
+          // Unknown or malformed command — log and ignore. Never surface the
+          // raw cmd content in the label, it could be adversarial.
+          setResult("CMD:UNKNOWN");
         }
       })
       .catch(() => {});

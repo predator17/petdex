@@ -51,7 +51,8 @@ export interface GeneratePetResult {
   error?: string;
 }
 
-function slugify(name: string): string {
+/** Exported for unit tests that assert path-traversal slugs are neutralized. */
+export function slugify(name: string): string {
   return (
     name
       .toLowerCase()
@@ -78,7 +79,11 @@ export async function generatePet(
   params: GeneratePetParams,
   onProgress?: (p: GeneratePetProgress) => void,
 ): Promise<GeneratePetResult> {
-  const id = params.id ?? slugify(params.displayName);
+  // SECURITY: always run the id through slugify regardless of source. A
+  // caller-supplied id like "../../etc" would otherwise be path.join'd into
+  // ~/.petdex/pets/ and write the generated spritesheet + pet.json anywhere
+  // under the home directory. slugify strips everything outside [a-z0-9-].
+  const id = slugify(params.id ?? params.displayName);
   const maxRetries = params.maxRetriesPerRow ?? 1;
   const petDir = path.join(homedir(), ".petdex", "pets", id);
 

@@ -29,7 +29,7 @@
       }
     ],
     "security": {
-      "csp": "default-src * 'unsafe-inline' 'unsafe-eval' data: blob: tauri: asset:; img-src * data: blob: tauri: asset:; connect-src * tauri:; script-src * 'unsafe-inline' 'unsafe-eval' blob:; style-src * 'unsafe-inline' blob:"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: tauri: https://petdex.dev; connect-src 'self' tauri: https://petdex.dev http://127.0.0.1:7777; font-src 'self' data:; frame-src 'none'; object-src 'none'; base-uri 'self'"
     }
   },
   "plugins": {

@@ -97,6 +97,35 @@ fn canonical_normalize(p: &std::path::Path) -> PathBuf {
     }
 }
 
+/// Validate a pet slug before it is joined into any filesystem path.
+///
+/// Security: every Tauri command that takes a `slug` argument MUST run it
+/// through this helper before `root.join(slug)`. A slug like `".."` or
+/// `"../../Documents"` would otherwise escape the pet directory and let the
+/// caller write/delete arbitrary files (see `read_file_as_base64` for the
+/// canonicalize-and-prefix-check variant used on the read path).
+///
+/// Allowed shape: ASCII letter/digit start, then letters/digits/`-`/`_`,
+/// 1-64 chars total. This matches what the CLI's slugify produces and what
+/// `app.js` enforces before invoking, so no legitimate slug is rejected.
+fn validate_pet_slug(slug: &str) -> Result<(), String> {
+    if slug.is_empty() {
+        return Err("slug is empty".into());
+    }
+    if slug.len() > 64 {
+        return Err("slug too long".into());
+    }
+    let mut chars = slug.chars();
+    match chars.next() {
+        Some(c) if c.is_ascii_alphanumeric() => {}
+        _ => return Err("slug must start with a letter or digit".into()),
+    }
+    if !slug.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_') {
+        return Err("slug contains illegal characters".into());
+    }
+    Ok(())
+}
+
 /// Returns the path of the first valid sprite file found in `pet_dir`.
 /// Valid means: regular non-empty file, within MAX_PET_BYTES, one of the known extensions.
 /// pet.json is NOT required — the sprite file is the authoritative marker.
@@ -147,6 +176,11 @@ fn load_pet_from_dir(slug: &str, dir: &std::path::Path) -> Option<PetMeta> {
 /// re-installing overwrites in place.
 #[tauri::command]
 async fn install_pet(slug: String, sprite_url: String, display_name: String) -> Result<(), String> {
+    // Reject path-traversal slugs BEFORE any root.join. Without this, a slug
+    // like ".." or "../.." would write spritesheet.webp/pet.json outside the
+    // pet directory.
+    validate_pet_slug(&slug)?;
+
     // Download sprite once, then copy to every root.
     let resp = reqwest::get(&sprite_url).await.map_err(|e| format!("download: {e}"))?;
     if !resp.status().is_success() {
@@ -185,25 +219,72 @@ async fn install_pet(slug: String, sprite_url: String, display_name: String) -> 
 /// Remove a pet from any root that contains it (~/.petdex/pets and ~/.codex/pets).
 #[tauri::command]
 fn uninstall_pet(slug: String) -> Result<(), String> {
+    // Reject path-traversal slugs BEFORE any root.join. Without this, a slug
+    // like ".." would make remove_dir_all wipe the entire pet root, and a
+    // slug like "../../Documents" would delete a sibling directory.
+    validate_pet_slug(&slug)?;
+
     let mut removed = false;
+    let mut errors: Vec<String> = Vec::new();
     for root in pet_roots() {
         let pet_dir = root.join(&slug);
         if pet_dir.exists() {
-            fs::remove_dir_all(&pet_dir).map_err(|e| format!("remove: {e}"))?;
-            removed = true;
+            // Belt-and-suspenders: confirm the resolved path is strictly
+            // inside the pet root (not the root itself) before the recursive
+            // delete. validate_pet_slug already blocks "..", but a symlink or
+            // other filesystem trickery could still escape — this check makes
+            // the invariant explicit at the dangerous call site.
+            let canon_pet = canonical_normalize(&pet_dir);
+            let canon_root = canonical_normalize(&root);
+            if canon_pet == canon_root {
+                errors.push("refusing to remove pet root itself".into());
+                continue;
+            }
+            if !canon_pet.starts_with(&canon_root) {
+                errors.push("resolved path escapes pet root".into());
+                continue;
+            }
+            match fs::remove_dir_all(&pet_dir) {
+                Ok(_) => removed = true,
+                Err(e) => errors.push(format!("remove: {e}")),
+            }
         }
     }
     if !removed {
-        return Err(format!("pet '{}' not installed", slug));
+        // Surface the per-root errors so a partial failure isn't silent, but
+        // don't bail before the active.json clear below — leaving the active
+        // pointer dangling would be worse than a best-effort cleanup.
+        let detail = if errors.is_empty() {
+            format!("pet '{}' not installed", slug)
+        } else {
+            errors.join("; ")
+        };
+        // Fall through to clear active.json even on total failure: the slug
+        // might be recorded as active while no directory remains.
+        let _ = clear_active_if_matches(&slug);
+        return Err(detail);
     }
 
-    // If this was the active pet, clear active.json
+    clear_active_if_matches(&slug)?;
+    Ok(())
+}
+
+/// Clear ~/.petdex/active.json if it currently points at `slug`. Compares
+/// the parsed `slug` field for equality — NOT a substring test, which would
+/// falsely match (e.g. slug "a" clearing the active pet "cat").
+fn clear_active_if_matches(slug: &str) -> Result<(), String> {
     let home = dirs::home_dir().ok_or("no home")?;
     let active_path = home.join(".petdex").join("active.json");
-    if let Ok(active) = fs::read_to_string(&active_path) {
-        if active.contains(&slug) {
-            let _ = fs::write(&active_path, "{}");
-        }
+    let active = match fs::read_to_string(&active_path) {
+        Ok(s) => s,
+        Err(_) => return Ok(()), // no active.json → nothing to clear
+    };
+    let matches = serde_json::from_str::<serde_json::Value>(&active)
+        .ok()
+        .and_then(|v| v.get("slug").and_then(|s| s.as_str()).map(|s| s == slug))
+        .unwrap_or(false);
+    if matches {
+        let _ = fs::write(&active_path, "{}");
     }
     Ok(())
 }
@@ -257,6 +338,8 @@ fn read_active_slug() -> Option<String> {
 /// writing so the file can never point at a missing pet.
 #[tauri::command]
 fn set_active_pet(slug: String) -> Result<(), String> {
+    // Reject path-traversal slugs before any root.join inside get_pet.
+    validate_pet_slug(&slug)?;
     // Confirm the slug is a real installed pet before committing.
     if get_pet(slug.clone()).is_none() {
         return Err(format!("pet '{}' is not installed", slug));
@@ -294,8 +377,15 @@ fn restrict_file_owner(path: &std::path::Path) {
     #[cfg(windows)]
     {
         use std::process::Command;
+        // SECURITY: validate USERNAME before passing to icacls. A malicious
+        // or misconfigured env value containing `&`, `|`, or shell metachars
+        // must not reach the child — even though we use argv (not a shell),
+        // an attacker-controlled value like "Everyone" would grant the file
+        // to the wrong principal. Only hand icacls a known-good shape.
         let user = std::env::var("USERNAME").unwrap_or_default();
-        if user.is_empty() {
+        let user_valid = !user.is_empty()
+            && user.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-' || c == '.' || c == '\\');
+        if !user_valid {
             return;
         }
         let _ = Command::new("icacls")
@@ -750,6 +840,12 @@ fn write_cmd_result(result: String) -> Result<(), String> {
 /// Execute JavaScript in the WebView2 page. Used for testing UI interactions
 /// (button clicks, panel opens) without needing real mouse events, which
 /// can't be reliably sent to WebView2 from outside the process.
+///
+/// SECURITY: gated to debug builds only. In a release binary this command
+/// is compiled out and not registered with the invoke handler — it must
+/// never be reachable from a shipped app, since arbitrary JS in the WebView
+/// gets full Tauri IPC (install/uninstall/spawn_sidecar/...).
+#[cfg(debug_assertions)]
 #[tauri::command]
 fn eval_js(app: tauri::AppHandle, code: String) -> Result<(), String> {
     use tauri::Manager;
@@ -941,6 +1037,7 @@ pub fn run() {
             list_installed_pets,
             get_drag_result,
             reset_drag,
+            #[cfg(debug_assertions)]
             eval_js,
             read_cmd_file,
             write_cmd_result,

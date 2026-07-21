@@ -898,6 +898,15 @@ async function tryInstallStarterCandidate(
     return null;
   }
 
+  // SECURITY: validate the slug before path.join'ing it into the pets root.
+  // A manifest from a misconfigured/compromised endpoint (or a PETDEX_URL
+  // override) could supply pet.slug = "../../.ssh" and write the pet
+  // spritesheet + pet.json into an arbitrary directory. Same shape as the
+  // desktop app's validate_pet_slug and the generation slugify.
+  if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(pet.slug)) {
+    return null;
+  }
+
   const ext = pet.spritesheetUrl.endsWith(".png") ? "png" : "webp";
   const targets = [
     path.join(petsRoot(), pet.slug),

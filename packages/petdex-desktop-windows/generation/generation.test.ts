@@ -5,6 +5,7 @@ import sharp from "sharp";
 import { chromaKey, chromaKeyWithStats } from "./chroma-key";
 import { composeAtlas } from "./compose-atlas";
 import { extractStripFrames } from "./extract-strip-frames";
+import { slugify } from "./generate-pet";
 import { estimatePetCost, OPENROUTER_IMAGES_URL } from "./imagegen";
 import {
   ATLAS_HEIGHT,
@@ -345,5 +346,38 @@ describe("imagegen config + cost estimate", () => {
     expect(estimatePetCost(10, 0)).toBeCloseTo(0.4, 2);
     expect(estimatePetCost(10, 1)).toBeCloseTo(0.8, 2);
     expect(estimatePetCost(20, 0)).toBeCloseTo(0.8, 2);
+  });
+});
+
+// Regression: the `id` parameter flows into path.join(~/.petdex/pets, id) in
+// generatePet. It MUST be slugified regardless of source so a caller-supplied
+// id like "../../etc" can't escape the pets directory (path traversal).
+describe("slugify (path-traversal defense for generatePet id)", () => {
+  test("neutralizes traversal attempts in a caller-supplied id", () => {
+    // The dangerous shapes that would escape ~/.petdex/pets if joined raw:
+    expect(slugify("../../etc")).toBe("etc");
+    expect(slugify("..")).toBe("pet"); // all-stripped → safe fallback
+    expect(slugify("../..")).toBe("pet");
+    expect(slugify("a/../../b")).toBe("a-b");
+    expect(slugify("..\\..\\windows")).toBe("windows");
+    // The result must never contain a path separator or a leading dot.
+    for (const malicious of ["../../etc", "..", "../..", "..\\..\\windows"]) {
+      const out = slugify(malicious);
+      expect(out).not.toContain("/");
+      expect(out).not.toContain("\\");
+      expect(out.startsWith(".")).toBe(false);
+    }
+  });
+
+  test("preserves legitimate slugs", () => {
+    expect(slugify("Boba")).toBe("boba");
+    expect(slugify("Pixel Dragon")).toBe("pixel-dragon");
+    expect(slugify("cool_pet-42")).toBe("cool-pet-42");
+  });
+
+  test("falls back to 'pet' when the name has no ASCII alphanumerics", () => {
+    expect(slugify("")).toBe("pet");
+    expect(slugify("🐉🐉")).toBe("pet");
+    expect(slugify("---")).toBe("pet");
   });
 });

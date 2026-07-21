@@ -105,7 +105,10 @@ export async function generateImage(
   clearTimeout(timer);
 
   if (!res.ok) {
-    // Sanitize: the provider error body might echo the key in rare cases.
+    // Sanitize: the provider error body might echo the key in rare cases,
+    // and could contain attacker-controlled content (a malicious upstream
+    // or a captive-portal response) that would flow verbatim into the UI.
+    // Read it only to detect the safety-system rejection, then drop it.
     const text = await res.text().catch(() => "");
     // Detect the OpenAI safety-system rejection (HTTP 400) and surface a
     // clear, actionable message — the raw JSON dump is unhelpful and the
@@ -116,8 +119,15 @@ export async function generateImage(
           "Rephrase PETDEX_PET_DESC (avoid unusual/edgy terms) and retry.",
       );
     }
+    // Do NOT include the raw provider body in the error — it is logged
+    // locally by the sidecar and never reaches the client response.
+    if (text) {
+      console.error(
+        `[imagegen] provider HTTP ${res.status} body: ${text.slice(0, 500)}`,
+      );
+    }
     throw new Error(
-      `OpenRouter image request failed: HTTP ${res.status} ${res.statusText}${text ? ` — ${text.slice(0, 200)}` : ""}`,
+      `OpenRouter image request failed: HTTP ${res.status} ${res.statusText}`,
     );
   }
 
